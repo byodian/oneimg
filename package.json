@@ -9,18 +9,40 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@byodian/eslint-config-react": "^0.1.6",
+    "@radix-ui/react-slot": "^1.1.0",
+    "@radix-ui/react-switch": "^1.1.0",
+    "@radix-ui/react-toast": "^1.2.1",
+    "@tiptap/extension-bold": "^2.6.4",
+    "@tiptap/extension-bullet-list": "^2.6.4",
+    "@tiptap/extension-document": "^2.6.4",
+    "@tiptap/extension-image": "^2.6.4",
+    "@tiptap/extension-list-item": "^2.6.4",
+    "@tiptap/extension-ordered-list": "^2.6.4",
+    "@tiptap/extension-paragraph": "^2.6.4",
+    "@tiptap/extension-placeholder": "^2.6.4",
+    "@tiptap/extension-text": "^2.6.4",
+    "@tiptap/extension-underline": "^2.6.4",
+    "@tiptap/pm": "^2.6.4",
+    "@tiptap/react": "^2.6.4",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.1",
+    "lucide": "^0.428.0",
+    "lucide-react": "^0.428.0",
+    "next": "14.2.5",
     "react": "^18",
     "react-dom": "^18",
-    "next": "14.2.5"
+    "tailwind-merge": "^2.5.2",
+    "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
-    "typescript": "^5",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "eslint": "^8",
+    "eslint-config-next": "14.2.5",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
-    "eslint": "^8",
-    "eslint-config-next": "14.2.5"
+    "typescript": "^5"
   }
 }

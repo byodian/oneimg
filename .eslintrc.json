@@ -1,3 +1,20 @@
 {
-  "extends": "next/core-web-vitals"
+  "extends": [
+    "next/core-web-vitals",
+    "@byodian/eslint-config-react"
+  ],
+  "rules": {
+    "react-refresh/only-export-components": ["off"],
+    "react/prop-types": "off",
+    "curly": ["error", "all"],
+    "@typescript-eslint/brace-style": ["error", "1tbs", { "allowSingleLine": false }],
+    "@typescript-eslint/consistent-type-imports": ["error", {
+      "prefer": "type-imports",
+      "disallowTypeAnnotations": true
+    }],
+
+    "@typescript-eslint/no-import-type-side-effects": "error",
+    "no-console": "off",
+    "multiline-ternary": "off"
+  }
 }
