@@ -12,6 +12,7 @@ import Bold from '@tiptap/extension-bold'
 import Underline from '@tiptap/extension-underline'
 import Placeholder from '@tiptap/extension-placeholder'
 import { EditorContent, useEditor } from '@tiptap/react'
+import { cn } from '@/lib/utils'
 import { ThumbnailWithFileReader } from '@/components/thumbnail'
 import type { UploadFile, UploadFiles, UploadRawFile } from '@/types/upload'
 import { getUid } from '@/types/upload'
@@ -22,9 +23,11 @@ import { useToast } from '@/components/ui/use-toast'
 
 type EditorProps = {
   onSubmit: (content: any) => Promise<void>;
+  className?: string;
+  hideEditor: () => void;
 }
 
-export default function Editor({ onSubmit }: EditorProps) {
+export default function Editor({ onSubmit, className, hideEditor }: EditorProps) {
   const uploadRef = useRef<HTMLInputElement | null>(null)
   const [uploadFiles, setUploadFiles] = useState<UploadFiles>([])
   const { toast } = useToast()
@@ -148,7 +151,7 @@ export default function Editor({ onSubmit }: EditorProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="editor-container">
+    <form onSubmit={handleSubmit} className={cn('editor-container', className)}>
       <div className="border rounded-[6px] p-3 overflow-auto bg-white relative">
         <div className="mb-6 flex flex-col gap-1 editor-content">
           <EditorContent editor={titleEditor} />
@@ -179,7 +182,7 @@ export default function Editor({ onSubmit }: EditorProps) {
               <ImagePlus onClick={handleFileSelect} width={18} height={18} />
             </div>
             <div className="editor-footer-actions-right flex ml-auto gap-2">
-              <Button type="button" variant="outline">取消</Button>
+              <Button type="button" variant="outline" onClick={hideEditor}>取消</Button>
               <Button type="submit" disabled={titleEditor?.isEmpty}>保存</Button>
             </div>
           </div>
