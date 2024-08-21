@@ -1,5 +1,5 @@
 export type Content = {
-  id: string | number;
+  id?: number;
   title: string;
   content?: string;
   images?: ImageContent[];
@@ -8,21 +8,18 @@ export type Content = {
   children?: Content[];
 }
 
+export type EditorStatus = 'add' | 'edit' | 'close'
 export type ContentListProps = {
+  editorStatus: EditorStatus;
   contents: Content[];
-  handleContentEdit: handleContentEdit;
-  handleContentDelete: handleContentDelete;
+  onSubmit: (content: Content) => Promise<void>;
+  onContentDelete: (content: Content) => void;
+  onSubContentAdd: (parentId: number) => void;
+  onEditorStatusChange: (status: EditorStatus) => void;
 }
 
 export type ImageContent = {
   raw?: File;
   alt?: string;
+  uid: number;
 }
-
-export type handleContentEdit = (content: Content) => void;
-export type handleContentDelete = (content: Content) => void;
-export type handleContentAdd = (content: Content) => void;
-export type handleSubContentAdd = (content: Content) => void;
-export type handleContentPreview = (content: Content) => void;
-export type handleContentSave = (content: Content) => void;
-export type handleContentCancel = (content: Content) => void;

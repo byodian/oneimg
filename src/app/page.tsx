@@ -1,17 +1,12 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { PlusIcon } from 'lucide-react'
-import ContentList from '@/components/content-list'
-import Editor from '@/components/editor'
 import Preview from '@/components/preview'
-import { Button } from '@/components/ui/button'
 import type { Content } from '@/types/type'
-import { addContent, getContents } from '@/lib/indexed-db'
-import { cn } from '@/lib/utils'
+import { addContent, deleteContent, getContents, updateContent } from '@/lib/indexed-db'
 import { useToast } from '@/components/ui/use-toast'
+import { Workspace } from '@/components/workspace'
 export default function Home() {
   const [contents, setContents] = useState<Content[]>([])
-  const [showEditor, setShowEditor] = useState(false)
   const { toast } = useToast()
 
   useEffect(() => {
@@ -30,15 +25,21 @@ export default function Home() {
     fetchContents()
   }, [toast])
 
-  const handleAddContent = async (newContent: Content) => {
+  const handleContentSubmit = async (content: Content) => {
     try {
-      const id = await addContent(newContent)
-      setContents([...contents, { ...newContent, id }])
+      if ('id' in content) {
+        await updateContent(content)
+        setContents(contents.map(item => (item.id === content.id ? content : item)))
+      } else {
+        const id = await addContent(content)
+        setContents([...contents, { ...content, id }])
+      }
       toast({
         title: 'Content added',
         description: 'Content added successfully.',
       })
     } catch (error) {
+      console.log(error)
       toast({
         title: 'Failed to add content',
         description: 'Please try again.',
@@ -46,26 +47,38 @@ export default function Home() {
     }
   }
 
-  const handleContentEdit = (content: Content) => {
-    console.log(content)
+  const handleContentDelete = async (content: Content) => {
+    try {
+      setContents(contents.filter(item => item.id !== content.id))
+      await deleteContent(content.id!)
+      toast({
+        title: 'Content deleted',
+        description: 'Content deleted successfully',
+      })
+    } catch (error) {
+      toast({
+        title: 'Failed to delete content',
+        description: 'Please try again.',
+      })
+    }
   }
 
-  const handleContentDelete = (content: Content) => {
-    console.log(content)
+  const handleSubContentAdd = async (parentId: number) => {
+    console.log(parentId)
   }
 
   return (
     <div className="flex h-full">
-      <div className="w-[460px] p-8 bg-card text-card-foreground overflow-y-auto">
-        <ContentList contents={contents} handleContentEdit={handleContentEdit} handleContentDelete={handleContentDelete} />
-        <Editor onSubmit={handleAddContent} className={showEditor ? '' : 'hidden'} hideEditor={() => setShowEditor(false)} />
-        <Button className={cn('w-full', showEditor ? 'hidden' : '')} onClick={() => setShowEditor(true)}>
-          <PlusIcon className="w-4 h-4 mr-2" />
-          Add Content
-        </Button>
-      </div>
-      <div className="flex-grow-[2] overflow-y-auto min-w-[460px]">
+      <div className="w-[460px]  overflow-y-auto min-w-[460px]">
         <Preview contents={contents} className="w-[460px] p-4 border m-auto" />
+      </div>
+      <div className="flex-grow flex justify-center p-8 bg-card text-card-foreground overflow-y-auto">
+        <Workspace
+          contents={contents}
+          onContentSubmit={handleContentSubmit}
+          onContentDelete={handleContentDelete}
+          onSubContentAdd={handleSubContentAdd}
+        />
       </div>
     </div>
   )

@@ -18,25 +18,31 @@ import type { UploadFile, UploadFiles, UploadRawFile } from '@/types/upload'
 import { getUid } from '@/types/upload'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import type { ImageContent } from '@/types/type'
+import type { Content, ImageContent } from '@/types/type'
 import { useToast } from '@/components/ui/use-toast'
 
 type EditorProps = {
-  onSubmit: (content: any) => Promise<void>;
   className?: string;
+  initialContent?: Content;
+  onSubmit: (content: Content) => Promise<void>;
   hideEditor: () => void;
 }
 
-export default function Editor({ onSubmit, className, hideEditor }: EditorProps) {
+export default function Editor({ onSubmit, hideEditor, className, initialContent }: EditorProps) {
   const uploadRef = useRef<HTMLInputElement | null>(null)
-  const [uploadFiles, setUploadFiles] = useState<UploadFiles>([])
+  const initialUploadFiles = initialContent?.images?.map(item => ({
+    uid: item.uid,
+    name: item.alt,
+    raw: item.raw,
+  })) as UploadFiles
+  const [uploadFiles, setUploadFiles] = useState<UploadFiles>(initialUploadFiles ?? [])
   const { toast } = useToast()
   // 标题编辑器
   const titleEditor = useEditor({
     extensions: [Document, Paragraph, Text, Placeholder.configure({
       placeholder: '请输入标题',
     })],
-    content: '',
+    content: initialContent?.title ?? '',
     editorProps: {
       attributes: {
         class: 'focus:outline-none max-w-full font-bold text-base',
@@ -45,6 +51,7 @@ export default function Editor({ onSubmit, className, hideEditor }: EditorProps)
     onUpdate: ({ editor }) => {
       console.log(editor.getHTML())
     },
+    immediatelyRender: false,
   })
 
   // 正文编辑器
@@ -52,7 +59,7 @@ export default function Editor({ onSubmit, className, hideEditor }: EditorProps)
     extensions: [Document, Paragraph, Text, Bold, Underline, BulletList, OrderedList, ListItem, Placeholder.configure({
       placeholder: '请输入正文',
     })],
-    content: '',
+    content: initialContent?.content ?? '',
     editorProps: {
       attributes: {
         class: 'focus:outline-none max-w-full text-sm',
@@ -61,7 +68,7 @@ export default function Editor({ onSubmit, className, hideEditor }: EditorProps)
     onUpdate: ({ editor }) => {
       console.log(editor.getHTML())
     },
-
+    immediatelyRender: false,
   })
 
   function handleFiles(files: File[]) {
@@ -77,7 +84,6 @@ export default function Editor({ onSubmit, className, hideEditor }: EditorProps)
       const uploadFiles: UploadFiles = []
 
       for (const file of files) {
-        console.log(file.name, file.type)
         const rawFile = file as UploadRawFile
         const uid = getUid()
         rawFile.uid = uid
@@ -85,9 +91,6 @@ export default function Editor({ onSubmit, className, hideEditor }: EditorProps)
         const uploadFile: UploadFile = {
           name: file.name,
           uid,
-          status: 'ready',
-          percent: 0,
-          size: rawFile.size || 0,
           raw: rawFile,
         }
         uploadFiles.push(uploadFile)
@@ -100,7 +103,6 @@ export default function Editor({ onSubmit, className, hideEditor }: EditorProps)
   // 文件选择器改变事件
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files
-    console.log(files)
     if (!files) {
       return
     }
@@ -123,7 +125,6 @@ export default function Editor({ onSubmit, className, hideEditor }: EditorProps)
    * @param uploadFile
    */
   const handleRemove = (uploadFile: UploadFile) => {
-    console.log(uploadFile)
     const filteredUploadFiles = uploadFiles.filter(item => item.uid !== uploadFile.uid)
     setUploadFiles(filteredUploadFiles)
   }
@@ -134,11 +135,27 @@ export default function Editor({ onSubmit, className, hideEditor }: EditorProps)
     const images: ImageContent[] = uploadFiles.map(item => ({
       raw: item.raw,
       alt: item.name,
+      uid: item.uid,
     }))
 
-    const newContent = { title: titleEditor?.getHTML(), content: contentEditor?.getHTML(), images }
     try {
-      await onSubmit(newContent)
+      let content: Content
+      if (initialContent) {
+        content = {
+          ...initialContent,
+          title: titleEditor?.getHTML() as string,
+          content: contentEditor?.getHTML(),
+          images,
+        }
+      } else {
+        content = {
+          title: titleEditor?.getHTML() as string,
+          content: contentEditor?.getHTML(),
+          images,
+        }
+      }
+
+      await onSubmit(content)
       titleEditor?.commands.clearContent()
       contentEditor?.commands.clearContent()
       setUploadFiles([])

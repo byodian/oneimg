@@ -10,8 +10,8 @@ export type UploadStatus = 'ready' | 'success' | 'fail' | 'uploading'
 export interface UploadFile {
   uid: number,
   name: string,
-  size: number,
-  status: UploadStatus,
+  size?: number,
+  status?: UploadStatus,
   raw?: UploadRawFile,
   percent?: number,
 }
