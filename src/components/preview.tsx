@@ -2,7 +2,7 @@ import DOMPurify from 'dompurify'
 import parse from 'html-react-parser'
 import Image from 'next/image'
 import { useMemo } from 'react'
-import type { Content, ImageContent } from '@/types/type'
+import type { Content, UploadFiles } from '@/types/type'
 import { cn, getImageLayout } from '@/lib/utils'
 
 function ImageItem({ file, className }: { file: File, className?: string }) {
@@ -19,7 +19,7 @@ function ImageItem({ file, className }: { file: File, className?: string }) {
   )
 }
 
-function ImageList({ images } : { images: ImageContent[] }) {
+function ImageList({ images } : { images: UploadFiles }) {
   return (
     <div className={cn('one-images grid gap-2 mt-4', getImageLayout(images.length))}>
       {images.map((image, index) => (
@@ -49,8 +49,8 @@ export default function Preview({ contents, className }: { contents: Content[]; 
           <div className="one-container" key={content.id || index}>
             {content.title && <div className="one-title text-2xl font-bold">{parse(DOMPurify.sanitize(content.title))}</div>}
             {content.content && <div className="one-content mt-2">{parse(DOMPurify.sanitize(content.content))}</div>}
-            {content.images && content.images.length > 0 && (
-              <ImageList images={content.images} />
+            {content.uploadFiles && content.uploadFiles.length > 0 && (
+              <ImageList images={content.uploadFiles} />
             )}
           </div>
         ))

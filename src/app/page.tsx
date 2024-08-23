@@ -26,23 +26,19 @@ export default function Home() {
   }, [toast])
 
   const handleContentSubmit = async (content: Content) => {
-    try {
-      if ('id' in content) {
-        await updateContent(content)
-        setContents(contents.map(item => (item.id === content.id ? content : item)))
-      } else {
-        const id = await addContent(content)
-        setContents([...contents, { ...content, id }])
-      }
+    if ('id' in content) {
+      await updateContent(content)
+      setContents(contents.map(item => (item.id === content.id ? content : item)))
+      toast({
+        title: 'Content updated',
+        description: 'Content updated successfully.',
+      })
+    } else {
+      const id = await addContent(content)
+      setContents([...contents, { ...content, id }])
       toast({
         title: 'Content added',
         description: 'Content added successfully.',
-      })
-    } catch (error) {
-      console.log(error)
-      toast({
-        title: 'Failed to add content',
-        description: 'Please try again.',
       })
     }
   }
@@ -70,7 +66,7 @@ export default function Home() {
   return (
     <div className="flex h-full">
       <div className="w-[460px]  overflow-y-auto min-w-[460px]">
-        <Preview contents={contents} className="w-[460px] p-4 border m-auto" />
+        <Preview contents={contents} className="w-[460px] p-4 m-auto" />
       </div>
       <div className="flex-grow flex justify-center p-8 bg-card text-card-foreground overflow-y-auto">
         <Workspace

@@ -23,3 +23,8 @@ export function getImageLayout(count: number) {
   }
   return 'grid-cols-3 grid-rows-3'
 }
+
+let uid = 1
+export function getUid() {
+  return Date.now() + uid++
+}

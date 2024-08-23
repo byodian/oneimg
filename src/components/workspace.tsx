@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { PlusIcon } from 'lucide-react'
+import EditorForm from '@/components/editor/editor-form'
 import ContentList from '@/components/content-list'
-import Editor from '@/components/editor'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { Content, EditorStatus } from '@/types/type'
@@ -13,16 +13,9 @@ interface WorkspaceProps {
   onSubContentAdd: (parentId: number) => Promise<void>;
 }
 
-export function Workspace(props : WorkspaceProps) {
+export function Workspace(props: WorkspaceProps) {
   const { contents, onContentSubmit, onContentDelete, onSubContentAdd } = props
   const [editorStatus, setEditorStatus] = useState<EditorStatus>('close')
-  const hideEditor = () => setEditorStatus('close')
-  const handleContentSubmit = async (content: Content) => {
-    await onContentSubmit(content)
-    if (content?.id) {
-      hideEditor()
-    }
-  }
 
   return (
     <div className="w-[800px] flex flex-col">
@@ -32,12 +25,12 @@ export function Workspace(props : WorkspaceProps) {
         onEditorStatusChange={(status: EditorStatus) => setEditorStatus(status)}
         onContentDelete={onContentDelete}
         onSubContentAdd={onSubContentAdd}
-        onSubmit={handleContentSubmit}
+        onSubmit={onContentSubmit}
       />
-      <Editor
-        onSubmit={handleContentSubmit}
+      <EditorForm
+        onSubmit={onContentSubmit}
         className={editorStatus === 'add' ? '' : 'hidden'}
-        hideEditor={hideEditor}
+        hideEditor={() => setEditorStatus('close')}
       />
       <Button className={cn('w-full', editorStatus === 'add' ? 'hidden' : '')} onClick={() => setEditorStatus('add')}>
         <PlusIcon className="w-4 h-4 mr-2" />

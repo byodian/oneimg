@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { FileIcon } from 'lucide-react'
 import Image from 'next/image'
-import type { UploadRawFile } from '@/types/upload.ts'
+import type { UploadRawFile } from '@/types/type'
 
 type ImageProps = {
   file?: UploadRawFile;
