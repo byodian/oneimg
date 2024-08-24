@@ -3,7 +3,7 @@ import { useRef } from 'react'
 import { ImagePlus } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import type { UploadFile, UploadFiles, UploadRawFile } from '@/types/type'
+import type { UploadFile, UploadFiles } from '@/types/type'
 import { getUid } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/use-toast'
@@ -12,14 +12,10 @@ function handleFiles(files: File[]) {
   const uploadFiles: UploadFiles = []
 
   for (const file of files) {
-    const rawFile = file as UploadRawFile
-    const uid = getUid()
-    rawFile.uid = uid
-
     const uploadFile: UploadFile = {
       name: file.name,
-      uid,
-      raw: rawFile,
+      uid: getUid(),
+      raw: new Blob([file]),
     }
     uploadFiles.push(uploadFile)
   }

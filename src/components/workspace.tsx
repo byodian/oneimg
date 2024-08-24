@@ -10,21 +10,20 @@ interface WorkspaceProps {
   contents: Content[];
   onContentSubmit: (content: Content) => Promise<void>;
   onContentDelete: (content: Content) => Promise<void>;
-  onSubContentAdd: (parentId: number) => Promise<void>;
 }
 
 export function Workspace(props: WorkspaceProps) {
-  const { contents, onContentSubmit, onContentDelete, onSubContentAdd } = props
+  const { contents, onContentSubmit, onContentDelete } = props
   const [editorStatus, setEditorStatus] = useState<EditorStatus>('close')
 
   return (
     <div className="w-[800px] flex flex-col">
       <ContentList
+        editorEditStatus="edit"
         editorStatus={editorStatus}
         contents={contents}
         onEditorStatusChange={(status: EditorStatus) => setEditorStatus(status)}
         onContentDelete={onContentDelete}
-        onSubContentAdd={onSubContentAdd}
         onSubmit={onContentSubmit}
       />
       <EditorForm
@@ -34,7 +33,7 @@ export function Workspace(props: WorkspaceProps) {
       />
       <Button className={cn('w-full', editorStatus === 'add' ? 'hidden' : '')} onClick={() => setEditorStatus('add')}>
         <PlusIcon className="w-4 h-4 mr-2" />
-        Add Content
+        添加标题
       </Button>
     </div>
   )

@@ -10,6 +10,8 @@ import { toast } from '@/components/ui/use-toast'
 type EditorProps = {
   className?: string;
   initialContent?: Content;
+  editorAddStatus?: 'add_sub' | 'add';
+  titlePlaceholder?: string;
   onSubmit: (content: Content) => Promise<void>;
   hideEditor: () => void;
 }
@@ -35,7 +37,8 @@ const contentReducer = (state: Content, action: ContentAction): Content => {
   }
 }
 
-export default function EditorForm({ onSubmit, hideEditor, className, initialContent }: EditorProps) {
+export default function EditorForm(props: EditorProps) {
+  const { onSubmit, hideEditor, className, initialContent, titlePlaceholder } = props
   const initialState = {
     title: '',
     content: '',
@@ -91,6 +94,7 @@ export default function EditorForm({ onSubmit, hideEditor, className, initialCon
     <form onSubmit={handleSubmit} className={cn('editor-container', className)}>
       <div className="border rounded-[6px] p-3 overflow-auto bg-white relative">
         <EditorContainer
+          titlePlaceholder={titlePlaceholder}
           initialContent={content}
           onContentUpdate={handleContentUpdate}
           ref={editorRef}

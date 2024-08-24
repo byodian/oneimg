@@ -198,3 +198,32 @@
     pointer-events: none;
   } */
 }
+
+:root {
+  --scrollbar-thumb-idle: #c1c1c1;
+  --scrollbar-thumb-hover: #848484;
+  --scrollbar-thumb-track: #fafafa
+}
+
+html[data-platform=windows] * {
+  scrollbar-color: var(--scrollbar-thumb-idle) var(--scrollbar-thumb-track);
+  scrollbar-width: thin
+}
+
+html[data-platform=windows] ::-webkit-scrollbar {
+  width: 11px
+}
+
+html[data-platform=windows] ::-webkit-scrollbar-track {
+  background: var(--scrollbar-thumb-track)
+}
+
+html[data-platform=windows] ::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb-idle);
+  border: 2px solid var(--scrollbar-thumb-track);
+  border-radius: var(--reactist-border-radius-large)
+}
+
+html[data-platform=windows] ::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover)
+}

@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@byodian/eslint-config-react": "^0.1.6",
+    "@radix-ui/react-menubar": "^1.1.1",
     "@radix-ui/react-slot": "^1.1.0",
     "@radix-ui/react-switch": "^1.1.0",
     "@radix-ui/react-toast": "^1.2.1",

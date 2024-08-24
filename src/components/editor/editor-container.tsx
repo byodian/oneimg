@@ -16,14 +16,15 @@ import { cn } from '@/lib/utils'
 type EditorProps = {
   initialContent?: Content;
   onContentUpdate: (content: Content, actionType: ActionType) => void;
+  titlePlaceholder?: string;
 }
 
 const EditorContainer = forwardRef<EditorMethods, EditorProps>(
-  ({ initialContent, onContentUpdate }: EditorProps, ref) => {
+  ({ initialContent, onContentUpdate, titlePlaceholder }: EditorProps, ref) => {
     // 标题编辑器
     const titleEditor = useEditor({
       extensions: [Document, Paragraph, Text, Placeholder.configure({
-        placeholder: '请输入标题',
+        placeholder: titlePlaceholder || '请输入标题',
       })],
       content: initialContent?.title || '',
       editorProps: {

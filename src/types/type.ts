@@ -1,20 +1,20 @@
-export type Content = {
+export interface Content {
   id?: number;
   title: string;
   content?: string;
   uploadFiles?: UploadFiles;
   createdAt?: string;
   updatedAt?: string;
-  children?: Content[];
+  parentId?: number;
 }
 
-export type EditorStatus = 'add' | 'edit' | 'close'
-export type ContentListProps = {
+export type EditorStatus = 'add' | 'edit' | 'close' | 'add_sub' | 'edit_sub'
+export interface ContentListProps {
   editorStatus: EditorStatus;
   contents: Content[];
+  editorEditStatus?: 'edit' | 'edit_sub';
   onSubmit: (content: Content) => Promise<void>;
   onContentDelete: (content: Content) => void;
-  onSubContentAdd: (parentId: number) => void;
   onEditorStatusChange: (status: EditorStatus) => void;
 }
 
@@ -22,13 +22,25 @@ export type UploadFiles = UploadFile[]
 
 export type UploadStatus = 'ready' | 'success' | 'fail' | 'uploading'
 
+// export interface UploadFile {
+//   uid: number,
+//   name: string,
+//   size?: number,
+//   status?: UploadStatus,
+//   raw?: UploadRawFile,
+//   percent?: number,
+// }
+
 export interface UploadFile {
   uid: number,
   name: string,
-  size?: number,
-  status?: UploadStatus,
-  raw?: UploadRawFile,
-  percent?: number,
+  raw: Blob,
+}
+
+export interface ImageFile {
+  uid: number,
+  name: string,
+  src: string,
 }
 
 export interface UploadRawFile extends File {
@@ -53,7 +65,7 @@ export interface UploadProgressEvent extends ProgressEvent {
   percent: number
 }
 
-export type EditorMethods = {
+export interface EditorMethods {
   reset: () => void;
   isEmpty: () => boolean;
 }
