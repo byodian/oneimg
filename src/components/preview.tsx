@@ -2,16 +2,16 @@ import DOMPurify from 'dompurify'
 import parse from 'html-react-parser'
 import Image from 'next/image'
 import { useMemo } from 'react'
-import type { Content, UploadFiles } from '@/types/type'
+import type { Content, UploadFile, UploadFiles } from '@/types/type'
 import { cn, getImageLayout } from '@/lib/utils'
 
-function ImageItem({ file, className }: { file: File, className?: string }) {
-  const src = useMemo(() => URL.createObjectURL(file), [file])
+function ImageItem({ uploadFile, className }: { uploadFile: UploadFile, className?: string }) {
+  const src = useMemo(() => URL.createObjectURL(uploadFile.raw), [uploadFile])
 
   return (
     <Image
       src={src}
-      alt={file.name}
+      alt={uploadFile.name}
       width={100}
       height={100}
       className={className}
@@ -25,7 +25,7 @@ function ImageList({ images } : { images: UploadFiles }) {
       {images.map((image, index) => (
         <div key={index} className={cn(images.length > 1 && 'w-full pb-[75%] relative')}>
           <ImageItem
-            file={image.raw as File}
+            uploadFile={image}
             className={cn(
               'object-cover',
               images.length > 1

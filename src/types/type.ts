@@ -2,7 +2,7 @@ export interface Content {
   id?: number;
   title: string;
   content?: string;
-  uploadFiles?: UploadFiles;
+  uploadFiles?: UploadFile[];
   createdAt?: string;
   updatedAt?: string;
   parentId?: number;
@@ -65,9 +65,26 @@ export interface UploadProgressEvent extends ProgressEvent {
   percent: number
 }
 
+// 编辑器向父组件暴露的方法
 export interface EditorMethods {
   reset: () => void;
   isEmpty: () => boolean;
 }
 
+// 编辑器内容更新触发类型
 export type ActionType = 'SET_TITLE' | 'SET_CONTENT'
+
+export interface ExportContent {
+  id: number;
+  title: string;
+  content?: string;
+  parentId?: number;
+  uploadFiles?: ImageFile[];
+}
+
+export type ExportJSON = {
+  type: 'oneimg';
+  version: number;
+  source: string;
+  data: ExportContent[]
+}

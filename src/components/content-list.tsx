@@ -61,7 +61,7 @@ export default function ContentList(props: ContentListProps) {
       {parentContents.map(content => (
         <li
           key={content.id}
-          className={cn(!content.parentId ? 'text-lg text-primary' : 'text-base ml-2 text-secondary-foreground', 'relative cursor-pointer')}
+          className={cn(!content.parentId ? 'text-lg text-primary' : 'text-base ml-4 text-secondary-foreground', 'relative cursor-pointer')}
         >
           {editorStatus === editorEditStatus && editingContentId === content.id ? (
             <div className="my-2">
@@ -72,16 +72,16 @@ export default function ContentList(props: ContentListProps) {
               />
             </div>
           ) : (
-            <div className={cn(!content.parentId ? 'group font-bold' : 'group/child ', 'border-b border-b-border py-2')}>
-              {parse(DOMPurify.sanitize(content.title))}
+            <div className={cn(!content.parentId ? 'group font-bold' : 'group/child ', 'border-b border-b-border py-4')}>
+              <div className="mr-28 sm:mr-0">{parse(DOMPurify.sanitize(content.title))}</div>
               <div className={cn(!content.parentId ? 'group-hover:flex' : 'group-hover/child:flex', 'hidden absolute right-4 top-0 gap-4')}>
-                {!content.parentId && <div className="h-[44px] flex items-center" onClick={() => handleSubContentAdd(content)}>
+                {!content.parentId && <div className="h-[60px] flex items-center" onClick={() => handleSubContentAdd(content)}>
                   <Plus className="cursor-pointer text-black" width={18} height={18} />
                 </div>}
-                <div className="h-[44px] flex items-center" onClick={() => handleContentEdit(content)}>
+                <div className="h-[60px] flex items-center" onClick={() => handleContentEdit(content)}>
                   <Pencil className="cursor-pointer text-black" width={18} height={18} />
                 </div>
-                <div className="h-[44px] flex items-center" onClick={() => onContentDelete(content)}>
+                <div className="h-60px] flex items-center" onClick={() => onContentDelete(content)}>
                   <Trash2 className="cursor-pointer text-black" width={18} height={18} />
                 </div>
               </div>
@@ -100,7 +100,7 @@ export default function ContentList(props: ContentListProps) {
           )}
 
           {editorStatus === 'add_sub' && editingContentId === content.id && !content.parentId && (
-            <div className="my-2 ml-2">
+            <div className="my-2 ml-4">
               <EditorForm
                 titlePlaceholder="请输入子标题"
                 onSubmit={handleSubContentSubmit}

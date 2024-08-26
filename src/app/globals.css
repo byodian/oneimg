@@ -20,6 +20,8 @@
     --accent-foreground: hsl(222.2 47.4% 11.2%);
     --destructive: hsl(0 84.2% 60.2%);
     --destructive-foreground: hsl(210 40% 98%);
+    --warning: hsl(32 94% 58%);
+    --warning-foreground: hsl(210 40% 98%);
     --border: hsl(214.3 31.8% 91.4%);
     --input: hsl(214.3 31.8% 91.4%);
     --ring: hsl(222.2 84% 4.9%);

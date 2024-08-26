@@ -15,7 +15,7 @@ function handleFiles(files: File[]) {
     const uploadFile: UploadFile = {
       name: file.name,
       uid: getUid(),
-      raw: new Blob([file]),
+      raw: new Blob([file], { type: file.type }),
     }
     uploadFiles.push(uploadFile)
   }
