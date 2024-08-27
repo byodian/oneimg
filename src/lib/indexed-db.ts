@@ -34,6 +34,46 @@ export async function getContents(): Promise<Content[]> {
   }
 }
 
+// remove all contents
+export async function removeAllContents(): Promise<void> {
+  try {
+    const db = await openDB()
+    return new Promise((resolve, reject) => {
+      const transaction: IDBTransaction = db.transaction(STORE_NAME, 'readwrite')
+      const store: IDBObjectStore = transaction.objectStore(STORE_NAME)
+      const request: IDBRequest = store.clear()
+
+      request.onerror = () => reject(new Error('Failed to remove all contents'))
+      request.onsuccess = () => resolve()
+    })
+  } catch (error) {
+    console.error('Error in removeAllContents:', error)
+    throw error
+  }
+}
+
+// add all contents
+export async function addAllContents(contents: Content[]): Promise<void> {
+  try {
+    const db = await openDB()
+    return new Promise((resolve, reject) => {
+      const transaction: IDBTransaction = db.transaction(STORE_NAME, 'readwrite')
+      const store: IDBObjectStore = transaction.objectStore(STORE_NAME)
+
+      contents.forEach((content) => {
+        // Remove the id property to allow auto-increment
+        store.add(content)
+      })
+
+      transaction.oncomplete = () => resolve()
+      transaction.onerror = () => reject(new Error('Failed to add all contents'))
+    })
+  } catch (error) {
+    console.error('Error in addAllContents:', error)
+    throw error
+  }
+}
+
 export async function addContent(content: Content): Promise<number> {
   try {
     const db = await openDB()

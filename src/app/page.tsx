@@ -63,7 +63,7 @@ export default function Home() {
 
   return (
     <div className="flex flex-col h-full">
-      <Header contents={contents} />
+      <Header contents={contents} setContents={setContents} />
       <main className="flex h-[calc(100%-58px)]">
         <div className="hidden w-full sm:block sm:w-[460px] overflow-y-auto sm:min-w-[460px] h-full">
           <Preview contents={contents} className="w-[460px] h-full flex flex-col p-4 m-auto" />

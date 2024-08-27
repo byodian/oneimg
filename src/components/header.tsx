@@ -16,9 +16,11 @@ import { Input } from '@/components/ui/input'
 import { Logo } from '@/components/logo'
 import type { Content, ExportContent, ExportJSON, ImageFile, UploadFile } from '@/types/type'
 import { base64ToBlob, blobToBase64, getMimeType } from '@/lib/utils'
+import { addAllContents, removeAllContents } from '@/lib/indexed-db'
 
 interface HeaderProps {
   contents: Content[]
+  setContents: (contents: Content[]) => void
 }
 
 type DialogType = 'save_file' | 'save_image' | 'open_file' | 'reset_data'
@@ -26,7 +28,7 @@ type DialogType = 'save_file' | 'save_image' | 'open_file' | 'reset_data'
 export function Header(props: HeaderProps) {
   const [isOpenFile, setIsOpenFile] = useState(false)
   const [dialogType, setDialogType] = useState<DialogType>('save_file')
-  const { contents } = props
+  const { contents, setContents } = props
   const { toast } = useToast()
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -35,48 +37,59 @@ export function Header(props: HeaderProps) {
     setDialogType(type)
   }
 
+  // open different dialog by type
   function handleOpenfileBtnClick() {
     if (fileRef.current) {
       fileRef.current.click()
+      setIsOpenFile(false)
     }
   }
 
-  async function handleFileImport(event: React.ChangeEvent<HTMLInputElement>) {
+  function handleFileImport(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
     if (file) {
       // Check if it's a JSON file
       const reader = new FileReader()
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         const json = e.target?.result as string
         try {
           const importData = JSON.parse(json) as ExportJSON
-          if (typeof importData === 'object' && importData !== null) {
-            if ('data' in importData) {
-              const exportContents = importData.data
-              const contents: Content[] = exportContents.map((item) => {
-                return {
-                  ...item,
-                  uploadFiles: item.uploadFiles?.map((file) => {
-                    return {
-                      uid: file.uid,
-                      name: file.name,
-                      raw: base64ToBlob(file.src, getMimeType(file.src) ? getMimeType(file.src)! : ''),
-                    } as UploadFile
-                  }),
-                }
-              })
-              if ('type' in importData && importData.type === 'oneimg') {
-                // remove previous all data
-
-                // cache import data
-                console.log(contents)
-              }
-            }
-          } else {
+          if (typeof importData !== 'object' || importData === null) {
             toast({
               title: 'Empty JSON file',
               description: 'Please upload a valid oneimg file.',
             })
+            return
+          }
+
+          if (!(importData.type && importData.type === 'oneimg')) {
+            toast({
+              title: 'Invalid file format',
+              description: 'Please upload a valid oneimg file.',
+            })
+            return
+          }
+
+          if (importData.data && typeof importData.data === 'object') {
+            const exportContents = importData.data
+            const contents: Content[] = exportContents.map((item) => {
+              return {
+                ...item,
+                uploadFiles: item.uploadFiles?.map((file) => {
+                  return {
+                    uid: file.uid,
+                    name: file.name,
+                    raw: base64ToBlob(file.src, getMimeType(file.src) ? getMimeType(file.src)! : ''),
+                  } as UploadFile
+                }),
+              }
+            })
+
+            // remove previous all data
+            await removeAllContents()
+            // cache import data
+            await addAllContents(contents)
+            setContents(contents)
           }
         } catch (error) {
           toast({
@@ -144,6 +157,12 @@ export function Header(props: HeaderProps) {
     }
   }
 
+  async function handleDataClear() {
+    await removeAllContents()
+    setContents([])
+    setIsOpenFile(false)
+  }
+
   return (
     <header className="h-[58px] flex items-center px-4 border-b border-b-gray-200">
       <Link href="/">
@@ -153,6 +172,7 @@ export function Header(props: HeaderProps) {
         <Button variant="outline" size="sm" onClick={() => handleDialogOpen('open_file')}>
           <Folder className="w-4 h-4 mr-2" />
           <span>打开文件</span>
+          <Input onChange={handleFileImport} type="file" className="hidden" ref={fileRef} />
         </Button>
         <Button variant="outline" size="sm" onClick={() => handleDialogOpen('save_file')}>
           <Download className="w-4 h-4 mr-2" />
@@ -187,7 +207,6 @@ export function Header(props: HeaderProps) {
               <Button variant="default" className="ml-auto bg-yellow-400 text-black hover:bg-yellow-500" onClick={handleOpenfileBtnClick}>
                 从文件加载
               </Button>
-              <Input onChange={handleFileImport} type="file" className="hidden" ref={fileRef} />
             </div>
             <div className="flex flex-col sm:flex-row justify-between gap-4">
               <div className="text-center flex flex-col gap-4 px-6 py-4">
@@ -291,7 +310,7 @@ export function Header(props: HeaderProps) {
           <DialogFooter>
             <div className="flex gap-4">
               <Button variant="outline" size="lg" onClick={() => setIsOpenFile(false)}>取消</Button>
-              <Button variant="destructive" size="lg">确定</Button>
+              <Button variant="destructive" size="lg" onClick={handleDataClear}>确定</Button>
             </div>
           </DialogFooter>
         </DialogContent>}
