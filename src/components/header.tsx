@@ -309,8 +309,8 @@ export function Header(props: HeaderProps) {
           </div>
           <DialogFooter>
             <div className="flex gap-4">
-              <Button variant="outline" size="lg" onClick={() => setIsOpenFile(false)}>取消</Button>
-              <Button variant="destructive" size="lg" onClick={handleDataClear}>确定</Button>
+              <Button variant="outline" onClick={() => setIsOpenFile(false)}>取消</Button>
+              <Button variant="destructive" onClick={handleDataClear}>确定</Button>
             </div>
           </DialogFooter>
         </DialogContent>}

@@ -60,6 +60,7 @@ const EditorContainer = forwardRef<EditorMethods, EditorProps>(
       },
     }))
 
+    // 当编辑器内容变化，触发编辑器 update 事件
     useEffect(() => {
       if (titleEditor && contentEditor) {
         titleEditor.on('update', () => {
@@ -88,60 +89,4 @@ const EditorContainer = forwardRef<EditorMethods, EditorProps>(
 )
 
 EditorContainer.displayName = 'EditorContainer'
-
-export default function EditorContainer2({ initialContent, onContentUpdate }: EditorProps) {
-  // 标题编辑器
-  const titleEditor = useEditor({
-    extensions: [Document, Paragraph, Text, Placeholder.configure({
-      placeholder: '请输入标题',
-    })],
-    content: initialContent?.title || '',
-    editorProps: {
-      attributes: {
-        class: 'focus:outline-none max-w-full font-bold text-base',
-      },
-    },
-    immediatelyRender: false,
-  })
-
-  // 正文编辑器
-  const contentEditor = useEditor({
-    extensions: [Document, Paragraph, Text, Bold, Underline, BulletList, OrderedList, ListItem, Placeholder.configure({
-      placeholder: '请输入正文',
-    })],
-    content: initialContent?.content || '',
-    editorProps: {
-      attributes: {
-        class: 'focus:outline-none max-w-full text-sm',
-      },
-    },
-    immediatelyRender: false,
-  })
-
-  useEffect(() => {
-    if (titleEditor && contentEditor) {
-      titleEditor.on('update', () => {
-        onContentUpdate({
-          title: titleEditor.getHTML(),
-          content: contentEditor.getHTML(),
-        })
-      })
-
-      contentEditor.on('update', () => {
-        onContentUpdate({
-          title: titleEditor.getHTML(),
-          content: contentEditor.getHTML(),
-        })
-      })
-    }
-  }, [titleEditor, contentEditor, onContentUpdate])
-
-  return (
-    <div className={cn('mb-6 flex flex-col gap-1 editor-content')}>
-      <EditorContent editor={titleEditor} />
-      <EditorContent editor={contentEditor} />
-    </div>
-  )
-}
-
 export { EditorContainer }

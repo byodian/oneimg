@@ -20,6 +20,7 @@ export default function Home() {
         toast({
           title: 'Failed to load contents',
           description: 'Please refresh the page.',
+          duration: 1000,
         })
       }
     }
@@ -34,6 +35,7 @@ export default function Home() {
       toast({
         title: 'Content updated',
         description: 'Content updated successfully.',
+        duration: 1000,
       })
     } else {
       const id = await addContent(content)
@@ -41,6 +43,7 @@ export default function Home() {
       toast({
         title: 'Content added',
         description: 'Content added successfully.',
+        duration: 1000,
       })
     }
   }
@@ -52,6 +55,7 @@ export default function Home() {
       toast({
         title: 'Content deleted',
         description: 'Content deleted successfully',
+        duration: 3000,
       })
     } catch (error) {
       toast({
@@ -66,9 +70,9 @@ export default function Home() {
       <Header contents={contents} setContents={setContents} />
       <main className="flex h-[calc(100%-58px)]">
         <div className="hidden w-full sm:block sm:w-[460px] overflow-y-auto sm:min-w-[460px] h-full">
-          <Preview contents={contents} className="w-[460px] h-full flex flex-col p-4 m-auto" />
+          <Preview contents={contents} className="w-full h-full flex flex-col p-4 m-auto" />
         </div>
-        <div className="flex-grow flex justify-center p-4 bg-card text-card-foreground overflow-y-auto">
+        <div className="flex-grow flex justify-center bg-card text-card-foreground overflow-y-auto">
           <Workspace
             contents={contents}
             onContentSubmit={handleContentSubmit}

@@ -17,7 +17,7 @@ export function Workspace(props: WorkspaceProps) {
   const [editorStatus, setEditorStatus] = useState<EditorStatus>('close')
 
   return (
-    <div className="w-[800px] flex flex-col">
+    <div className="w-[800px] flex flex-col p-8">
       <ContentList
         editorEditStatus="edit"
         editorStatus={editorStatus}

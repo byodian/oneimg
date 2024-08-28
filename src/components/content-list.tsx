@@ -3,12 +3,16 @@ import DOMPurify from 'dompurify'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import EditorForm from './editor/editor-form'
+import { Button } from './ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader } from '@/components/ui/dialog'
 import type { Content, ContentListProps } from '@/types/type'
 import { cn } from '@/lib/utils'
 
 export default function ContentList(props: ContentListProps) {
   const { contents, editorStatus, editorEditStatus, onSubmit, onContentDelete, onEditorStatusChange } = props
   const [editingContentId, setEditingContentId] = useState<number | null>(null)
+  const [isOpen, setIsOpen] = useState(false)
+  const [curContent, setCurContent] = useState<Content>({} as Content)
 
   function handleContentEdit(content: Content) {
     setEditingContentId(content.id!)
@@ -56,6 +60,11 @@ export default function ContentList(props: ContentListProps) {
     })
   }
 
+  function handleDialogOpen(content: Content) {
+    setIsOpen(true)
+    setCurContent(content)
+  }
+
   return (
     <ul className="mb-2">
       {parentContents.map(content => (
@@ -73,7 +82,7 @@ export default function ContentList(props: ContentListProps) {
             </div>
           ) : (
             <div className={cn(!content.parentId ? 'group font-bold' : 'group/child ', 'border-b border-b-border py-4')}>
-              <div className="mr-28 sm:mr-0">{parse(DOMPurify.sanitize(content.title))}</div>
+              <div className="mr-28">{parse(DOMPurify.sanitize(content.title))}</div>
               <div className={cn(!content.parentId ? 'group-hover:flex' : 'group-hover/child:flex', 'hidden absolute right-4 top-0 gap-4')}>
                 {!content.parentId && <div className="h-[60px] flex items-center" onClick={() => handleSubContentAdd(content)}>
                   <Plus className="cursor-pointer text-black" width={18} height={18} />
@@ -81,7 +90,7 @@ export default function ContentList(props: ContentListProps) {
                 <div className="h-[60px] flex items-center" onClick={() => handleContentEdit(content)}>
                   <Pencil className="cursor-pointer text-black" width={18} height={18} />
                 </div>
-                <div className="h-60px] flex items-center" onClick={() => onContentDelete(content)}>
+                <div className="h-60px] flex items-center" onClick={() => handleDialogOpen(content)}>
                   <Trash2 className="cursor-pointer text-black" width={18} height={18} />
                 </div>
               </div>
@@ -110,6 +119,28 @@ export default function ContentList(props: ContentListProps) {
           )}
         </li>
       ))}
+
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogContent aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogDescription className="hidden">确定删除此标题吗?</DialogDescription>
+          </DialogHeader>
+          <div className="flex">
+            <span>您确定删除</span>
+            <div className="font-bold">{parse(DOMPurify.sanitize(curContent.title))}</div>
+            <span>？</span>
+          </div>
+          <DialogFooter>
+            <div>
+              <Button className="mr-4" variant="outline" onClick={() => setIsOpen(false)}>取消</Button>
+              <Button variant="destructive" onClick={() => {
+                onContentDelete(curContent)
+                setIsOpen(false)
+              }}>确定</Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </ul>
   )
 }
