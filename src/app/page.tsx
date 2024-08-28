@@ -6,6 +6,7 @@ import { addContent, deleteContent, getContents, updateContent } from '@/lib/ind
 import { useToast } from '@/components/ui/use-toast'
 import { Workspace } from '@/components/workspace'
 import { Header } from '@/components/header'
+import { ToastAction } from '@/components/ui/toast'
 
 export default function Home() {
   const [contents, setContents] = useState<Content[]>([])
@@ -28,38 +29,53 @@ export default function Home() {
     fetchContents()
   }, [toast])
 
-  const handleContentSubmit = async (content: Content) => {
-    if ('id' in content) {
-      await updateContent(content)
-      setContents(contents.map(item => (item.id === content.id ? content : item)))
+  async function handleContentSubmit(content: Content) {
+    try {
+      if ('id' in content) {
+        await updateContent(content)
+        setContents(contents.map(item => (item.id === content.id ? content : item)))
+      // toast({
+      //   title: 'Content updated',
+      //   description: 'Content updated successfully.',
+      //   duration: 1000,
+      // })
+      } else {
+        const id = await addContent(content)
+        setContents([...contents, { ...content, id }])
+      }
+    } catch (error) {
       toast({
-        title: 'Content updated',
-        description: 'Content updated successfully.',
-        duration: 1000,
-      })
-    } else {
-      const id = await addContent(content)
-      setContents([...contents, { ...content, id }])
-      toast({
-        title: 'Content added',
-        description: 'Content added successfully.',
-        duration: 1000,
+        title: 'Failed to add content',
+        description: 'Please try again.',
       })
     }
   }
 
-  const handleContentDelete = async (content: Content) => {
+  async function handleContentDelete(content: Content) {
     try {
       setContents(contents.filter(item => item.id !== content.id))
       await deleteContent(content.id!)
       toast({
         title: 'Content deleted',
         description: 'Content deleted successfully',
-        duration: 3000,
+        duration: 5000,
+        action: <ToastAction altText="undo" onClick={() => handeleContenUndo(content)}>Undo</ToastAction>,
       })
     } catch (error) {
       toast({
         title: 'Failed to delete content',
+        description: 'Please try again.',
+      })
+    }
+  }
+
+  async function handeleContenUndo(content: Content) {
+    try {
+      await addContent(content)
+      setContents(contents.map(item => (item.id === content.id ? content : item)))
+    } catch (error) {
+      toast({
+        title: 'Failed to add content',
         description: 'Please try again.',
       })
     }

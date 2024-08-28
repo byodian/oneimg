@@ -127,7 +127,7 @@ export default function ContentList(props: ContentListProps) {
           </DialogHeader>
           <div className="flex">
             <span>您确定删除</span>
-            <div className="font-bold">{parse(DOMPurify.sanitize(curContent.title))}</div>
+            {DOMPurify && typeof DOMPurify.sanitize === 'function' && <div className="font-bold">{parse(DOMPurify.sanitize(curContent.title))}</div>}
             <span>？</span>
           </div>
           <DialogFooter>
