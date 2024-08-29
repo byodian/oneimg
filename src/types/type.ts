@@ -35,6 +35,7 @@ export interface UploadFile {
   uid: number,
   name: string,
   raw: Blob,
+  compressRatio?: string,
 }
 
 export interface ImageFile {

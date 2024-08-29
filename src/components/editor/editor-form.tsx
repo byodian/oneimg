@@ -12,6 +12,8 @@ type EditorProps = {
   initialContent?: Content;
   editorAddStatus?: 'add_sub' | 'add';
   titlePlaceholder?: string;
+  quality?: number;
+  outputFormat?: string;
   onSubmit: (content: Content) => Promise<void>;
   hideEditor: () => void;
 }
@@ -38,7 +40,7 @@ const contentReducer = (state: Content, action: ContentAction): Content => {
 }
 
 export default function EditorForm(props: EditorProps) {
-  const { onSubmit, hideEditor, className, initialContent, titlePlaceholder } = props
+  const { onSubmit, hideEditor, className, initialContent, titlePlaceholder, quality, outputFormat } = props
   const initialState = {
     title: '',
     content: '',
@@ -47,7 +49,7 @@ export default function EditorForm(props: EditorProps) {
   const [content, dispatch] = useReducer(contentReducer, initialContent || initialState)
   const editorRef = useRef<EditorMethods>(null)
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
 
     try {
@@ -76,7 +78,7 @@ export default function EditorForm(props: EditorProps) {
     }
   }
 
-  const handleFilesChange = (files?: UploadFiles) => {
+  function handleFilesChange(files?: UploadFiles) {
     dispatch({ type: 'SET_UPLOAD_FILES', payload: files || [] })
   }
 
@@ -106,6 +108,8 @@ export default function EditorForm(props: EditorProps) {
             onFilesChange={handleFilesChange}
             disabled={!editorRef || !!editorRef.current?.isEmpty()}
             uploadFiles={content.uploadFiles}
+            quality={quality}
+            outputFormat={outputFormat}
           />
         </div>
       </div>

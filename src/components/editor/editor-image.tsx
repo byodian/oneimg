@@ -17,7 +17,7 @@ export default function EditorImage(props: EditorFooterProps) {
    * 移除文件
    * @param uploadFile
    */
-  const handleRemove = (uploadFile: ImageFile) => {
+  function handleRemove(uploadFile: ImageFile) {
     const filteredUploadFiles = uploadFiles?.filter(item => item.uid !== uploadFile.uid)
     onFilesChange(filteredUploadFiles)
   }
