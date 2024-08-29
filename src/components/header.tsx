@@ -14,8 +14,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Logo } from '@/components/logo'
-import type { Content, ExportContent, ExportJSON, ImageFile, UploadFile } from '@/types/type'
-import { base64ToBlob, blobToBase64, getMimeType } from '@/lib/utils'
+import type { Content, ExportContent, ExportJSON } from '@/types/type'
 import { addAllContents, removeAllContents } from '@/lib/indexed-db'
 
 interface HeaderProps {
@@ -72,18 +71,7 @@ export function Header(props: HeaderProps) {
 
           if (importData.data && typeof importData.data === 'object') {
             const exportContents = importData.data
-            const contents: Content[] = exportContents.map((item) => {
-              return {
-                ...item,
-                uploadFiles: item.uploadFiles?.map((file) => {
-                  return {
-                    uid: file.uid,
-                    name: file.name,
-                    raw: base64ToBlob(file.src, getMimeType(file.src) ? getMimeType(file.src)! : ''),
-                  } as UploadFile
-                }),
-              }
-            })
+            const contents: Content[] = exportContents.map(item => item)
 
             // remove previous all data
             await removeAllContents()
@@ -104,21 +92,13 @@ export function Header(props: HeaderProps) {
 
   async function handleFileSave() {
     const exportContents = await Promise.all(
-      contents.map(async (item) => {
-        const uploadFiles: ImageFile[] = await Promise.all(
-          item.uploadFiles?.map(async file => ({
-            name: file.name,
-            uid: file.uid,
-            src: await blobToBase64(file.raw),
-          })) || [],
-        )
-
+      contents.map((item) => {
         return {
           id: item.id!,
           title: item.title,
           content: item.content,
           parentId: item.parentId,
-          uploadFiles,
+          uploadFiles: item.uploadFiles,
         } as ExportContent
       }),
     )

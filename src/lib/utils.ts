@@ -47,6 +47,11 @@ export function base64ToBlob(base64String: string, contentType: string) {
   return new Blob([byteArray], { type: contentType })
 }
 
+export function arrayBufferToBase64(arrayBuffer: ArrayBuffer) {
+  const buffer = Buffer.from(arrayBuffer)
+  return buffer.toString('base64')
+}
+
 // export function getMimeType(base64String: string) {
 //   const mimeTypeRegex = /^data:(.+);base64,/
 //   const matches = base64String.match(mimeTypeRegex)

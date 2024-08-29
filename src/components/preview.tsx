@@ -11,7 +11,7 @@ function ImageList({ images } : { images: ImageFile[] }) {
       {images.length === 1 && (
         <div>
           <Image
-            src={images[0].src}
+            src={images[0].dataUrl}
             alt={images[0].name}
             width={100}
             height={100}
@@ -23,7 +23,7 @@ function ImageList({ images } : { images: ImageFile[] }) {
         <div key={image.uid} className="w-full pb-[75%] relative">
           <div className="absolute top-0 left-0 right-0 bottom-0">
             <Image
-              src={image.src}
+              src={image.dataUrl}
               alt={image.name}
               width={100}
               height={100}
@@ -43,7 +43,7 @@ function PreviewItem({ content, children } : { content: Content, children?: Reac
     return uploadFiles?.map(file => ({
       uid: file.uid,
       name: file.name,
-      src: URL.createObjectURL(file.raw),
+      dataUrl: file.dataUrl,
     }))
   }, [uploadFiles]) || []
 

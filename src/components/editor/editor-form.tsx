@@ -4,7 +4,7 @@ import { EditorContainer } from './editor-container'
 import EditorImage from './editor-image'
 import EditorButton from './editor-button'
 import { cn } from '@/lib/utils'
-import type { ActionType, Content, EditorMethods, UploadFiles } from '@/types/type'
+import type { ActionType, Content, EditorMethods, ImageFile } from '@/types/type'
 import { toast } from '@/components/ui/use-toast'
 
 type EditorProps = {
@@ -21,7 +21,7 @@ type EditorProps = {
 type ContentAction =
   | { type: 'SET_TITLE'; payload: string }
   | { type: 'SET_CONTENT'; payload?: string }
-  | { type: 'SET_UPLOAD_FILES'; payload: UploadFiles }
+  | { type: 'SET_UPLOAD_FILES'; payload: ImageFile[] }
   | { type: 'RESET' }
 
 const contentReducer = (state: Content, action: ContentAction): Content => {
@@ -78,7 +78,7 @@ export default function EditorForm(props: EditorProps) {
     }
   }
 
-  function handleFilesChange(files?: UploadFiles) {
+  function handleFilesChange(files?: ImageFile[]) {
     dispatch({ type: 'SET_UPLOAD_FILES', payload: files || [] })
   }
 

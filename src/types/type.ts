@@ -2,7 +2,7 @@ export interface Content {
   id?: number;
   title: string;
   content?: string;
-  uploadFiles?: UploadFile[];
+  uploadFiles?: ImageFile[];
   createdAt?: string;
   updatedAt?: string;
   parentId?: number;
@@ -38,10 +38,17 @@ export interface UploadFile {
   compressRatio?: string,
 }
 
+export interface ImageBase {
+  dataUrl: string,
+  type?: string,
+  name?: string,
+}
+
 export interface ImageFile {
   uid: number,
   name: string,
-  src: string,
+  dataUrl: string,
+  type?: string,
 }
 
 export interface UploadRawFile extends File {
