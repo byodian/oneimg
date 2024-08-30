@@ -58,7 +58,7 @@ export default function EditorForm(props: EditorProps) {
         title: content.title as string,
         content: content.content,
         uploadFiles: content.uploadFiles,
-      }
+      } as Content
 
       await onSubmit(newContent)
       dispatch({ type: 'RESET' })

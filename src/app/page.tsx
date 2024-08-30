@@ -1,7 +1,7 @@
 'use client'
-import { useEffect, useState } from 'react'
-import Preview from '@/components/preview'
-import type { Content } from '@/types/type'
+import { useEffect, useRef, useState } from 'react'
+import { Preview } from '@/components/preview/preview'
+import type { Content, PreviewRef, ThemeContent } from '@/types/type'
 import { addContent, deleteContent, getContents, updateContent } from '@/lib/indexed-db'
 import { useToast } from '@/components/ui/use-toast'
 import { Workspace } from '@/components/workspace'
@@ -11,6 +11,7 @@ import { ToastAction } from '@/components/ui/toast'
 export default function Home() {
   const [contents, setContents] = useState<Content[]>([])
   const { toast } = useToast()
+  const previewRef = useRef<PreviewRef>(null)
 
   useEffect(() => {
     const fetchContents = async () => {
@@ -28,6 +29,23 @@ export default function Home() {
 
     fetchContents()
   }, [toast])
+
+  async function handleThemeContentSubmit(content: ThemeContent) {
+    try {
+      if ('id' in content) {
+        await updateContent(content)
+        setContents(contents.map(item => (item.id === content.id ? content : item)))
+      } else {
+        const id = await addContent(content)
+        setContents([...contents, { ...content, id }])
+      }
+    } catch (error) {
+      toast({
+        title: 'Failed to add theme content',
+        description: 'Please try again.',
+      })
+    }
+  }
 
   async function handleContentSubmit(content: Content) {
     try {
@@ -83,16 +101,17 @@ export default function Home() {
 
   return (
     <div className="flex flex-col h-full">
-      <Header contents={contents} setContents={setContents} />
+      <Header contents={contents} setContents={setContents} previewRef={previewRef} />
       <main className="flex h-[calc(100%-58px)]">
-        <div className="hidden w-full sm:block sm:w-[460px] overflow-y-auto sm:min-w-[460px] h-full">
-          <Preview contents={contents} className="w-full h-full flex flex-col p-4 m-auto" />
+        <div className="hidden w-full sm:block sm:w-[360px] overflow-y-auto sm:min-w-[360px] h-full">
+          <Preview ref={previewRef} contents={contents} className="w-full flex flex-col p-4 m-auto" />
         </div>
         <div className="flex-grow flex justify-center bg-card text-card-foreground overflow-y-auto">
           <Workspace
             contents={contents}
             onContentSubmit={handleContentSubmit}
             onContentDelete={handleContentDelete}
+            onThemeContentSubmit={handleThemeContentSubmit}
           />
         </div>
       </main>

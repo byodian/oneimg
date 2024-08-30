@@ -3,6 +3,7 @@ import { Download, Folder, ImageDown, LinkIcon, Trash2, TriangleAlert } from 'lu
 import Link from 'next/link'
 import { useRef, useState } from 'react'
 import { useToast } from './ui/use-toast'
+import { ExportImageDialog } from './export-image/export-dialog'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -14,20 +15,22 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Logo } from '@/components/logo'
-import type { Content, ExportContent, ExportJSON } from '@/types/type'
+import type { Content, ExportContent, ExportJSON, PreviewRef } from '@/types/type'
 import { addAllContents, removeAllContents } from '@/lib/indexed-db'
 
 interface HeaderProps {
-  contents: Content[]
-  setContents: (contents: Content[]) => void
+  contents: Content[],
+  setContents: (contents: Content[]) => void,
+  previewRef: React.RefObject<PreviewRef>
 }
 
-type DialogType = 'save_file' | 'save_image' | 'open_file' | 'reset_data'
+type DialogType = 'save_file' | 'open_file' | 'reset_data'
 
 export function Header(props: HeaderProps) {
   const [isOpenFile, setIsOpenFile] = useState(false)
+  const [imageDialogOpen, setImageDialogOpen] = useState(false)
   const [dialogType, setDialogType] = useState<DialogType>('save_file')
-  const { contents, setContents } = props
+  const { contents, setContents, previewRef } = props
   const { toast } = useToast()
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -150,8 +153,19 @@ export function Header(props: HeaderProps) {
     setIsOpenFile(false)
   }
 
+  async function handleImageDialogOpen() {
+    setImageDialogOpen(true)
+    // const dataUrl = await handleImageSave()
+    // if (dataUrl) {
+    //   const link = document.createElement('a')
+    //   link.href = dataUrl
+    //   link.download = 'exported-image.png'
+    //   link.click()
+    // }
+  }
+
   return (
-    <header className="h-[58px] flex items-center px-4 border-b border-b-gray-200">
+    <header className="h-[58px] flex items-center px-4 border-b border-b-gray-200 radio aspect-[56.25%]">
       <Link href="/">
         <Logo type="full" />
       </Link>
@@ -169,12 +183,12 @@ export function Header(props: HeaderProps) {
           <Trash2 className="w-4 h-4 mr-2" />
           <span>重置主题</span>
         </Button>
-        <Button size="sm" onClick={() => handleDialogOpen('save_image')}>
+        <Button size="sm" onClick={handleImageDialogOpen}>
           <ImageDown className="w-4 h-4 mr-2" />
           <span>导出图片</span>
         </Button>
       </div>
-      <Dialog open={isOpenFile} onOpenChange={() => setIsOpenFile(!isOpenFile)}>
+      <Dialog open={isOpenFile} onOpenChange={setIsOpenFile}>
         {dialogType === 'open_file' && <DialogContent className="max-w-full sm:max-w-[900px] px-10 py-8 h-full overflow-y-auto sm:h-auto">
           <DialogHeader>
             <DialogTitle className="text-2xl">从文件加载</DialogTitle>
@@ -199,7 +213,7 @@ export function Header(props: HeaderProps) {
               <div className="text-center flex flex-col gap-4 px-6 py-4">
                 <h3 className="font-bold text-xl">导出为图片</h3>
                 <p className="text-sm flex-grow">将主题数据导出为图片，以便以后导入。</p>
-                <Button variant="outline" size="lg">导出为图片</Button>
+                <Button variant="outline" size="lg" onClick={handleImageDialogOpen}>导出为图片</Button>
               </div>
 
               <div className="text-center flex flex-col gap-4 px-6 py-4">
@@ -217,8 +231,8 @@ export function Header(props: HeaderProps) {
           </div>
         </DialogContent>}
         {dialogType === 'save_file' && <DialogContent className="max-w-full sm:max-w-[900px] px-10 py-8 h-full overflow-y-auto sm:h-auto">
-          <DialogHeader className="text-2xl pb-4 border-b">
-            <DialogTitle className="">保存到...</DialogTitle>
+          <DialogHeader className="pb-4 border-b">
+            <DialogTitle className="text-2xl">保存到...</DialogTitle>
             <DialogDescription className="hidden">
               save as...
             </DialogDescription>
@@ -260,34 +274,6 @@ export function Header(props: HeaderProps) {
             </div>
           </div>
         </DialogContent>}
-        {dialogType === 'save_image' && <DialogContent className="max-w-full sm:max-w-[900px] px-10 py-8 h-full overflow-y-auto sm:h-auto">
-          <DialogHeader>
-            <DialogTitle className="text-2xl">导出图片</DialogTitle>
-            <DialogDescription className="hidden">
-              export as image
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-8 py-4">
-            <div className="flex flex-col sm:flex-row justify-between gap-4">
-              <div className="text-center flex flex-col gap-4 px-6 py-4">
-                <h3 className="font-bold text-xl">导出为图片</h3>
-                <p className="text-sm flex-grow">将主题数据导出为图片，以便以后导入。</p>
-                <Button variant="outline" size="lg">导出为图片</Button>
-              </div>
-
-              <div className="text-center flex flex-col gap-4 px-6 py-4">
-                <h3 className="font-bold text-xl">导出为图片</h3>
-                <p className="text-sm flex-grow">将主题数据导出为文件，以便以后导入。</p>
-                <Button variant="outline" size="lg">保存到本地</Button>
-              </div>
-              <div className="text-center flex flex-col gap-4 px-6 py-4">
-                <h3 className="font-bold text-xl">OneIMG+</h3>
-                <p className="text-sm flex-grow">将主题数据保存到您的 OneIMG+ 工作区。</p>
-                <Button variant="outline" size="lg" disabled={true}>即将上线</Button>
-              </div>
-            </div>
-          </div>
-        </DialogContent>}
         {dialogType === 'reset_data' && <DialogContent className="max-w-full sm:max-w-[495px] px-10 py-8 h-full overflow-y-auto sm:h-auto">
           <DialogHeader className="text-2xl pb-4 border-b">
             <DialogTitle className="">清除数据</DialogTitle>
@@ -308,6 +294,11 @@ export function Header(props: HeaderProps) {
           </DialogFooter>
         </DialogContent>}
       </Dialog>
+      <ExportImageDialog
+        previewRef={previewRef}
+        isExportModalOpen={imageDialogOpen}
+        setIsExportModalOpen={setImageDialogOpen}
+      />
     </header>
   )
 }
