@@ -78,6 +78,9 @@ export function Header(props: HeaderProps) {
             // cache import data
             await addAllContents(contents)
             setContents(contents)
+
+            // 允许前后两次选择相同文件
+            event.target.value = ''
           }
         } catch (error) {
           toast({
@@ -124,6 +127,10 @@ export function Header(props: HeaderProps) {
         const writable = await handle.createWritable()
         await writable.write(blob)
         await writable.close()
+        toast({
+          title: '文件已保存',
+          duration: 1000,
+        })
       } else {
         const fileName = prompt('请输入文件名称', '未命名.oneimg') || '未命名.oneimg'
         const a = document.createElement('a')
@@ -224,7 +231,13 @@ export function Header(props: HeaderProps) {
                 </div>
                 <h3 className="font-bold text-xl">保存到本地</h3>
                 <p className="text-sm flex-grow">将主题数据导出为文件，以便以后导入。</p>
-                <Button variant="outline" size="lg" onClick={handleFileSave}>保存到本地</Button>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={async () => {
+                    await handleFileSave()
+                    setIsOpenFile(false)
+                  }}>保存到本地</Button>
               </div>
 
               <div className="flex items-center justify-center flex-col gap-4 px-8 py-4">

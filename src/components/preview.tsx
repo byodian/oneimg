@@ -3,7 +3,7 @@ import parse from 'html-react-parser'
 import Image from 'next/image'
 import { useMemo } from 'react'
 import type { Content, ImageFile } from '@/types/type'
-import { cn, getImageLayout } from '@/lib/utils'
+import { base64ToBlob, cn, getImageLayout } from '@/lib/utils'
 
 function ImageList({ images } : { images: ImageFile[] }) {
   return (
@@ -43,7 +43,8 @@ function PreviewItem({ content, children } : { content: Content, children?: Reac
     return uploadFiles?.map(file => ({
       uid: file.uid,
       name: file.name,
-      dataUrl: file.dataUrl,
+      dataUrl: URL.createObjectURL(base64ToBlob(file.dataUrl, file.type!)),
+      type: file.type,
     }))
   }, [uploadFiles]) || []
 
