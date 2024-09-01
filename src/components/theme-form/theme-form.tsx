@@ -87,7 +87,7 @@ export function ThemeForm({ onSubmit }: ThemeFormProps) {
                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder="请选择一个主题模版" />
+                      <SelectValue className="text-muted-foreground" placeholder="请选择一个主题模版" />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>

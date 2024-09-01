@@ -84,15 +84,24 @@ export default function ContentList(props: ContentListProps) {
             <div className={cn(!content.parentId ? 'group font-bold' : 'group/child ', 'border-b border-b-border py-4')}>
               <div className="mr-28">{parse(DOMPurify.sanitize(content.title))}</div>
               <div className={cn(!content.parentId ? 'group-hover:flex' : 'group-hover/child:flex', 'hidden absolute right-4 top-0 gap-4')}>
-                {!content.parentId && <div className="h-[60px] flex items-center" onClick={() => handleSubContentAdd(content)}>
-                  <Plus className="cursor-pointer text-black" width={18} height={18} />
-                </div>}
-                <div className="h-[60px] flex items-center" onClick={() => handleContentEdit(content)}>
+              {content.type === 'normal_content' && (
+                  <>
+                    {!content.parentId && <div className="h-[60px] flex items-center" onClick={() => handleSubContentAdd(content)}>
+                      <Plus className="cursor-pointer text-black" width={18} height={18} />
+                    </div>}
+                    <div className="h-[60px] flex items-center" onClick={() => handleContentEdit(content)}>
+                      <Pencil className="cursor-pointer text-black" width={18} height={18} />
+                    </div>
+                    <div className="h-60px] flex items-center" onClick={() => handleDialogOpen(content)}>
+                      <Trash2 className="cursor-pointer text-black" width={18} height={18} />
+                    </div>
+                  </>
+              )}
+              {/* 项目内容只支持编辑 */}
+              {content.type === 'theme_content' && <div className="h-[60px] flex items-center" onClick={() => handleContentEdit(content)}>
                   <Pencil className="cursor-pointer text-black" width={18} height={18} />
                 </div>
-                <div className="h-60px] flex items-center" onClick={() => handleDialogOpen(content)}>
-                  <Trash2 className="cursor-pointer text-black" width={18} height={18} />
-                </div>
+              }
               </div>
             </div>
           )}

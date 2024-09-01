@@ -19,9 +19,10 @@ import type { Content, ExportContent, ExportJSON, PreviewRef } from '@/types/typ
 import { addAllContents, removeAllContents } from '@/lib/indexed-db'
 
 interface HeaderProps {
-  contents: Content[],
-  setContents: (contents: Content[]) => void,
-  previewRef: React.RefObject<PreviewRef>
+  contents: Content[];
+  setContents: (contents: Content[]) => void;
+  previewRef: React.RefObject<PreviewRef>;
+  theme?: string
 }
 
 type DialogType = 'save_file' | 'open_file' | 'reset_data'
@@ -170,23 +171,33 @@ export function Header(props: HeaderProps) {
         <Logo type="full" />
       </Link>
       <div className="flex gap-2 ml-auto">
-        <Button variant="outline" size="sm" onClick={() => handleDialogOpen('open_file')}>
+        <Button variant="outline" size="sm" onClick={() => {
+          if (!contents.length) {
+            handleOpenfileBtnClick()
+          } else {
+            handleDialogOpen('open_file')
+          }
+        }}>
           <Folder className="w-4 h-4 mr-2" />
           <span>打开文件</span>
           <Input onChange={handleFileImport} type="file" className="hidden" ref={fileRef} />
         </Button>
-        <Button variant="outline" size="sm" onClick={() => handleDialogOpen('save_file')}>
-          <Download className="w-4 h-4 mr-2" />
-          <span>保存文件</span>
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => handleDialogOpen('reset_data')}>
-          <Trash2 className="w-4 h-4 mr-2" />
-          <span>重置主题</span>
-        </Button>
-        <Button size="sm" onClick={handleImageDialogOpen}>
-          <ImageDown className="w-4 h-4 mr-2" />
-          <span>导出图片</span>
-        </Button>
+        {contents.length > 0 && (
+          <>
+            <Button variant="outline" size="sm" onClick={() => handleDialogOpen('save_file')}>
+              <Download className="w-4 h-4 mr-2" />
+              <span>保存文件</span>
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => handleDialogOpen('reset_data')}>
+              <Trash2 className="w-4 h-4 mr-2" />
+              <span>重置主题</span>
+            </Button>
+            <Button size="sm" onClick={handleImageDialogOpen}>
+              <ImageDown className="w-4 h-4 mr-2" />
+              <span>导出图片</span>
+            </Button>
+          </>
+        )}
       </div>
       <Dialog open={isOpenFile} onOpenChange={setIsOpenFile}>
         {dialogType === 'open_file' && <DialogContent className="max-w-full sm:max-w-[900px] px-10 py-8 h-full overflow-y-auto sm:h-auto">

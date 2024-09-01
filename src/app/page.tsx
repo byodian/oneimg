@@ -10,6 +10,7 @@ import { ToastAction } from '@/components/ui/toast'
 
 export default function Home() {
   const [contents, setContents] = useState<Content[]>([])
+  const [theme, setTheme] = useState('')
   const { toast } = useToast()
   const previewRef = useRef<PreviewRef>(null)
 
@@ -36,8 +37,14 @@ export default function Home() {
         await updateContent(content)
         setContents(contents.map(item => (item.id === content.id ? content : item)))
       } else {
-        const id = await addContent(content)
-        setContents([...contents, { ...content, id }])
+        const newContent = {
+          ...content,
+          type: 'theme_content',
+        } as Content
+        const id = await addContent(newContent)
+        setContents(prevContents => [...prevContents, { ...newContent, id }])
+        setTheme(content.theme)
+        window.localStorage.setItem('currentTheme', content.theme)
       }
     } catch (error) {
       toast({
@@ -58,8 +65,12 @@ export default function Home() {
       //   duration: 1000,
       // })
       } else {
-        const id = await addContent(content)
-        setContents([...contents, { ...content, id }])
+        const newContent = {
+          ...content,
+          type: 'normal_content',
+        } as Content
+        const id = await addContent(newContent)
+        setContents(prevContents => [...prevContents, { ...newContent, id }])
       }
     } catch (error) {
       toast({
@@ -101,7 +112,7 @@ export default function Home() {
 
   return (
     <div className="flex flex-col h-full">
-      <Header contents={contents} setContents={setContents} previewRef={previewRef} />
+      <Header contents={contents} setContents={setContents} previewRef={previewRef} theme={theme} />
       <main className="flex h-[calc(100%-58px)]">
         <div className="hidden w-full sm:block sm:w-[360px] overflow-y-auto sm:min-w-[360px] h-full">
           <Preview ref={previewRef} contents={contents} className="w-full flex flex-col p-4 m-auto" />
