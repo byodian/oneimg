@@ -1,12 +1,13 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
-import { Preview } from '@/components/preview/preview'
-import type { Content, PreviewRef, ThemeContent } from '@/types/type'
 import { addContent, deleteContent, getContents, updateContent } from '@/lib/indexed-db'
 import { useToast } from '@/components/ui/use-toast'
-import { Workspace } from '@/components/workspace'
-import { Header } from '@/components/header'
 import { ToastAction } from '@/components/ui/toast'
+import { Workspace } from '@/components/workspace/workspace'
+import { Header } from '@/components/header/header'
+import { Preview } from '@/components/preview/preview'
+
+import type { Content, PreviewRef, ThemeContent } from '@/types/common'
 
 export default function Home() {
   const [contents, setContents] = useState<Content[]>([])

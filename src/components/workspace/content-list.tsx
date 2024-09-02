@@ -2,10 +2,10 @@ import parse from 'html-react-parser'
 import DOMPurify from 'dompurify'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import EditorForm from './editor/editor-form'
-import { Button } from './ui/button'
+import EditorForm from '../editor/editor-form'
+import { Button } from '../ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader } from '@/components/ui/dialog'
-import type { Content, ContentListProps } from '@/types/type'
+import type { Content, ContentListProps } from '@/types/common'
 import { cn } from '@/lib/utils'
 
 export default function ContentList(props: ContentListProps) {

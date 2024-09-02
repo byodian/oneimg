@@ -3,7 +3,7 @@ import { X } from 'lucide-react'
 
 import Image from 'next/image'
 import { useMemo } from 'react'
-import type { ImageFile } from '@/types/type'
+import type { ImageFile } from '@/types/common'
 import { base64ToBlob } from '@/lib/utils'
 
 type EditorFooterProps = {

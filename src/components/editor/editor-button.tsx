@@ -4,7 +4,7 @@ import { ImagePlus } from 'lucide-react'
 
 import UPNG from '@pdf-lib/upng'
 import { Button } from '@/components/ui/button'
-import type { ImageBase, ImageFile } from '@/types/type'
+import type { ImageBase, ImageFile } from '@/types/common'
 import { blobToBase64, getUid } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/use-toast'

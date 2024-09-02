@@ -7,8 +7,8 @@ import { useCallback, useEffect, useState } from 'react'
 import Image from 'next/image'
 import { Download, Loader2 } from 'lucide-react'
 import type { ExportImage, ExportOption } from './types'
-import type { PreviewRef } from '@/types/type'
-import { exportImage } from '@/components/export-image/utils'
+import { exportImage } from './utils'
+import type { PreviewRef } from '@/types/common'
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -118,12 +118,12 @@ export function ExportImageDialog({ previewRef, isExportModalOpen, setIsExportMo
   return (
     <Dialog open={isExportModalOpen} onOpenChange={setIsExportModalOpen}>
       <DialogContent className="max-w-full sm:max-w-[840px] px-10 py-8 sm:h-[600px] overflow-y-auto flex flex-col gap-4">
-          <DialogHeader>
-            <DialogTitle className="text-2xl">导出图片</DialogTitle>
-            <DialogDescription className="hidden">
-              save as images
-            </DialogDescription>
-          </DialogHeader>
+        <DialogHeader>
+          <DialogTitle className="text-2xl">导出图片</DialogTitle>
+          <DialogDescription className="hidden">
+            save as images
+          </DialogDescription>
+        </DialogHeader>
         <div className="flex-grow flex items-start gap-4">
           <div className="w-[480px] px-12 border rounded-lg">
             <Carousel setApi={setApi} className="w-full py-2 px-4">

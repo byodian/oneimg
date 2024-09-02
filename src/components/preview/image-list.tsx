@@ -1,5 +1,5 @@
 import Image from 'next/image'
-import type { ImageFile } from '@/types/type'
+import type { ImageFile } from '@/types/common'
 import { cn, getImageLayout } from '@/lib/utils'
 export function ImageList({ images } : { images: ImageFile[] }) {
   return (

@@ -92,21 +92,6 @@ export interface EditorMethods {
 // 编辑器内容更新触发类型
 export type ActionType = 'SET_TITLE' | 'SET_CONTENT'
 
-export interface ExportContent {
-  id: number;
-  title: string;
-  content?: string;
-  parentId?: number;
-  uploadFiles?: ImageFile[];
-}
-
-export type ExportJSON = {
-  type: 'oneimg';
-  version: number;
-  source: string;
-  data: ExportContent[];
-}
-
 // Preview
 export interface PreviewRef {
   containerRef: React.RefObject<HTMLDivElement>,

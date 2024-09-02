@@ -2,8 +2,8 @@
 import { Download, Folder, ImageDown, LinkIcon, Trash2, TriangleAlert } from 'lucide-react'
 import Link from 'next/link'
 import { useRef, useState } from 'react'
-import { useToast } from './ui/use-toast'
-import { ExportImageDialog } from './export-image/export-dialog'
+import { ExportImageDialog } from './export-dialog'
+import { useToast } from '@/components/ui/use-toast'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -15,7 +15,8 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Logo } from '@/components/logo'
-import type { Content, ExportContent, ExportJSON, PreviewRef } from '@/types/type'
+import type { Content, PreviewRef } from '@/types/common'
+import type { ExportContent, ExportJSON } from '@/components/header/types'
 import { addAllContents, removeAllContents } from '@/lib/indexed-db'
 
 interface HeaderProps {
@@ -156,13 +157,6 @@ export function Header(props: HeaderProps) {
 
   async function handleImageDialogOpen() {
     setImageDialogOpen(true)
-    // const dataUrl = await handleImageSave()
-    // if (dataUrl) {
-    //   const link = document.createElement('a')
-    //   link.href = dataUrl
-    //   link.download = 'exported-image.png'
-    //   link.click()
-    // }
   }
 
   return (
@@ -182,22 +176,18 @@ export function Header(props: HeaderProps) {
           <span>打开文件</span>
           <Input onChange={handleFileImport} type="file" className="hidden" ref={fileRef} />
         </Button>
-        {contents.length > 0 && (
-          <>
-            <Button variant="outline" size="sm" onClick={() => handleDialogOpen('save_file')}>
-              <Download className="w-4 h-4 mr-2" />
-              <span>保存文件</span>
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => handleDialogOpen('reset_data')}>
-              <Trash2 className="w-4 h-4 mr-2" />
-              <span>重置主题</span>
-            </Button>
-            <Button size="sm" onClick={handleImageDialogOpen}>
-              <ImageDown className="w-4 h-4 mr-2" />
-              <span>导出图片</span>
-            </Button>
-          </>
-        )}
+        <Button variant="outline" size="sm" onClick={() => handleDialogOpen('save_file')}>
+          <Download className="w-4 h-4 mr-2" />
+          <span>保存文件</span>
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => handleDialogOpen('reset_data')}>
+          <Trash2 className="w-4 h-4 mr-2" />
+          <span>重置主题</span>
+        </Button>
+        <Button size="sm" onClick={handleImageDialogOpen}>
+          <ImageDown className="w-4 h-4 mr-2" />
+          <span>导出图片</span>
+        </Button>
       </div>
       <Dialog open={isOpenFile} onOpenChange={setIsOpenFile}>
         {dialogType === 'open_file' && <DialogContent className="max-w-full sm:max-w-[900px] px-10 py-8 h-full overflow-y-auto sm:h-auto">

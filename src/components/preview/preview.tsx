@@ -1,6 +1,6 @@
 import { forwardRef, useImperativeHandle, useMemo, useRef } from 'react'
 import { PreviewItem } from './preview-item'
-import type { Content, PreviewRef } from '@/types/type'
+import type { Content, PreviewRef } from '@/types/common'
 import { cn } from '@/lib/utils'
 
 const Preview = forwardRef<PreviewRef, { contents: Content[]; className?: string }>(({ contents, className }, ref) => {

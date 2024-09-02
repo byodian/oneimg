@@ -1,4 +1,4 @@
-import type { Content } from '@/types/type'
+import type { Content } from '@/types/common'
 
 const DB_NAME = 'ContentDB'
 const STORE_NAME = 'contents'

@@ -1,6 +1,6 @@
 import html2canvas from 'html2canvas'
 import ExifReader from 'exifreader'
-import type { ExportOption } from '@/components/export-image/types'
+import type { ExportOption } from './types'
 
 export async function generateImage(element: HTMLElement, option: ExportOption): Promise<Blob> {
   const canvas = await html2canvas(element, {

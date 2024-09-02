@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Button } from '@/components/ui/button'
-import type { ThemeContent } from '@/types/type'
+import type { ThemeContent } from '@/types/common'
 
 const formSchema = z.object({
   title: z.string(),
@@ -38,7 +38,7 @@ export function ThemeForm({ onSubmit }: ThemeFormProps) {
   }
 
   return (
-    <div className="w-full h-full max-w-sm mx-auto mt-48">
+    <div className="w-full h-full max-w-sm mx-auto">
       <h2 className="text-2xl font-bold mb-4 text-center">新建项目</h2>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(handleContentSubmit)}>

@@ -10,7 +10,7 @@ import Underline from '@tiptap/extension-underline'
 import Placeholder from '@tiptap/extension-placeholder'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { forwardRef, useEffect, useImperativeHandle } from 'react'
-import type { ActionType, Content, EditorMethods } from '@/types/type'
+import type { ActionType, Content, EditorMethods } from '@/types/common'
 import { cn } from '@/lib/utils'
 
 type EditorProps = {

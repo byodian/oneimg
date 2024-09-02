@@ -2,7 +2,7 @@ import DOMPurify from 'dompurify'
 import parse from 'html-react-parser'
 import { forwardRef, useMemo } from 'react'
 import { ImageList } from './image-list'
-import type { Content, ImageFile } from '@/types/type'
+import type { Content, ImageFile } from '@/types/common'
 import { base64ToBlob, cn } from '@/lib/utils'
 
 const PreviewItem = forwardRef<HTMLLIElement, { content: Content, children?: React.ReactNode }>(({ content, children }, ref) => {

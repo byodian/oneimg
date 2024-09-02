@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { PlusIcon } from 'lucide-react'
-import { ThemeForm } from './theme-form/theme-form'
+import { ThemeForm } from '@/components/workspace/theme-form'
 import EditorForm from '@/components/editor/editor-form'
-import ContentList from '@/components/content-list'
+import ContentList from '@/components/workspace/content-list'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import type { Content, EditorStatus, ThemeContent } from '@/types/type'
+import type { Content, EditorStatus, ThemeContent } from '@/types/common'
 
 interface WorkspaceProps {
   contents: Content[];

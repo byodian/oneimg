@@ -4,7 +4,7 @@ import { EditorContainer } from './editor-container'
 import EditorImage from './editor-image'
 import EditorButton from './editor-button'
 import { cn } from '@/lib/utils'
-import type { ActionType, Content, EditorMethods, ImageFile } from '@/types/type'
+import type { ActionType, Content, EditorMethods, ImageFile } from '@/types/common'
 import { toast } from '@/components/ui/use-toast'
 
 type EditorProps = {
