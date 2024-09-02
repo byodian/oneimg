@@ -170,11 +170,11 @@ export function Header(props: HeaderProps) {
   }
 
   return (
-    <header className="h-[58px] flex items-center px-4 border-b border-b-gray-200 radio aspect-[56.25%]">
+    <header className="sm:h-[58px] flex flex-col sm:flex-row gap-4 items-center mb-4 sm:mb-0 px-4 border-b border-b-gray-200">
       <Link href="/">
         <Logo type="full" />
       </Link>
-      <div className="flex gap-2 ml-auto">
+      <div className="flex flex-wrap gap-2 ml-auto">
         <Button variant="outline" size="sm" onClick={() => {
           if (!contents.length) {
             handleOpenfileBtnClick()
