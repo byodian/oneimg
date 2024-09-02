@@ -144,6 +144,7 @@ export function Header(props: HeaderProps) {
           duration: 1000,
         })
       } else {
+        // eslint-disable-next-line no-alert
         const fileName = prompt('请输入文件名称', '未命名.oneimg') || '未命名.oneimg'
         const a = document.createElement('a')
         a.href = URL.createObjectURL(blob)
