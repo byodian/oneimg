@@ -131,7 +131,7 @@ export function ExportImageDialog({ previewRef, isExportModalOpen, setIsExportMo
                 {previewImages.length > 0 && !isExporting ? previewImages.map(item => (
                   <CarouselItem key={item.id} className="h-[300px]">
                     <Image
-                      src={URL.createObjectURL(item.data)}
+                      src={item.data ? URL.createObjectURL(item.data) : ''}
                       alt="Preview"
                       width={300}
                       height={200}
