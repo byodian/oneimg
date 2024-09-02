@@ -23,5 +23,6 @@ export interface ExportJSON {
   type: 'oneimg';
   version: number;
   source: string;
+  theme: string;
   data: ExportContent[];
 }

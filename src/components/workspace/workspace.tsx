@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { PlusIcon } from 'lucide-react'
-import { ThemeForm } from '@/components/workspace/theme-form'
+import { FolderPlus, PlusIcon } from 'lucide-react'
+import { ThemeFormDialog } from '@/components/workspace/theme-form-dialog'
 import EditorForm from '@/components/editor/editor-form'
 import ContentList from '@/components/workspace/content-list'
 import { Button } from '@/components/ui/button'
@@ -17,6 +17,7 @@ interface WorkspaceProps {
 export function Workspace(props: WorkspaceProps) {
   const { contents, onContentSubmit, onContentDelete, onThemeContentSubmit } = props
   const [editorStatus, setEditorStatus] = useState<EditorStatus>('close')
+  const [open, setOpen] = useState(false)
 
   return (
     <div className="w-[800px] flex flex-col p-8">
@@ -41,7 +42,21 @@ export function Workspace(props: WorkspaceProps) {
           </Button>
         </>)}
         {contents.length === 0 && (
-          <ThemeForm onSubmit={onThemeContentSubmit} />
+          <>
+            <div className="flex flex-col gap-4 justify-center items-center w-full h-full max-w-sm mx-auto text-muted-foreground">
+              <p>从新建项目开始</p>
+              <p>您的所有数据都存储在浏览器本地。</p>
+              <Button className="sm:w-[256px]" variant="outline" size="sm" onClick={() => setOpen(true)}>
+                <FolderPlus className="w-4 h-4 mr-2"/>
+                新建项目
+              </Button>
+            </div>
+            <ThemeFormDialog
+              onOpenChange={setOpen}
+              onSubmit={onThemeContentSubmit}
+              open={open}
+            />
+          </>
         )}
     </div>
   )

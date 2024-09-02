@@ -1,4 +1,5 @@
 'use client'
+
 import { Download, Folder, ImageDown, LinkIcon, Trash2, TriangleAlert } from 'lucide-react'
 import Link from 'next/link'
 import { useRef, useState } from 'react'
@@ -23,7 +24,8 @@ interface HeaderProps {
   contents: Content[];
   setContents: (contents: Content[]) => void;
   previewRef: React.RefObject<PreviewRef>;
-  theme?: string
+  theme: string;
+  setTheme: (theme: string) => void;
 }
 
 type DialogType = 'save_file' | 'open_file' | 'reset_data'
@@ -32,7 +34,7 @@ export function Header(props: HeaderProps) {
   const [isOpenFile, setIsOpenFile] = useState(false)
   const [imageDialogOpen, setImageDialogOpen] = useState(false)
   const [dialogType, setDialogType] = useState<DialogType>('save_file')
-  const { contents, setContents, previewRef } = props
+  const { contents, setContents, previewRef, theme, setTheme } = props
   const { toast } = useToast()
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -84,6 +86,10 @@ export function Header(props: HeaderProps) {
             await addAllContents(contents)
             setContents(contents)
 
+            const theme = importData.theme ?? 'default'
+            setTheme(theme)
+            localStorage.setItem('currentTheme', theme)
+
             // 允许前后两次选择相同文件
             event.target.value = ''
           }
@@ -114,7 +120,8 @@ export function Header(props: HeaderProps) {
     const exportData: ExportJSON = {
       type: 'oneimg',
       version: 1,
-      source: 'https://oneimg.xyz',
+      source: 'https://oneimgai.com',
+      theme: theme ?? 'default',
       data: exportContents,
     }
 
@@ -151,8 +158,10 @@ export function Header(props: HeaderProps) {
 
   async function handleDataClear() {
     await removeAllContents()
+    localStorage.clear()
     setContents([])
     setIsOpenFile(false)
+    setTheme('')
   }
 
   async function handleImageDialogOpen() {
@@ -192,12 +201,12 @@ export function Header(props: HeaderProps) {
       <Dialog open={isOpenFile} onOpenChange={setIsOpenFile}>
         {dialogType === 'open_file' && <DialogContent className="max-w-full sm:max-w-[900px] px-10 py-8 h-full overflow-y-auto sm:h-auto">
           <DialogHeader>
-            <DialogTitle className="text-2xl">从文件加载</DialogTitle>
+            <DialogTitle className="text-2xl mb-4">从文件加载</DialogTitle>
             <DialogDescription className="hidden">
               open file
             </DialogDescription>
           </DialogHeader>
-          <div className="flex flex-col gap-8 py-4">
+          <div className="flex flex-col gap-8">
             <div className="flex items-center gap-4 p-8 bg-gray-300 rounded-lg">
               <div className="flex flex-grow-0 flex-shrink-0 items-center justify-center bg-yellow-400 w-[56px] h-[56px] rounded-full">
                 <TriangleAlert className="w-6 h-6" />
@@ -232,13 +241,13 @@ export function Header(props: HeaderProps) {
           </div>
         </DialogContent>}
         {dialogType === 'save_file' && <DialogContent className="max-w-full sm:max-w-[900px] px-10 py-8 h-full overflow-y-auto sm:h-auto">
-          <DialogHeader className="pb-4 border-b">
+          <DialogHeader className="pb-4 border-b mb-4">
             <DialogTitle className="text-2xl">保存到...</DialogTitle>
             <DialogDescription className="hidden">
               save as...
             </DialogDescription>
           </DialogHeader>
-          <div className="flex flex-col gap-8 py-4">
+          <div className="flex flex-col gap-8">
             <div className="flex flex-col sm:flex-row justify-between gap-4">
               <div className="flex items-center justify-center flex-col gap-4 px-8 py-4">
                 <div className="flex flex-grow-0 flex-shrink-0 items-center justify-center bg-primary w-[110px] h-[110px] rounded-full">
@@ -276,13 +285,13 @@ export function Header(props: HeaderProps) {
           </div>
         </DialogContent>}
         {dialogType === 'reset_data' && <DialogContent className="max-w-full sm:max-w-[495px] px-10 py-8 h-full overflow-y-auto sm:h-auto">
-          <DialogHeader className="text-2xl pb-4 border-b">
+          <DialogHeader className="text-2xl pb-4 border-b mb-4">
             <DialogTitle className="">清除数据</DialogTitle>
             <DialogDescription className="hidden">
               reset all data
             </DialogDescription>
           </DialogHeader>
-          <div className="flex flex-col gap-8 py-4">
+          <div className="flex flex-col gap-8 mb-8">
             <p>
               这将会清除整个主题数据。您是否继续？
             </p>

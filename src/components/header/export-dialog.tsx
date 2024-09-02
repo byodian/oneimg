@@ -117,7 +117,7 @@ export function ExportImageDialog({ previewRef, isExportModalOpen, setIsExportMo
 
   return (
     <Dialog open={isExportModalOpen} onOpenChange={setIsExportModalOpen}>
-      <DialogContent className="max-w-full sm:max-w-[840px] px-10 py-8 sm:h-[600px] overflow-y-auto flex flex-col gap-4">
+      <DialogContent className="max-w-full sm:max-w-[840px] px-10 py-8 sm:h-[500px] overflow-y-auto flex flex-col gap-4">
         <DialogHeader>
           <DialogTitle className="text-2xl">导出图片</DialogTitle>
           <DialogDescription className="hidden">
@@ -129,7 +129,7 @@ export function ExportImageDialog({ previewRef, isExportModalOpen, setIsExportMo
             <Carousel setApi={setApi} className="w-full py-2 px-4">
               <CarouselContent>
                 {previewImages.length > 0 && !isExporting ? previewImages.map(item => (
-                  <CarouselItem key={item.id} className="h-[400px]">
+                  <CarouselItem key={item.id} className="h-[300px]">
                     <Image
                       src={URL.createObjectURL(item.data)}
                       alt="Preview"
@@ -139,7 +139,7 @@ export function ExportImageDialog({ previewRef, isExportModalOpen, setIsExportMo
                     />
                   </CarouselItem>
                 )) : (
-                  <CarouselItem className="h-[400px] flex items-center justify-center">
+                  <CarouselItem className="h-[300px] flex items-center justify-center">
                       <div className="flex gap-2 items-center text-gray-500">
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         图片生成中...
