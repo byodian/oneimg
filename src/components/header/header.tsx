@@ -110,6 +110,7 @@ export function Header(props: HeaderProps) {
         return {
           id: item.id!,
           title: item.title,
+          type: item.type,
           content: item.content,
           parentId: item.parentId,
           uploadFiles: item.uploadFiles,

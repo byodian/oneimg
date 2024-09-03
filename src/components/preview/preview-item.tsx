@@ -18,7 +18,7 @@ const PreviewItem = forwardRef<HTMLLIElement, { content: Content, children?: Rea
   }, [uploadFiles]) || []
 
   return (
-    <li className={cn(!content.parentId ? 'one-item' : 'one-child-item')} ref={ref}>
+    <li className={cn(!content.parentId ? 'one-item' : 'one-item__child', content.type === 'theme_content' && 'one-item__theme')} ref={ref}>
       {content.title && <div className="one-title">{parse(DOMPurify.sanitize(content.title))}</div>}
       {content.content && <div className="one-content">{parse(DOMPurify.sanitize(content.content))}</div>}
       {content.uploadFiles && content.uploadFiles.length > 0 && (

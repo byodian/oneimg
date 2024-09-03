@@ -48,7 +48,7 @@ const Preview = forwardRef<PreviewRef, { contents: Content[]; className?: string
                 itemRefs.current[content.id!] = el!
               }}>
               {childContentsMap.get(content.id as number) && (
-                <ul className="one-item-children">
+                <ul className="one-item__children">
                   {childContentsMap.get(content.id!)!.map(item => (
                     <PreviewItem content={item} key={item.id}/>
                   ))}

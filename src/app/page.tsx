@@ -116,7 +116,7 @@ export default function Home() {
       <Header contents={contents} setContents={setContents} previewRef={previewRef} theme={theme} setTheme={setTheme} />
       <main className="flex h-[calc(100%-58px)]">
         <div className="hidden w-full sm:block sm:w-[360px] overflow-y-auto sm:min-w-[360px] h-full">
-          <Preview ref={previewRef} contents={contents} className="w-full flex flex-col p-4 m-auto" />
+          <Preview ref={previewRef} contents={contents} className="w-full flex flex-col m-auto" />
         </div>
         <div className="flex-grow flex justify-center bg-card text-card-foreground overflow-y-auto">
           <Workspace
