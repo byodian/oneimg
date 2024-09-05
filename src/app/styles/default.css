@@ -15,9 +15,9 @@
 
   /* one-item */
   .one-item:not(.one-item__theme) {
-      border-radius: 10px;
       padding: 12px 18px;
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      /* border-radius: 10px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); */
       background-color: #f0f4fb;
       color: #666; /* 主题描述颜色 */
   }

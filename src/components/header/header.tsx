@@ -2,7 +2,7 @@
 
 import { Download, Folder, ImageDown, LinkIcon, Trash2, TriangleAlert } from 'lucide-react'
 import Link from 'next/link'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ExportImageDialog } from './export-dialog'
 import { useToast } from '@/components/ui/use-toast'
 import { Button } from '@/components/ui/button'
@@ -34,16 +34,22 @@ export function Header(props: HeaderProps) {
   const [isOpenFile, setIsOpenFile] = useState(false)
   const [imageDialogOpen, setImageDialogOpen] = useState(false)
   const [dialogType, setDialogType] = useState<DialogType>('save_file')
+  const [isExporting, setIsExporting] = useState(true)
   const { contents, setContents, previewRef, theme, setTheme } = props
   const { toast } = useToast()
   const fileRef = useRef<HTMLInputElement>(null)
 
+  useEffect(() => {
+    // Regenerate images when the contents are updated
+    setIsExporting(true)
+  }, [contents])
+
+  // open different dialog by type
   function handleDialogOpen(type: DialogType) {
     setIsOpenFile(true)
     setDialogType(type)
   }
 
-  // open different dialog by type
   function handleOpenfileBtnClick() {
     if (fileRef.current) {
       fileRef.current.click()
@@ -51,6 +57,7 @@ export function Header(props: HeaderProps) {
     }
   }
 
+  // open from file
   function handleFileImport(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
     if (file) {
@@ -104,6 +111,7 @@ export function Header(props: HeaderProps) {
     }
   }
 
+  // save as file
   async function handleFileSave() {
     const exportContents = await Promise.all(
       contents.map((item) => {
@@ -166,6 +174,7 @@ export function Header(props: HeaderProps) {
     setTheme('')
   }
 
+  // open the dialog of saving as image
   async function handleImageDialogOpen() {
     setImageDialogOpen(true)
   }
@@ -310,6 +319,8 @@ export function Header(props: HeaderProps) {
         previewRef={previewRef}
         isExportModalOpen={imageDialogOpen}
         setIsExportModalOpen={setImageDialogOpen}
+        isExporting={isExporting}
+        setIsExporting={setIsExporting}
       />
     </header>
   )

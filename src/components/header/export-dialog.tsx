@@ -25,11 +25,12 @@ import { cn } from '@/lib/utils'
 interface ExportImageProps {
   previewRef: React.RefObject<PreviewRef>;
   isExportModalOpen: boolean;
+  isExporting: boolean;
   setIsExportModalOpen: (open: boolean) => void;
+  setIsExporting: (isExporting: boolean) => void;
 }
 
-export function ExportImageDialog({ previewRef, isExportModalOpen, setIsExportModalOpen }: ExportImageProps) {
-  const [isExporting, setIsExporting] = useState(true)
+export function ExportImageDialog({ previewRef, isExportModalOpen, isExporting, setIsExporting, setIsExportModalOpen }: ExportImageProps) {
   const [scale, setScale] = useState('1')
   const [previewImages, setPreviewImages] = useState<ExportImage[]>([])
   const [api, setApi] = useState<CarouselApi>()
@@ -41,18 +42,15 @@ export function ExportImageDialog({ previewRef, isExportModalOpen, setIsExportMo
       return
     }
 
-    setCount(api.scrollSnapList().length)
-    if (!isExporting) {
-      setCurrent(api.selectedScrollSnap() + 1)
-      setCount(previewImages?.length as number)
-    }
+    setCount(previewImages?.length as number)
+    setCurrent(api.selectedScrollSnap() + 1)
 
     api.on('select', () => {
       setCurrent(api.selectedScrollSnap() + 1)
     })
   }, [api, isExporting, previewImages?.length])
 
-  // 监听导出选项变化，若选项更新就重新生成图片
+  // Listen for changes in export options and regenerate images if options are updated
   useEffect(() => {
     const exportOption = {
       scale: Number(scale),
@@ -85,10 +83,12 @@ export function ExportImageDialog({ previewRef, isExportModalOpen, setIsExportMo
 
     // 等待DOM节点更新，延迟生成图片
     const timer = setTimeout(() => {
-      generateImages()
+      if (isExporting) {
+        generateImages()
+      }
     }, 1000)
     return () => clearTimeout(timer)
-  }, [previewRef, scale])
+  }, [previewRef, scale, setIsExporting, isExporting])
 
   const exportImages = useCallback(async () => {
     const zip = new JSZip()
@@ -106,7 +106,7 @@ export function ExportImageDialog({ previewRef, isExportModalOpen, setIsExportMo
     } finally {
       setIsExporting(false)
     }
-  }, [previewImages])
+  }, [previewImages, setIsExporting])
 
   // 更新缩放比例
   const onScaleChange = (event: React.MouseEvent<HTMLDivElement>) => {
