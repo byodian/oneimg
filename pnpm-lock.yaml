@@ -101,6 +101,9 @@ dependencies:
   html-react-parser:
     specifier: ^5.1.12
     version: 5.1.12(@types/react@18.3.3)(react@18.3.1)
+  html-to-image:
+    specifier: ^1.11.11
+    version: 1.11.11
   html2canvas:
     specifier: ^1.4.1
     version: 1.4.1
@@ -4551,6 +4554,10 @@ packages:
       react: 18.3.1
       react-property: 2.0.2
       style-to-js: 1.1.12
+    dev: false
+
+  /html-to-image@1.11.11:
+    resolution: {integrity: sha512-9gux8QhvjRO/erSnDPv28noDZcPZmYE7e1vFsBLKLlRlKDSqNJYebj6Qz1TGd5lsRV+X+xYyjCKjuZdABinWjA==}
     dev: false
 
   /html2canvas@1.4.1:

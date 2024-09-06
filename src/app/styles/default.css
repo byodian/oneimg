@@ -1,13 +1,11 @@
   .one {
-      background-color: #f0f4fb;
+      /* background-color: #f0f4fb; */
       padding: 20px;
       border-radius: 10px;
   }
 
   .one-container {
       list-style: none;
-      padding: 0;
-      margin: 0;
       display: flex;
       flex-direction: column;
       gap: 1rem;
@@ -16,29 +14,32 @@
   /* one-item */
   .one-item:not(.one-item__theme) {
       padding: 12px 18px;
-      /* border-radius: 10px;
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); */
+      border-radius: 10px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
       background-color: #f0f4fb;
-      color: #666; /* 主题描述颜色 */
+      color: #666;
   }
 
   .one-item__theme {
     padding: 12px 18px;
+    background-color: #fff;
   }
  
+  .one-title {
+    margin-bottom: 10px;
+  }
+
   /* one-title */
   .one-item > .one-title {
       font-size: 24px;
       font-weight: bold;
       color: #333;
-      margin: 0;
   }
 
   /* one-content */
   .one-content p {
       font-size: 16px;
       color: #333; /* 主题描述颜色 */
-      margin: 10px 0 0 0;
   }
 
   /* one-item children */
@@ -48,12 +49,10 @@
   }
 
   .one-item__child > .one-title {
-      /* background-color: #ffffff; */
       font-size: 18px;
       border-radius: 10px;
       color: #333;
       font-weight: bold;
-      /* box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); */
   }
 
   .one-item__theme .one-title p,

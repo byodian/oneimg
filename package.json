@@ -42,6 +42,7 @@
     "exifreader": "^4.23.3",
     "file-saver": "^2.0.5",
     "html-react-parser": "^5.1.12",
+    "html-to-image": "^1.11.11",
     "html2canvas": "^1.4.1",
     "jszip": "^3.10.1",
     "lucide": "^0.428.0",
