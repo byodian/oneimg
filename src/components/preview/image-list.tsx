@@ -3,7 +3,7 @@ import type { ImageFile } from '@/types/common'
 import { cn, getImageLayout } from '@/lib/utils'
 export function ImageList({ images } : { images: ImageFile[] }) {
   return (
-    <div className={cn('one-images grid gap-2 mt-4', getImageLayout(images.length))}>
+    <div className={cn('one-images grid gap-2', getImageLayout(images.length))}>
       {images.length === 1 && (
         <div>
           <Image

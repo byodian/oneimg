@@ -40,8 +40,9 @@ const Preview = forwardRef<PreviewRef, { contents: Content[]; className?: string
         </div>
       ) : (
         <ul className="one-container">
-          {parentContents.map(content => (
+          {parentContents.map((content, parentIndex) => (
             <PreviewItem
+              index={parentIndex}
               content={content}
               key={content.id}
               ref={(el) => {
@@ -49,8 +50,8 @@ const Preview = forwardRef<PreviewRef, { contents: Content[]; className?: string
               }}>
               {childContentsMap.get(content.id as number) && (
                 <ul className="one-item__children">
-                  {childContentsMap.get(content.id!)!.map(item => (
-                    <PreviewItem content={item} key={item.id}/>
+                  {childContentsMap.get(content.id!)!.map((item, index) => (
+                    <PreviewItem content={item} key={item.id} index={index} />
                   ))}
                 </ul>
               )}

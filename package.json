@@ -24,6 +24,7 @@
     "@tiptap/extension-bullet-list": "^2.6.4",
     "@tiptap/extension-document": "^2.6.4",
     "@tiptap/extension-image": "^2.6.4",
+    "@tiptap/extension-italic": "^2.6.6",
     "@tiptap/extension-list-item": "^2.6.4",
     "@tiptap/extension-ordered-list": "^2.6.4",
     "@tiptap/extension-paragraph": "^2.6.4",

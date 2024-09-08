@@ -6,6 +6,7 @@ import BulletList from '@tiptap/extension-bullet-list'
 import OrderedList from '@tiptap/extension-ordered-list'
 import ListItem from '@tiptap/extension-list-item'
 import Bold from '@tiptap/extension-bold'
+import Italic from '@tiptap/extension-italic'
 import Underline from '@tiptap/extension-underline'
 import Placeholder from '@tiptap/extension-placeholder'
 import { EditorContent, useEditor } from '@tiptap/react'
@@ -37,7 +38,7 @@ const EditorContainer = forwardRef<EditorMethods, EditorProps>(
 
     // 正文编辑器
     const contentEditor = useEditor({
-      extensions: [Document, Paragraph, Text, Bold, Underline, BulletList, OrderedList, ListItem, Placeholder.configure({
+      extensions: [Document, Paragraph, Text, Italic, Bold, Underline, BulletList, OrderedList, ListItem, Placeholder.configure({
         placeholder: '请输入正文',
       })],
       content: initialContent?.content || '',

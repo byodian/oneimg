@@ -8,10 +8,11 @@ import { Header } from '@/components/header/header'
 import { Preview } from '@/components/preview/preview'
 
 import type { Content, PreviewRef, ThemeContent } from '@/types/common'
+import { cn } from '@/lib/utils'
 
 export default function Home() {
   const [contents, setContents] = useState<Content[]>([])
-  const [theme, setTheme] = useState('')
+  const [theme, setTheme] = useState('wechat-post')
   const { toast } = useToast()
   const previewRef = useRef<PreviewRef>(null)
 
@@ -60,11 +61,11 @@ export default function Home() {
       if ('id' in content) {
         await updateContent(content)
         setContents(contents.map(item => (item.id === content.id ? content : item)))
-      // toast({
-      //   title: 'Content updated',
-      //   description: 'Content updated successfully.',
-      //   duration: 1000,
-      // })
+        // toast({
+        //   title: 'Content updated',
+        //   description: 'Content updated successfully.',
+        //   duration: 1000,
+        // })
       } else {
         const newContent = {
           ...content,
@@ -115,7 +116,7 @@ export default function Home() {
     <div className="flex flex-col h-full">
       <Header contents={contents} setContents={setContents} previewRef={previewRef} theme={theme} setTheme={setTheme} />
       <main className="flex h-[calc(100%-58px)]">
-        <div className="hidden w-full sm:block sm:w-[360px] overflow-y-auto sm:min-w-[360px] h-full">
+        <div className={cn(theme, 'hidden w-full sm:block sm:w-[375px] overflow-y-auto sm:min-w-[375px] h-full')}>
           <Preview ref={previewRef} contents={contents} className="w-full flex flex-col m-auto" />
         </div>
         <div className="flex-grow flex justify-center bg-card text-card-foreground overflow-y-auto">

@@ -5,7 +5,7 @@ import { ImageList } from './image-list'
 import type { Content, ImageFile } from '@/types/common'
 import { base64ToBlob, cn } from '@/lib/utils'
 
-const PreviewItem = forwardRef<HTMLLIElement, { content: Content, children?: React.ReactNode }>(({ content, children }, ref) => {
+const PreviewItem = forwardRef<HTMLLIElement, { content: Content, children?: React.ReactNode, index: number }>(({ content, children, index }, ref) => {
   const uploadFiles = content.uploadFiles
 
   const imageFiles: ImageFile[] = useMemo(() => {
@@ -18,13 +18,32 @@ const PreviewItem = forwardRef<HTMLLIElement, { content: Content, children?: Rea
   }, [uploadFiles]) || []
 
   return (
-    <li className={cn(!content.parentId ? 'one-item' : 'one-item__child', content.type === 'theme_content' && 'one-item__theme')} ref={ref}>
-      {content.title && <div className="one-title">{parse(DOMPurify.sanitize(content.title))}</div>}
-      {content.content && <div className="one-content">{parse(DOMPurify.sanitize(content.content))}</div>}
-      {content.uploadFiles && content.uploadFiles.length > 0 && (
-        <ImageList images={imageFiles} />
+    <li
+      className={cn(content.parentId ? 'one-child-item' : content.type === 'theme_content' ? 'one-theme' : 'one-item')}
+      ref={ref}>
+      {content.title && (
+        <div
+          className={
+            cn(content.parentId ? 'one-child-item__title' : content.type === 'theme_content' ? 'one-theme__title' : 'one-item__title')
+          }
+          data-index={index}
+        >
+          {parse(DOMPurify.sanitize(content.title))}
+        </div>
       )}
-      {children}
+      {
+        ((content.content) || (content.uploadFiles && content.uploadFiles.length > 0)) && (
+          <div className={cn(content.parentId ? 'one-child-item__content' : content.type === 'theme_content' ? 'one-theme__content' : 'one-item__content')}>
+            {content.content && <>{parse(DOMPurify.sanitize(content.content))}</>}
+            {content.uploadFiles && content.uploadFiles.length > 0 && (
+              <ImageList images={imageFiles} />
+            )}
+            {children}
+          </div>)
+      }
+      {content.type === 'theme_content' && (
+        <div className="one-theme__bg"></div>
+      )}
     </li>
   )
 })

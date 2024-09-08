@@ -1,5 +1,6 @@
 import html2canvas from 'html2canvas'
 import { toBlob } from 'html-to-image'
+import UPNG from '@pdf-lib/upng'
 import ExifReader from 'exifreader'
 import type { ExportOption } from './types'
 
@@ -84,4 +85,11 @@ export async function exportImage(element: HTMLElement, filename: string, export
     id: filename,
     data: imageBlob,
   }
+}
+
+export async function compressImage(blob: Blob, quality: number, outFormat: string, width: number, height: number) {
+  const pngArrayBuffer = await blob.arrayBuffer()
+  const rgbaBuffers = UPNG.toRGBA8(UPNG.decode(pngArrayBuffer))
+  const compressedArrayBuffer = UPNG.encode(rgbaBuffers, width, height, quality)
+  return new Blob([compressedArrayBuffer], { type: outFormat })
 }

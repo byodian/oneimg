@@ -86,7 +86,7 @@ export function ExportImageDialog({ previewRef, isExportModalOpen, isExporting, 
       if (isExporting) {
         generateImages()
       }
-    }, 1000)
+    })
     return () => clearTimeout(timer)
   }, [previewRef, scale, setIsExporting, isExporting])
 
@@ -140,10 +140,10 @@ export function ExportImageDialog({ previewRef, isExportModalOpen, isExporting, 
                   </CarouselItem>
                 )) : (
                   <CarouselItem className="h-[300px] flex items-center justify-center">
-                      <div className="flex gap-2 items-center text-gray-500">
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        图片生成中...
-                      </div>
+                    <div className="flex gap-2 items-center text-gray-500">
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      图片生成中...
+                    </div>
                   </CarouselItem>
                 )}
               </CarouselContent>

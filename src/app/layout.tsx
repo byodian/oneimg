@@ -1,14 +1,14 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import { Noto_Sans_SC } from 'next/font/google'
 import '@/app/globals.css'
-import '@/app/styles/default.css'
+import '@/app/styles/theme.css'
 import { headers } from 'next/headers'
 import { cn } from '@/lib/utils'
 import { Toaster } from '@/components/ui/toaster'
 
-const inter = Inter({
+const notoSansSc = Noto_Sans_SC({
   subsets: ['latin'],
-  variable: '--font-sans',
+  variable: '--font-noto-sans-sc',
 })
 
 export const metadata: Metadata = {
@@ -52,7 +52,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="h-full overflow-hidden" data-platform={getPlatform()}>
-      <body className={cn('h-full overflow-hidden font-sans antialiased default', inter.variable)}>
+      <body className={cn('h-full overflow-hidden antialiased', notoSansSc.variable)}>
         {children}
         <Toaster />
       </body>

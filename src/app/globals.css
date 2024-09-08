@@ -87,7 +87,8 @@
     @apply border-border;
   }
   body {
-    @apply text-foreground;
+    @apply text-foreground leading-normal;
+    font-family: var(--font-noto-sans-sc), sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
   }
   img {
     display: unset;
@@ -101,6 +102,14 @@
   }
 
   /* List styles */
+  ul {
+    list-style: disc;
+  }
+
+  ol {
+    list-style: decimal;
+  }
+
   ul, 
   ol {
     padding: 0 1rem;

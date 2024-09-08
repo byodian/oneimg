@@ -138,8 +138,10 @@ export function Header(props: HeaderProps) {
     try {
       // open the system file save dialog
       if (typeof window !== 'undefined' && 'showSaveFilePicker' in window) {
+        const date = new Date()
+        const fullDateString = `${date.toLocaleDateString().replace(/\//g, '-')} ${date.toLocaleTimeString().replaceAll(':', '')}`
         const handle = await (window as any).showSaveFilePicker({
-          suggestedName: '未命名.oneimg',
+          suggestedName: `未命名-${fullDateString}.oneimg`,
           types: [{
             description: 'OneImg File',
             accept: { 'application/json': ['.oneimg'] },
