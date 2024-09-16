@@ -1,4 +1,3 @@
-// components/export-image/index.tsx
 'use client'
 
 import JSZip from 'jszip'
@@ -124,7 +123,7 @@ export function ExportImageDialog({ previewRef, isExportModalOpen, isExporting, 
             save as images
           </DialogDescription>
         </DialogHeader>
-        <div className="flex-grow flex items-start gap-4">
+        <div className="flex-grow flex gap-4">
           <div className="w-[480px] px-12 border rounded-lg">
             <Carousel setApi={setApi} className="w-full py-2 px-4">
               <CarouselContent>
@@ -181,7 +180,7 @@ export function ExportImageDialog({ previewRef, isExportModalOpen, isExporting, 
                 </div>
               </div>
             </div>
-            <div className="mt-8 ml-auto">
+            <div className="mt-auto ml-auto">
               <Button onClick={exportImages} disabled={isExporting}>
                 {isExporting ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />

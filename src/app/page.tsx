@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils'
 
 export default function Home() {
   const [contents, setContents] = useState<Content[]>([])
-  const [theme, setTheme] = useState('wechat-post')
+  const [theme, setTheme] = useState(localStorage.getItem('currentTheme') || 'wechat-post')
   const { toast } = useToast()
   const previewRef = useRef<PreviewRef>(null)
 

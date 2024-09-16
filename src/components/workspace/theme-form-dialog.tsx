@@ -31,7 +31,6 @@ export function ThemeFormDialog({ onSubmit, onOpenChange, open }: ThemeFormProps
   })
 
   async function handleContentSubmit(values: z.infer<typeof formSchema>) {
-    console.log(values)
     const content = {
       title: values.title,
       content: values.content,
@@ -46,7 +45,7 @@ export function ThemeFormDialog({ onSubmit, onOpenChange, open }: ThemeFormProps
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="text-2xl mb-4">新建项目</DialogTitle>
+          <DialogTitle className="text-2xl mb-4">新建主题</DialogTitle>
           <DialogDescription className="hidden">
             save as images
           </DialogDescription>

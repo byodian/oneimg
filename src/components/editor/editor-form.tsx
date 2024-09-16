@@ -12,8 +12,10 @@ type EditorProps = {
   initialContent?: Content;
   editorAddStatus?: 'add_sub' | 'add';
   titlePlaceholder?: string;
+  contentPlaceholder?: string;
   quality?: number;
   outputFormat?: string;
+  multiple: boolean;
   onSubmit: (content: Content) => Promise<void>;
   hideEditor: () => void;
 }
@@ -40,7 +42,17 @@ const contentReducer = (state: Content, action: ContentAction): Content => {
 }
 
 export default function EditorForm(props: EditorProps) {
-  const { onSubmit, hideEditor, className, initialContent, titlePlaceholder, quality, outputFormat } = props
+  const {
+    onSubmit,
+    hideEditor,
+    className,
+    initialContent,
+    titlePlaceholder,
+    contentPlaceholder,
+    quality,
+    outputFormat,
+    multiple,
+  } = props
   const initialState = {
     title: '',
     content: '',
@@ -97,13 +109,19 @@ export default function EditorForm(props: EditorProps) {
       <div className="border rounded-[6px] p-3 overflow-auto bg-white relative">
         <EditorContainer
           titlePlaceholder={titlePlaceholder}
+          contentPlaceholder={contentPlaceholder}
           initialContent={content}
           onContentUpdate={handleContentUpdate}
           ref={editorRef}
         />
         <div className="editor-footer">
-          <EditorImage onFilesChange={handleFilesChange} uploadFiles={content.uploadFiles} />
+          <EditorImage
+            onFilesChange={handleFilesChange}
+            uploadFiles={content.uploadFiles}
+          />
           <EditorButton
+            multiple={multiple}
+            setImage={editorRef.current?.setImage}
             hideEditor={hideEditor}
             onFilesChange={handleFilesChange}
             disabled={!editorRef || !!editorRef.current?.isEmpty()}

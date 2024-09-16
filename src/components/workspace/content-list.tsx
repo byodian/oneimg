@@ -5,6 +5,12 @@ import { useMemo, useState } from 'react'
 import EditorForm from '../editor/editor-form'
 import { Button } from '../ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader } from '@/components/ui/dialog'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import type { Content, ContentListProps } from '@/types/common'
 import { cn } from '@/lib/utils'
 
@@ -66,90 +72,124 @@ export default function ContentList(props: ContentListProps) {
   }
 
   return (
-    <ul className="mb-2">
-      {parentContents.map(content => (
-        <li
-          key={content.id}
-          className={cn(!content.parentId ? 'text-lg text-primary' : 'text-base ml-4 text-secondary-foreground', 'relative cursor-pointer')}
-        >
-          {editorStatus === editorEditStatus && editingContentId === content.id ? (
-            <div className="my-2">
-              <EditorForm
-                initialContent={content}
-                onSubmit={onSubmit}
-                hideEditor={handleEditorHide}
-              />
-            </div>
-          ) : (
-            <div className={cn(!content.parentId ? 'group font-bold' : 'group/child ', 'border-b border-b-border py-4')}>
-              <div className="mr-28">{parse(DOMPurify.sanitize(content.title))}</div>
-              <div className={cn(!content.parentId ? 'group-hover:flex' : 'group-hover/child:flex', 'hidden absolute right-4 top-0 gap-4')}>
-              {content.type === 'normal_content' && (
-                  <>
-                    {!content.parentId && <div className="h-[60px] flex items-center" onClick={() => handleSubContentAdd(content)}>
-                      <Plus className="cursor-pointer text-black" width={18} height={18} />
-                    </div>}
-                    <div className="h-[60px] flex items-center" onClick={() => handleContentEdit(content)}>
-                      <Pencil className="cursor-pointer text-black" width={18} height={18} />
-                    </div>
-                    <div className="h-60px] flex items-center" onClick={() => handleDialogOpen(content)}>
-                      <Trash2 className="cursor-pointer text-black" width={18} height={18} />
-                    </div>
-                  </>
-              )}
-              {/* 项目内容只支持编辑 */}
-              {content.type === 'theme_content' && <div className="h-[60px] flex items-center" onClick={() => handleContentEdit(content)}>
-                  <Pencil className="cursor-pointer text-black" width={18} height={18} />
-                </div>
-              }
+
+    <TooltipProvider delayDuration={0}>
+      <ul className="mb-2">
+        {parentContents.map(content => (
+          <li
+            key={content.id}
+            className={
+              cn(
+                !content.parentId ? 'text-lg text-primary' : 'text-base ml-4 text-secondary-foreground',
+                content.type === 'theme_content' && 'text-2xl',
+                'relative cursor-pointer',
+              )
+            }
+          >
+            {editorStatus === editorEditStatus && editingContentId === content.id ? (
+              <div className="my-2">
+                <EditorForm
+                  titlePlaceholder={content.type === 'theme_content' ? '请输入主标题' : '请输入标题'}
+                  contentPlaceholder={content.type === 'theme_content' ? '请输入副标题' : '请输入正文内容'}
+                  multiple={content.type !== 'theme_content'}
+                  initialContent={content}
+                  onSubmit={onSubmit}
+                  hideEditor={handleEditorHide}
+                />
               </div>
-            </div>
-          )}
+            ) : (
+              <div className={cn(!content.parentId ? 'group font-bold' : 'group/child ', 'border-b border-b-border py-4')}>
+                <div className="mr-28">{parse(DOMPurify.sanitize(content.title))}</div>
+                <div className={cn(!content.parentId ? 'group-hover:flex' : 'group-hover/child:flex', 'hidden absolute right-4 top-0 gap-4')}>
+                  {content.type === 'normal_content' && (
+                    <>
+                      <div className="h-[60px] flex items-center" onClick={() => handleContentEdit(content)}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Pencil className="cursor-pointer text-black" width={18} height={18} />
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="text-white bg-black">{!content.parentId ? '编辑标题' : '编辑子标题'}</TooltipContent>
+                        </Tooltip>
+                      </div>
+                      <div className="h-60px] flex items-center" onClick={() => handleDialogOpen(content)}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Trash2 className="cursor-pointer text-black" width={18} height={18} />
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="text-white bg-black">{!content.parentId ? '删除标题' : '删除子标题'}</TooltipContent>
+                        </Tooltip>
+                      </div>
+                      {!content.parentId && <div className="h-[60px] flex items-center" onClick={() => handleSubContentAdd(content)}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Plus className="cursor-pointer text-black" width={18} height={18} />
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="text-white bg-black">添加子标题</TooltipContent>
+                        </Tooltip>
+                      </div>}
+                    </>
+                  )}
+                  {/* 主题内容只支持编辑 */}
+                  {content.type === 'theme_content' && <div className="h-[60px] flex items-center" onClick={() => handleContentEdit(content)}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Pencil className="cursor-pointer text-black" width={18} height={18} />
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="text-white bg-black">编辑主题</TooltipContent>
+                    </Tooltip>
+                  </div>
+                  }
+                </div>
+              </div>
+            )}
 
-          {childContentsMap.get(content.id) && (
-            <ContentList
-              editorEditStatus="edit_sub"
-              contents={childContentsMap.get(content.id)}
-              editorStatus={editorStatus}
-              onSubmit={onSubmit}
-              onContentDelete={onContentDelete}
-              onEditorStatusChange={onEditorStatusChange}
-            />
-          )}
-
-          {editorStatus === 'add_sub' && editingContentId === content.id && !content.parentId && (
-            <div className="my-2 ml-4">
-              <EditorForm
-                titlePlaceholder="请输入子标题"
-                onSubmit={handleSubContentSubmit}
-                hideEditor={handleEditorHide}
+            {childContentsMap.get(content.id) && (
+              <ContentList
+                editorEditStatus="edit_sub"
+                contents={childContentsMap.get(content.id)}
+                editorStatus={editorStatus}
+                onSubmit={onSubmit}
+                onContentDelete={onContentDelete}
+                onEditorStatusChange={onEditorStatusChange}
               />
-            </div>
-          )}
-        </li>
-      ))}
+            )}
 
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent aria-describedby={undefined}>
-          <DialogHeader>
-            <DialogDescription className="hidden">确定删除此标题吗?</DialogDescription>
-          </DialogHeader>
-          <div className="flex">
-            <span>您确定删除</span>
-            {DOMPurify && typeof DOMPurify.sanitize === 'function' && <div className="font-bold">{parse(DOMPurify.sanitize(curContent.title))}</div>}
-            <span>？</span>
-          </div>
-          <DialogFooter>
-            <div>
-              <Button className="mr-4" variant="outline" onClick={() => setIsOpen(false)}>取消</Button>
-              <Button variant="destructive" onClick={() => {
-                onContentDelete(curContent)
-                setIsOpen(false)
-              }}>确定</Button>
+            {editorStatus === 'add_sub' && editingContentId === content.id && !content.parentId && (
+              <div className="my-2 ml-4">
+                <EditorForm
+                  multiple
+                  titlePlaceholder="请输入子标题"
+                  onSubmit={handleSubContentSubmit}
+                  hideEditor={handleEditorHide}
+                />
+              </div>
+            )}
+          </li>
+        ))}
+
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+          <DialogContent aria-describedby={undefined}>
+            <DialogHeader>
+              <DialogDescription className="hidden">确定删除此标题吗?</DialogDescription>
+            </DialogHeader>
+            <div className="flex">
+              <span>您确定删除</span>
+              {DOMPurify && typeof DOMPurify.sanitize === 'function' && <div className="font-bold">{parse(DOMPurify.sanitize(curContent.title))}</div>}
+              <span>？</span>
             </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </ul>
+            <DialogFooter>
+              <div>
+                <Button className="mr-4" variant="outline" onClick={() => setIsOpen(false)}>取消</Button>
+                <Button variant="destructive" onClick={() => {
+                  onContentDelete(curContent)
+                  setIsOpen(false)
+                }}>确定</Button>
+              </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </ul>
+
+    </TooltipProvider>
   )
 }

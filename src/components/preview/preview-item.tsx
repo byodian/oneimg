@@ -1,6 +1,7 @@
 import DOMPurify from 'dompurify'
 import parse from 'html-react-parser'
 import { forwardRef, useMemo } from 'react'
+import Image from 'next/image'
 import { ImageList } from './image-list'
 import type { Content, ImageFile } from '@/types/common'
 import { base64ToBlob, cn } from '@/lib/utils'
@@ -21,6 +22,9 @@ const PreviewItem = forwardRef<HTMLLIElement, { content: Content, children?: Rea
     <li
       className={cn(content.parentId ? 'one-child-item' : content.type === 'theme_content' ? 'one-theme' : 'one-item')}
       ref={ref}>
+      {content.type === 'theme_content' && (
+        <div className="one-theme__bg"></div>
+      )}
       {content.title && (
         <div
           className={
@@ -35,16 +39,18 @@ const PreviewItem = forwardRef<HTMLLIElement, { content: Content, children?: Rea
         ((content.content) || (content.uploadFiles && content.uploadFiles.length > 0)) && (
           <div className={cn(content.parentId ? 'one-child-item__content' : content.type === 'theme_content' ? 'one-theme__content' : 'one-item__content')}>
             {content.content && <>{parse(DOMPurify.sanitize(content.content))}</>}
-            {content.uploadFiles && content.uploadFiles.length > 0 && (
+            {content.type === 'normal_content' && imageFiles.length > 0 && (
               <ImageList images={imageFiles} />
             )}
             {children}
           </div>)
       }
-      {content.type === 'theme_content' && (
-        <div className="one-theme__bg"></div>
+      {content.type === 'theme_content' && imageFiles.length > 0 && (
+        <div className="one-theme__logo">
+          <Image src={imageFiles[0].dataUrl} alt={imageFiles[0].name} width={100} height={100} />
+        </div>
       )}
-    </li>
+    </li >
   )
 })
 PreviewItem.displayName = 'PreviewItem'

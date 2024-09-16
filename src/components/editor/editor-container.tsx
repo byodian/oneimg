@@ -5,6 +5,7 @@ import Text from '@tiptap/extension-text'
 import BulletList from '@tiptap/extension-bullet-list'
 import OrderedList from '@tiptap/extension-ordered-list'
 import ListItem from '@tiptap/extension-list-item'
+import Image from '@tiptap/extension-image'
 import Bold from '@tiptap/extension-bold'
 import Italic from '@tiptap/extension-italic'
 import Underline from '@tiptap/extension-underline'
@@ -18,10 +19,11 @@ type EditorProps = {
   initialContent?: Content;
   onContentUpdate: (content: Content, actionType: ActionType) => void;
   titlePlaceholder?: string;
+  contentPlaceholder?: string;
 }
 
 const EditorContainer = forwardRef<EditorMethods, EditorProps>(
-  ({ initialContent, onContentUpdate, titlePlaceholder }: EditorProps, ref) => {
+  ({ initialContent, onContentUpdate, titlePlaceholder, contentPlaceholder }: EditorProps, ref) => {
     // 标题编辑器
     const titleEditor = useEditor({
       extensions: [Document, Paragraph, Text, Placeholder.configure({
@@ -38,9 +40,25 @@ const EditorContainer = forwardRef<EditorMethods, EditorProps>(
 
     // 正文编辑器
     const contentEditor = useEditor({
-      extensions: [Document, Paragraph, Text, Italic, Bold, Underline, BulletList, OrderedList, ListItem, Placeholder.configure({
-        placeholder: '请输入正文',
-      })],
+      extensions: [
+        Document,
+        Paragraph,
+        Text,
+        Italic,
+        Bold,
+        Underline,
+        BulletList,
+        OrderedList,
+        ListItem,
+        Placeholder.configure({
+          placeholder: contentPlaceholder || '请输入正文',
+        }),
+        Image.configure({
+          inline: true,
+          allowBase64: true,
+        }),
+      ],
+
       content: initialContent?.content || '',
       editorProps: {
         attributes: {
@@ -58,6 +76,11 @@ const EditorContainer = forwardRef<EditorMethods, EditorProps>(
       },
       isEmpty() {
         return !titleEditor || titleEditor.isEmpty
+      },
+      setImage(url: string) {
+        if (contentEditor) {
+          contentEditor.chain().focus().setImage({ src: url }).run()
+        }
       },
     }))
 

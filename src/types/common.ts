@@ -87,6 +87,7 @@ export interface UploadProgressEvent extends ProgressEvent {
 export interface EditorMethods {
   reset: () => void;
   isEmpty: () => boolean;
+  setImage: (url: string) => void;
 }
 
 // 编辑器内容更新触发类型

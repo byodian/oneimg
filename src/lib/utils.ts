@@ -1,6 +1,9 @@
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 
+import UPNG from '@pdf-lib/upng'
+import type { ImageBase } from '@/types/common'
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
@@ -67,4 +70,59 @@ export function getMimeType(base64String: string) {
     }
   }
   return null
+}
+
+export function compressImage(file: File, quality = 0.8, outFormat = 'image/jpeg'): Promise<ImageBase> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.src = URL.createObjectURL(file)
+    img.onload = () => {
+      if (file.type === 'image/png') {
+        file.arrayBuffer().then(async (pngArrayBuffer) => {
+          // fix RangeError: byte length of Uint32Array shoule be a multiple of 4
+          // https://github.com/photopea/UPNG.js/issues/74
+          const rgbaBuffers = UPNG.toRGBA8(UPNG.decode(pngArrayBuffer))
+          const compressedArrayBuffer = UPNG.encode(rgbaBuffers, img.width, img.height, 50)
+          const blob = new Blob([compressedArrayBuffer], { type: file.type })
+          const imageBase = {
+            dataUrl: await blobToBase64(blob),
+            type: file.type,
+          } as ImageBase
+
+          resolve(imageBase)
+        }).catch(() => {
+          URL.revokeObjectURL(img.src)
+          resolve({
+            dataUrl: img.src,
+            type: file.type,
+          } as ImageBase)
+        })
+      } else {
+        const canvas = document.createElement('canvas')
+        const ctx = canvas.getContext('2d')
+
+        canvas.width = img.width
+        canvas.height = img.height
+
+        ctx?.drawImage(img, 0, 0)
+
+        canvas?.toBlob(async (blob) => {
+          URL.revokeObjectURL(img.src)
+          resolve({
+            dataUrl: await blobToBase64(blob!),
+            // dataUrl: blob,
+            type: file.type,
+          } as ImageBase)
+        }, outFormat, quality)
+      }
+    }
+
+    img.onerror = () => {
+      URL.revokeObjectURL(img.src)
+      resolve({
+        dataUrl: img.src,
+        type: file.type,
+      } as ImageBase)
+    }
+  })
 }

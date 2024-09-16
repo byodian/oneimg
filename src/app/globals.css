@@ -97,8 +97,9 @@
 
 /* Basic editor styles */
 .tiptap {
-  :first-child {
-    margin-top: 0;
+  :where(p) {
+    margin-top: 1.25em;
+    margin-bottom: 1.25rem;
   }
 
   /* List styles */
@@ -201,6 +202,14 @@
     float: left;
     height: 0;
     pointer-events: none;
+  }
+
+  :where(:first-child) {
+    margin-top: 0;
+  }
+
+  :where(:last-child) {
+    margin-bottom: 0;
   }
 
   /* Placeholder (on every new line) */

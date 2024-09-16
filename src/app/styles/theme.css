@@ -7,8 +7,11 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    height: 200px;
-    background-color: #ccedff;
+    min-height: 200px;
+    padding-left: 12px;
+    padding-right: 12px;
+    padding-top: 13px;
+    padding-bottom: 13px;
   }
 
   .one-theme__bg {
@@ -20,11 +23,12 @@
     background-image: url('/images/banner.png');
     background-size: cover;
     background-repeat: no-repeat;
+    background-color: #ccedff;
     z-index: 0;
   }
 
-  .one-theme__title { 
-    position: relative; 
+  .one-theme__title {
+    position: relative;
     z-index: 1;
     margin-bottom: 5px;
     font-size: 30px;
@@ -33,15 +37,31 @@
   }
 
   .one-theme__content {
+    position: relative;
+    z-index: 2;
     font-size: 18px;
+
   }
+  .one-theme__logo {
+    position: absolute;
+    z-index: 3;
+    height: 18px;
+    right: 26px;
+    top: 26px;
+
+    img {
+      width: auto;
+      height: 100%;
+    }
+  }
+
 
   .one-item {
     background-color: #ccedff;
     padding-left: 12px;
     padding-right: 12px;
     padding-top: 13px;
-    padding-bottom: 13px; 
+    padding-bottom: 13px;
   }
 
   .one-item__title {
@@ -56,7 +76,7 @@
     background: linear-gradient(90deg, #3CA0FF 0%, #1D6DFF 100%);
 
     &::after {
-      content: 'PART.' attr(data-index);
+      content: 'NO.' attr(data-index);
       position: absolute;
       right: 19px;
       top: 50%;
@@ -69,7 +89,7 @@
 
   .one-item__content {
     position: relative;
-    padding: 18px 20px;
+    padding: 12px 18px;
     border-radius: 12px;
     font-size: 16px;
     /* box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); */
@@ -84,7 +104,7 @@
     :where(:last-child) {
       margin-bottom: 0 !important;
     }
-    
+
     :where(ul):not(:where([class~=one-item__children])) {
       list-style-type: disc;
       padding-left: 1.625rem;
@@ -112,7 +132,7 @@
     }
   }
 
-  .one-child-item__title { 
+  .one-child-item__title {
     display: flex;
     align-items: center;
     width: fit-content;
