@@ -10,13 +10,13 @@
     --card-foreground: hsl(222.2 84% 4.9%);
     --popover: hsl(0 0% 100%);
     --popover-foreground: hsl(222.2 84% 4.9%);
-    --primary: hsl(222.2 47.4% 11.2%);
+    --primary: hsl(0 0 10%);
     --primary-foreground: hsl(210 40% 98%);
     --secondary: hsl(210 40% 96.1%);
     --secondary-foreground: hsl(222.2 47.4% 11.2%);
     --muted: hsl(210 40% 96.1%);
     --muted-foreground: hsl(215.4 16.3% 46.9%);
-    --accent: hsl(210 40% 96.1%);
+    --accent: hsl(0 0% 96%);
     --accent-foreground: hsl(222.2 47.4% 11.2%);
     --destructive: hsl(0 84.2% 60.2%);
     --destructive-foreground: hsl(210 40% 98%);
@@ -79,6 +79,60 @@
     --red: hsl(12, 100%, 60%);
     --red-light: #FFEBE5;
     --shadow: 0px 12px 33px 0px rgba(0, 0, 0, .06), 0px 3.618px 9.949px 0px rgba(0, 0, 0, .04)
+  }
+
+  .one.tech_blue {
+    --template-theme-background: #ccedff;
+    --template-theme-heading1-foreground: #333;
+    --template-theme-heading1-font-size: 30px;
+    --template-theme-heading1-desc-foreground: #333;
+    --template-theme-heading1-desc-font-size: 18px;
+    --template-theme-heading2-foreground: #fff;
+    --template-theme-heading2-font-size: 20px;
+    --template-theme-heading2-background: linear-gradient(90deg, #3CA0FF 0%, #1D6DFF 100%);
+    --template-theme-heading2-after-foreground: rgb(255 255 255 / 0.2);
+    --template-theme-primary-content-foreground: #333;
+    --template-theme-primary-content-background: rgb(255 255 255 / 0.7);
+    --template-theme-primary-content-font-size: 16px;
+    --template-theme-heading3-font-size: 18px;
+    --template-theme-heading3-background: linear-gradient(90deg, #3CA0FF 0%, #1D6DFF 100%);
+    --template-theme-heading3-foreground: #fff;
+  }
+
+  .one.vibrant_orange {
+    --template-theme-background: #fff6ef;
+    --template-theme-heading1-foreground: #333;
+    --template-theme-heading1-font-size: 30px;
+    --template-theme-heading1-desc-foreground: #333;
+    --template-theme-heading1-desc-font-size: 18px;
+    --template-theme-heading2-foreground: #fff;
+    --template-theme-heading2-font-size: 20px;
+    --template-theme-heading2-background: linear-gradient(90deg, #3CA0FF 0%, #1D6DFF 100%);
+    --template-theme-heading2-after-foreground: rgb(255 255 255 / 0.2);
+    --template-theme-primary-content-foreground: #333;
+    --template-theme-primary-content-background: rgb(255 255 255 / 0.7);
+    --template-theme-primary-content-font-size: 16px;
+    --template-theme-heading3-font-size: 18px;
+    --template-theme-heading3-background: linear-gradient(90deg, #3CA0FF 0%, #1D6DFF 100%);
+    --template-theme-heading3-foreground: #fff;
+  }
+
+  .one.rose_red {
+    --template-theme-background: #ccedff;
+    --template-theme-heading1-foreground: #333;
+    --template-theme-heading1-font-size: 30px;
+    --template-theme-heading1-desc-foreground: #333;
+    --template-theme-heading1-desc-font-size: 18px;
+    --template-theme-heading2-foreground: #fff;
+    --template-theme-heading2-font-size: 20px;
+    --template-theme-heading2-background: linear-gradient(90deg, #3CA0FF 0%, #1D6DFF 100%);
+    --template-theme-heading2-after-foreground: rgb(255 255 255 / 0.2);
+    --template-theme-primary-content-foreground: #333;
+    --template-theme-primary-content-background: rgb(255 255 255 / 0.7);
+    --template-theme-primary-content-font-size: 16px;
+    --template-theme-heading3-font-size: 18px;
+    --template-theme-heading3-background: linear-gradient(90deg, #3CA0FF 0%, #1D6DFF 100%);
+    --template-theme-heading3-foreground: #fff;
   }
 }
 

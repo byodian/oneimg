@@ -102,7 +102,8 @@ export function ThemeFormDialog({ onSubmit, onOpenChange, open }: ThemeFormProps
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="wechat-post">微信公众号长图推文</SelectItem>
+                        <SelectItem value="wechat-post-1">公众号长图推文1</SelectItem>
+                        <SelectItem value="wechat-post-2">公众号长图推文2</SelectItem>
                         {/* <SelectItem value="red-post">小红书推文</SelectItem> */}
                         {/* <SelectItem value="default">默认</SelectItem> */}
                       </SelectContent>

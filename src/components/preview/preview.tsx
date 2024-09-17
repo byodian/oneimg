@@ -33,13 +33,13 @@ const Preview = forwardRef<PreviewRef, { contents: Content[]; className?: string
   }, [contents])
 
   return (
-    <div className={cn(contents.length === 0 && 'h-full', 'one', className)} ref={containerRef}>
+    <div className={cn(contents.length === 0 && 'h-full', 'one-container', className)} ref={containerRef}>
       {contents.length === 0 ? (
         <div className="flex-grow flex items-center justify-center text-muted-foreground">
           <p>无内容可预览</p>
         </div>
       ) : (
-        <ul className="one-container">
+        <ul className="one-list">
           {parentContents.map((content, parentIndex) => (
             <PreviewItem
               index={parentIndex}

@@ -4,7 +4,7 @@ import { ImagePlus } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import type { ImageFile } from '@/types/common'
-import { base64ToBlob, compressImage, getUid } from '@/lib/utils'
+import { compressImage, getUid } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import {
   Tooltip,
@@ -47,7 +47,7 @@ type EditorFooterProps = {
 }
 
 export default function EditorButton(props: EditorFooterProps) {
-  const { uploadFiles, disabled, hideEditor, onFilesChange, quality, outputFormat, multiple, setImage } = props
+  const { uploadFiles, disabled, hideEditor, onFilesChange, quality, outputFormat, multiple } = props
   const uploadRef = useRef<HTMLInputElement | null>(null)
   const { toast } = useToast()
 

@@ -12,9 +12,16 @@ import { cn } from '@/lib/utils'
 
 export default function Home() {
   const [contents, setContents] = useState<Content[]>([])
-  const [theme, setTheme] = useState(localStorage.getItem('currentTheme') || 'wechat-post')
+  const [theme, setTheme] = useState('')
   const { toast } = useToast()
   const previewRef = useRef<PreviewRef>(null)
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const currentTheme = localStorage.getItem('currentTheme') || 'wechat-post-1'
+      setTheme(currentTheme)
+    }
+  }, [])
 
   useEffect(() => {
     const fetchContents = async () => {
@@ -116,7 +123,7 @@ export default function Home() {
     <div className="flex flex-col h-full">
       <Header contents={contents} setContents={setContents} previewRef={previewRef} theme={theme} setTheme={setTheme} />
       <main className="flex h-[calc(100%-58px)]">
-        <div className={cn(theme, 'hidden w-full sm:block sm:w-[375px] overflow-y-auto sm:min-w-[375px] h-full')}>
+        <div className={cn(theme, 'one tech_blue hidden w-full sm:block sm:w-[375px] overflow-y-auto sm:min-w-[375px] h-full')}>
           <Preview ref={previewRef} contents={contents} className="w-full flex flex-col m-auto" />
         </div>
         <div className="flex-grow flex justify-center bg-card text-card-foreground overflow-y-auto">

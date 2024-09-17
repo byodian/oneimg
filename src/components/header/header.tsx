@@ -1,7 +1,7 @@
 'use client'
 
-import { Download, Folder, ImageDown, LinkIcon, Trash2, TriangleAlert } from 'lucide-react'
-import Link from 'next/link'
+import { ChevronDown, Download, Folder, ImageDown, LinkIcon, Trash2, TriangleAlert } from 'lucide-react'
+// import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { ExportImageDialog } from './export-dialog'
 import { useToast } from '@/components/ui/use-toast'
@@ -19,6 +19,26 @@ import { Logo } from '@/components/logo'
 import type { Content, PreviewRef } from '@/types/common'
 import type { ExportContent, ExportJSON } from '@/components/header/types'
 import { addAllContents, removeAllContents } from '@/lib/indexed-db'
+
+import {
+  Menubar,
+  MenubarContent,
+  MenubarItem,
+  MenubarMenu,
+  MenubarSeparator,
+  MenubarShortcut,
+  MenubarTrigger,
+} from '@/components/ui/menubar'
+
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 interface HeaderProps {
   contents: Content[];
@@ -183,29 +203,87 @@ export function Header(props: HeaderProps) {
 
   return (
     <header className="sm:h-[58px] flex flex-col sm:flex-row gap-4 items-center mb-4 sm:mb-0 px-4 border-b border-b-gray-200">
-      <Link href="/">
-        <Logo type="full" />
-      </Link>
+      {/* <Link href="/"> */}
+      {/*   <Logo type="full" /> */}
+      {/* </Link> */}
+      <Menubar className="p-0 cursor-pointer border-none bg-white hover:bg-accent">
+        <MenubarMenu>
+          <MenubarTrigger>
+            <Logo type="full" />
+            <ChevronDown className="ml-2 h-4 w-4" />
+          </MenubarTrigger>
+          <MenubarContent>
+            <MenubarItem onClick={() => {
+              if (!contents.length) {
+                handleOpenfileBtnClick()
+              } else {
+                handleDialogOpen('open_file')
+              }
+            }}>
+              <Folder className="w-4 h-4 mr-2" />
+              <span>打开文件</span>
+              <MenubarShortcut>⌘T</MenubarShortcut>
+              <Input onChange={handleFileImport} type="file" className="hidden" ref={fileRef} />
+            </MenubarItem>
+            <MenubarItem onClick={() => handleDialogOpen('save_file')}>
+              <Download className="w-4 h-4 mr-2" />
+              <span>保存文件</span>
+            </MenubarItem>
+            <MenubarItem onClick={() => handleDialogOpen('reset_data')}>
+              <Trash2 className="w-4 h-4 mr-2" />
+              <span>重置主题</span>
+            </MenubarItem>
+            <MenubarItem onClick={handleImageDialogOpen}>
+              <ImageDown className="w-4 h-4 mr-2" />
+              <span>导出图片</span>
+            </MenubarItem>
+            <MenubarSeparator />
+            <MenubarItem>
+              <Select value={theme} onValueChange={(value) => {
+                setTheme(value)
+                localStorage.setItem('currentTheme', value)
+              }}>
+                <SelectTrigger className="h-8">
+                  <SelectValue className="text-muted-foreground" placeholder="请选择一个主题模版" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectLabel>模板</SelectLabel>
+                    <SelectItem value="wechat-post-1">公众号长图推文1</SelectItem>
+                    <SelectItem value="wechat-post-2">公众号长图推文2</SelectItem>
+                    {/* <SelectItem value="red-post">小红书推文</SelectItem> */}
+                    {/* <SelectItem value="default">默认</SelectItem> */}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </MenubarItem>
+            {/* <MenubarItem> */}
+            {/*   <ImageDown className="w-4 h-4 mr-2" /> */}
+            {/*   <span>使用指南</span> */}
+            {/* </MenubarItem> */}
+          </MenubarContent>
+        </MenubarMenu>
+      </Menubar>
       <div className="flex flex-wrap gap-2 ml-auto">
-        <Button variant="outline" size="sm" onClick={() => {
-          if (!contents.length) {
-            handleOpenfileBtnClick()
-          } else {
-            handleDialogOpen('open_file')
-          }
-        }}>
-          <Folder className="w-4 h-4 mr-2" />
-          <span>打开文件</span>
-          <Input onChange={handleFileImport} type="file" className="hidden" ref={fileRef} />
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => handleDialogOpen('save_file')}>
-          <Download className="w-4 h-4 mr-2" />
-          <span>保存文件</span>
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => handleDialogOpen('reset_data')}>
-          <Trash2 className="w-4 h-4 mr-2" />
-          <span>重置主题</span>
-        </Button>
+        {/* <Button variant="outline" size="sm" onClick={() => { */}
+        {/*   if (!contents.length) { */}
+        {/*     handleOpenfileBtnClick() */}
+        {/*   } else { */}
+        {/*     handleDialogOpen('open_file') */}
+        {/*   } */}
+        {/* }}> */}
+        {/*   <Folder className="w-4 h-4 mr-2" /> */}
+        {/*   <span>打开文件</span> */}
+        {/*   <Input onChange={handleFileImport} type="file" className="hidden" ref={fileRef} /> */}
+        {/* </Button> */}
+        {/* <Button variant="outline" size="sm" onClick={() => handleDialogOpen('save_file')}> */}
+        {/*   <Download className="w-4 h-4 mr-2" /> */}
+        {/*   <span>保存文件</span> */}
+        {/* </Button> */}
+        {/* <Button variant="outline" size="sm" onClick={() => handleDialogOpen('reset_data')}> */}
+        {/*   <Trash2 className="w-4 h-4 mr-2" /> */}
+        {/*   <span>重置主题</span> */}
+        {/* </Button> */}
         <Button size="sm" onClick={handleImageDialogOpen}>
           <ImageDown className="w-4 h-4 mr-2" />
           <span>导出图片</span>
@@ -324,6 +402,6 @@ export function Header(props: HeaderProps) {
         isExporting={isExporting}
         setIsExporting={setIsExporting}
       />
-    </header>
+    </header >
   )
 }
