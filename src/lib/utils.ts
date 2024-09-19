@@ -126,3 +126,11 @@ export function compressImage(file: File, quality = 0.8, outFormat = 'image/jpeg
     }
   })
 }
+
+export function cleanHtml(html?: string) {
+  if (html) {
+    return html.replace(/<p>\s*<\/p>/g, '').trim()
+  }
+
+  return html
+}

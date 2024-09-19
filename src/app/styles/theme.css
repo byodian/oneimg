@@ -136,16 +136,20 @@
     display: flex;
     align-items: center;
     width: fit-content;
-    height: 33px;
     margin-top: 24px !important;
     margin-bottom: 13px !important;
-    padding-left: 20px;
-    padding-right: 20px;
+    padding: 10px 20px;
+    line-height: 1.2;
+    font-size: 17px;
     border-radius: 9999px 9999px 9999px 2px;
     font-weight: bold;
     font-size: var(--template-theme-heading3-font-size);
     background: var(--template-theme-heading3-background);
     color: var(--template-theme-heading3-foreground);
+
+    p {
+      line-height: inherit;
+    }
   }
 }
 
@@ -279,15 +283,18 @@
     display: flex;
     align-items: center;
     width: fit-content;
-    height: 33px;
     margin-top: 24px !important;
     margin-bottom: 13px !important;
-    padding-left: 20px;
-    padding-right: 20px;
-    font-size: 18px;
+    padding: 10px 20px;
+    line-height: 1.2;
+    font-size: 17px;
     background: linear-gradient(90deg, #3CA0FF 0%, #1D6DFF 100%);
     border-radius: 9999px 9999px 9999px 2px;
     color: #fff;
     font-weight: bold;
+
+    p {
+      line-height: inherit;
+    }
   }
 }

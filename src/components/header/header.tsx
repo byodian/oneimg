@@ -202,7 +202,7 @@ export function Header(props: HeaderProps) {
   }
 
   return (
-    <header className="sm:h-[58px] flex flex-col sm:flex-row gap-4 items-center mb-4 sm:mb-0 px-4 border-b border-b-gray-200">
+    <header className="h-[58px] flex gap-4 items-center px-4 border-b border-b-gray-200">
       {/* <Link href="/"> */}
       {/*   <Logo type="full" /> */}
       {/* </Link> */}
@@ -223,7 +223,6 @@ export function Header(props: HeaderProps) {
               <Folder className="w-4 h-4 mr-2" />
               <span>打开文件</span>
               <MenubarShortcut>⌘T</MenubarShortcut>
-              <Input onChange={handleFileImport} type="file" className="hidden" ref={fileRef} />
             </MenubarItem>
             <MenubarItem onClick={() => handleDialogOpen('save_file')}>
               <Download className="w-4 h-4 mr-2" />
@@ -284,6 +283,7 @@ export function Header(props: HeaderProps) {
         {/*   <Trash2 className="w-4 h-4 mr-2" /> */}
         {/*   <span>重置主题</span> */}
         {/* </Button> */}
+        <Input onChange={handleFileImport} type="file" className="hidden" ref={fileRef} />
         <Button size="sm" onClick={handleImageDialogOpen}>
           <ImageDown className="w-4 h-4 mr-2" />
           <span>导出图片</span>
