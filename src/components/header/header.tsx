@@ -26,7 +26,7 @@ import {
   MenubarItem,
   MenubarMenu,
   MenubarSeparator,
-  MenubarShortcut,
+  // MenubarShortcut,
   MenubarTrigger,
 } from '@/components/ui/menubar'
 
@@ -222,7 +222,7 @@ export function Header(props: HeaderProps) {
             }}>
               <Folder className="w-4 h-4 mr-2" />
               <span>打开文件</span>
-              <MenubarShortcut>⌘T</MenubarShortcut>
+              {/* <MenubarShortcut>⌘T</MenubarShortcut> */}
             </MenubarItem>
             <MenubarItem onClick={() => handleDialogOpen('save_file')}>
               <Download className="w-4 h-4 mr-2" />

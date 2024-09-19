@@ -88,15 +88,19 @@
     --template-theme-heading1-desc-foreground: #333;
     --template-theme-heading1-desc-font-size: 18px;
     --template-theme-heading2-foreground: #fff;
-    --template-theme-heading2-font-size: 20px;
+    --template-theme-heading2-font-size: 19px;
     --template-theme-heading2-background: linear-gradient(90deg, #3CA0FF 0%, #1D6DFF 100%);
+    --template-theme-heading2-padding-y: 10px;
+    --template-theme-heading2-padding-x: 19px;
     --template-theme-heading2-after-foreground: rgb(255 255 255 / 0.2);
     --template-theme-primary-content-foreground: #333;
     --template-theme-primary-content-background: rgb(255 255 255 / 0.7);
     --template-theme-primary-content-font-size: 16px;
-    --template-theme-heading3-font-size: 18px;
+    --template-theme-heading3-font-size: 17px;
     --template-theme-heading3-background: linear-gradient(90deg, #3CA0FF 0%, #1D6DFF 100%);
     --template-theme-heading3-foreground: #fff;
+    --template-theme-heading3-padding-y: 8px;
+    --template-theme-heading3-padding-x: 20px;
   }
 
   .one.vibrant_orange {
@@ -111,7 +115,7 @@
     --template-theme-heading2-after-foreground: rgb(255 255 255 / 0.2);
     --template-theme-primary-content-foreground: #333;
     --template-theme-primary-content-background: rgb(255 255 255 / 0.7);
-    --template-theme-primary-content-font-size: 16px;
+    --template-theme-primary-content-font-size: 15px;
     --template-theme-heading3-font-size: 18px;
     --template-theme-heading3-background: linear-gradient(90deg, #3CA0FF 0%, #1D6DFF 100%);
     --template-theme-heading3-foreground: #fff;

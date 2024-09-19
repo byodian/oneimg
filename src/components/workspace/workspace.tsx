@@ -20,7 +20,7 @@ export function Workspace(props: WorkspaceProps) {
   const [open, setOpen] = useState(false)
 
   return (
-    <div className="w-[800px] flex flex-col p-8">
+    <div className="w-[800px] flex flex-col p-8 overflow-y-auto">
       {contents.length > 0 && (
         <>
           <ContentList
