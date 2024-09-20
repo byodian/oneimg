@@ -199,6 +199,7 @@ export function Header(props: HeaderProps) {
   // open the dialog of saving as image
   async function handleImageDialogOpen() {
     setImageDialogOpen(true)
+    setIsExporting(true)
   }
 
   return (

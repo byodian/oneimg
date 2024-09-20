@@ -126,7 +126,7 @@ export default function Home() {
         <div className={cn(theme, 'one tech_blue hidden w-full sm:block sm:w-[375px] overflow-y-auto sm:min-w-[375px] h-full')}>
           <Preview ref={previewRef} contents={contents} className="w-full flex flex-col m-auto" />
         </div>
-        <div className="flex-grow flex justify-center bg-card text-card-foreground overflow-y-auto">
+        <div className="flex-grow flex justify-center items-start bg-card text-card-foreground overflow-y-auto">
           <Workspace
             contents={contents}
             onContentSubmit={handleContentSubmit}

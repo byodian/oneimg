@@ -85,7 +85,7 @@ export function ExportImageDialog({ previewRef, isExportModalOpen, isExporting, 
       if (isExporting) {
         generateImages()
       }
-    })
+    }, 1000)
     return () => clearTimeout(timer)
   }, [previewRef, scale, setIsExporting, isExporting])
 

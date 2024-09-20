@@ -3,7 +3,7 @@ import type { ImageFile } from '@/types/common'
 import { cn } from '@/lib/utils'
 export function ImageList({ images }: { images: ImageFile[] }) {
   return (
-    <div className={cn('one-images grid gap-2 grid-cols-1')}>
+    <div className={cn('one-item__images grid gap-2 grid-cols-1')}>
       {images.length > 0 && images.map(image => (
         <div key={image.uid}>
           <Image

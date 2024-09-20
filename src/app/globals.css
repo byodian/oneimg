@@ -93,6 +93,7 @@
     --template-theme-heading2-padding-y: 10px;
     --template-theme-heading2-padding-x: 19px;
     --template-theme-heading2-after-foreground: rgb(255 255 255 / 0.2);
+    --template-theme-heading2-line-height: 1.2;
     --template-theme-primary-content-foreground: #333;
     --template-theme-primary-content-background: rgb(255 255 255 / 0.7);
     --template-theme-primary-content-font-size: 16px;
@@ -101,6 +102,7 @@
     --template-theme-heading3-foreground: #fff;
     --template-theme-heading3-padding-y: 8px;
     --template-theme-heading3-padding-x: 20px;
+    --template-theme-heading3-line-height: 1.2;
   }
 
   .one.vibrant_orange {
