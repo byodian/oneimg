@@ -7,12 +7,13 @@ import { Workspace } from '@/components/workspace/workspace'
 import { Header } from '@/components/header/header'
 import { Preview } from '@/components/preview/preview'
 
-import type { Content, PreviewRef, ThemeContent } from '@/types/common'
+import type { Content, PreviewRef, ThemeColor, ThemeContent } from '@/types/common'
 import { cn } from '@/lib/utils'
 
 export default function Home() {
   const [contents, setContents] = useState<Content[]>([])
   const [theme, setTheme] = useState('')
+  const [themeColor, setThemeColor] = useState<ThemeColor>('tech_blue')
   const { toast } = useToast()
   const previewRef = useRef<PreviewRef>(null)
 
@@ -20,6 +21,8 @@ export default function Home() {
     if (typeof window !== 'undefined') {
       const currentTheme = localStorage.getItem('currentTheme') || 'wechat-post-1'
       setTheme(currentTheme)
+      const currentThemeColor = localStorage.getItem('currentThemeColor') || 'tech_blue'
+      setThemeColor(currentThemeColor as ThemeColor)
     }
   }, [])
 
@@ -121,9 +124,17 @@ export default function Home() {
 
   return (
     <div className="flex flex-col h-full">
-      <Header contents={contents} setContents={setContents} previewRef={previewRef} theme={theme} setTheme={setTheme} />
+      <Header
+        contents={contents}
+        setContents={setContents}
+        previewRef={previewRef}
+        theme={theme}
+        setTheme={setTheme}
+        themeColor={themeColor}
+        setThemeColor={setThemeColor}
+      />
       <main className="flex h-[calc(100%-58px)]">
-        <div className={cn(theme, 'one tech_blue hidden w-full sm:block sm:w-[375px] overflow-y-auto sm:min-w-[375px] h-full')}>
+        <div className={cn(theme, themeColor, 'one hidden w-full sm:block sm:w-[375px] overflow-y-auto sm:min-w-[375px] h-full')}>
           <Preview ref={previewRef} contents={contents} className="w-full flex flex-col m-auto" />
         </div>
         <div className="flex-grow flex justify-center items-start bg-card text-card-foreground overflow-y-auto">

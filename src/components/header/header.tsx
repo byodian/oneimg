@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Logo } from '@/components/logo'
-import type { Content, PreviewRef } from '@/types/common'
+import type { Content, PreviewRef, ThemeColor } from '@/types/common'
 import type { ExportContent, ExportJSON } from '@/components/header/types'
 import { addAllContents, removeAllContents } from '@/lib/indexed-db'
 
@@ -35,7 +35,7 @@ import {
   SelectContent,
   SelectGroup,
   SelectItem,
-  SelectLabel,
+  // SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
@@ -45,7 +45,9 @@ interface HeaderProps {
   setContents: (contents: Content[]) => void;
   previewRef: React.RefObject<PreviewRef>;
   theme: string;
+  themeColor: ThemeColor;
   setTheme: (theme: string) => void;
+  setThemeColor: (color: ThemeColor) => void
 }
 
 type DialogType = 'save_file' | 'open_file' | 'reset_data'
@@ -55,7 +57,7 @@ export function Header(props: HeaderProps) {
   const [imageDialogOpen, setImageDialogOpen] = useState(false)
   const [dialogType, setDialogType] = useState<DialogType>('save_file')
   const [isExporting, setIsExporting] = useState(true)
-  const { contents, setContents, previewRef, theme, setTheme } = props
+  const { contents, setContents, previewRef, theme, themeColor, setTheme, setThemeColor } = props
   const { toast } = useToast()
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -114,8 +116,11 @@ export function Header(props: HeaderProps) {
             setContents(contents)
 
             const theme = importData.theme ?? 'default'
+            const themeColor = importData.themeColor ?? 'tech_blue'
             setTheme(theme)
+            setThemeColor(themeColor)
             localStorage.setItem('currentTheme', theme)
+            localStorage.setItem('currentThemeColor', themeColor)
 
             // 允许前后两次选择相同文件
             event.target.value = ''
@@ -151,6 +156,7 @@ export function Header(props: HeaderProps) {
       version: 1,
       source: 'https://oneimgai.com',
       theme: theme ?? 'default',
+      themeColor: themeColor ?? 'tech_blue',
       data: exportContents,
     }
 
@@ -194,6 +200,7 @@ export function Header(props: HeaderProps) {
     setContents([])
     setIsOpenFile(false)
     setTheme('')
+    setThemeColor('tech_blue')
   }
 
   // open the dialog of saving as image
@@ -238,7 +245,8 @@ export function Header(props: HeaderProps) {
               <span>导出图片</span>
             </MenubarItem>
             <MenubarSeparator />
-            <MenubarItem>
+            <div className="px-1.5 py-2 text-sm">
+              <div className="mb-2">模板</div>
               <Select value={theme} onValueChange={(value) => {
                 setTheme(value)
                 localStorage.setItem('currentTheme', value)
@@ -248,7 +256,7 @@ export function Header(props: HeaderProps) {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    <SelectLabel>模板</SelectLabel>
+                    {/* <SelectLabel>模板</SelectLabel> */}
                     <SelectItem value="wechat-post-1">公众号长图推文1</SelectItem>
                     <SelectItem value="wechat-post-2">公众号长图推文2</SelectItem>
                     {/* <SelectItem value="red-post">小红书推文</SelectItem> */}
@@ -256,11 +264,32 @@ export function Header(props: HeaderProps) {
                   </SelectGroup>
                 </SelectContent>
               </Select>
-            </MenubarItem>
-            {/* <MenubarItem> */}
-            {/*   <ImageDown className="w-4 h-4 mr-2" /> */}
-            {/*   <span>使用指南</span> */}
-            {/* </MenubarItem> */}
+            </div>
+            <div className="px-1.5 py-2 text-sm">
+              <div className="mb-2">模版色</div>
+              <div>
+                <Button variant="ghost" size="sm" onClick={() => {
+                  setThemeColor('tech_blue')
+                  localStorage.setItem('currentThemeColor', 'tech_blue')
+                }}>
+                  <div className="w-4 h-4 bg-[#4383EC] rounded-full"></div>
+                </Button>
+
+                <Button variant="ghost" size="sm" onClick={() => {
+                  setThemeColor('vibrant_orange')
+                  localStorage.setItem('currentThemeColor', 'vibrant_orange')
+                }}>
+                  <div className="w-4 h-4 bg-[#FF611D] rounded-full"></div>
+                </Button>
+
+                <Button variant="ghost" size="sm" onClick={() => {
+                  setThemeColor('rose_red')
+                  localStorage.setItem('currentThemeColor', 'rose_red')
+                }}>
+                  <div className="w-4 h-4 bg-[#F14040] rounded-full"></div>
+                </Button>
+              </div>
+            </div>
           </MenubarContent>
         </MenubarMenu>
       </Menubar>

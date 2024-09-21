@@ -103,3 +103,5 @@ export interface PreviewItem {
   id: string;
   ref: React.RefObject<HTMLElement>;
 }
+
+export type ThemeColor = 'tech_blue' | 'vibrant_orange' | 'rose_red'
