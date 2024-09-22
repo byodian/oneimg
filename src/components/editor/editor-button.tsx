@@ -118,7 +118,7 @@ export default function EditorButton(props: EditorFooterProps) {
             <TooltipContent
               side="top"
               className="text-white bg-black">
-              {multiple ? '添加图片' : '添加 logo'}
+              {multiple ? '添加正文图片' : '添加 logo'}
             </TooltipContent>
           </Tooltip>
         </div>

@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Button } from '@/components/ui/button'
@@ -102,10 +102,13 @@ export function ThemeFormDialog({ onSubmit, onOpenChange, open }: ThemeFormProps
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="wechat-post-1">公众号长图推文1</SelectItem>
-                        <SelectItem value="wechat-post-2">公众号长图推文2</SelectItem>
-                        {/* <SelectItem value="red-post">小红书推文</SelectItem> */}
-                        {/* <SelectItem value="default">默认</SelectItem> */}
+                        <SelectGroup>
+                          {/* <SelectLabel>模板</SelectLabel> */}
+                          <SelectItem value="wechat-post-1">公众号长图推文</SelectItem>
+                          <SelectItem value="wechat-post-more" disabled>更多模版尽情期待</SelectItem>
+                          {/* <SelectItem value="red-post-1">小红书推文</SelectItem> */}
+                          {/* <SelectItem value="default">默认</SelectItem> */}
+                        </SelectGroup>
                       </SelectContent>
                     </Select>
                     <FormMessage />

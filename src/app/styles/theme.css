@@ -1,168 +1,222 @@
-.one {
+.wechat-post {
   background-color: var(--template-theme-background);
-}
+  
+  --template-theme-heading1-font-size: 30px;
+  --template-theme-heading1-desc-font-size: 18px;
+  --template-theme-heading2-font-size: 19px;
+  --template-theme-heading2-padding-y: 10px;
+  --template-theme-heading2-padding-x: 19px;
+  --template-theme-heading2-line-height: 1.2;
+  --template-theme-primary-content-font-size: 16px;
+  --template-theme-heading3-font-size: 17px;
+  --template-theme-heading3-padding-y: 8px;
+  --template-theme-heading3-padding-x: 20px;
+  --template-theme-heading3-line-height: 1.2;
 
-/* common */
-.one-theme {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 200px;
-  padding-left: 12px;
-  padding-right: 12px;
-  padding-top: 13px;
-  padding-bottom: 13px;
-}
-
-.one-theme__bg {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 100%;
-  height: 150%;
-  background-size: cover;
-  background-repeat: no-repeat;
-  background-color: var(--template-theme-background);
-  z-index: 0;
-}
-
-.one-theme__title {
-  position: relative;
-  z-index: 1;
-  margin-bottom: 5px;
-  font-weight: bold;
-  font-size: var(--template-theme-heading1-font-size);
-  color: var(--template-theme-heading1-foreground);
-}
-
-.one-theme__content {
-  position: relative;
-  z-index: 2;
-  font-size: var(--template-theme-heading1-desc-font-size);
-}
-
-.one-theme__logo {
-  position: absolute;
-  z-index: 3;
-  height: 18px;
-  right: 26px;
-  top: 26px;
-
-  img {
-    width: auto;
-    height: 100%;
-  }
-}
-
-.one-item {
-  background-color: var(--template-theme-background);
-  padding-left: 12px;
-  padding-right: 12px;
-  padding-top: 13px;
-  padding-bottom: 13px;
-}
-
-.one-item__title {
-  position: relative;
-  margin-bottom: 13px;
-  padding: var(--template-theme-heading2-padding-y) var(--template-theme-heading2-padding-x);
-  font-size: var(--template-theme-heading2-font-size);
-  font-weight: bold;
-  line-height: var(--template-theme-heading2-line-height);
-  color: var(--template-theme-heading2-foreground);
-  background: var(--template-theme-heading2-background);
-  border-radius: 9999px 9999px 9999px 2px;
-}
-
-.one-item__content {
-  position: relative;
-  padding: 12px 18px;
-  border-radius: 12px;
-  font-size: var(--template-theme-primary-content-font-size);
-  /* box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); */
-  background-color: var(--template-theme-primary-content-background);
-  color: var(--template-theme-primary-content-foreground);
-  text-align: justify;
-
-  :where(:first-child) {
-    margin-top: 0 !important;
+  &.tech_blue {
+    --template-theme-background: #ccedff;
+    --template-theme-heading1-foreground: #333;
+    --template-theme-heading1-desc-foreground: #333;
+    --template-theme-heading2-foreground: #fff;
+    --template-theme-heading2-background: linear-gradient(90deg, #3CA0FF 0%, #1D6DFF 100%);
+    --template-theme-heading2-after-foreground: rgb(255 255 255 / 0.2);
+    --template-theme-primary-content-foreground: #333;
+    --template-theme-primary-content-background: rgb(255 255 255 / 0.7);
+    --template-theme-heading3-background: linear-gradient(90deg, #3CA0FF 0%, #1D6DFF 100%);
+    --template-theme-heading3-foreground: #fff;
+    --template-theme-background-image: url('/images/them-bg-tech-blue.png')
   }
 
-  :where(:last-child) {
-    margin-bottom: 0 !important;
+  &.wechat-post.vibrant_orange {
+    --template-theme-background: #fff6ef;
+    --template-theme-heading1-foreground: #333;
+    --template-theme-heading1-desc-foreground: #333;
+    --template-theme-heading2-foreground: #fff;
+    --template-theme-heading2-background: linear-gradient(90deg, #FF611D 0%, #FF8E3C 100%);
+    --template-theme-heading2-after-foreground: rgb(255 255 255 / 0.2);
+    --template-theme-primary-content-foreground: #333;
+    --template-theme-primary-content-background: rgb(255 255 255 / 0.7);
+    --template-theme-heading3-background: linear-gradient(90deg, #FF611D 0%, #FF8E3C 100%);
+    --template-theme-heading3-foreground: #fff;
+    --template-theme-background-image: url('/images/them-bg-vibrant-orange.png')
   }
 
-  :where(ul):not(:where([class~=one-item__children])) {
-    list-style-type: disc;
-    padding-left: 1.625rem;
+  &.wechat-post.rose_red {
+    --template-theme-background: #f4f4f4;
+    --template-theme-heading1-foreground: #333;
+    --template-theme-heading1-desc-foreground: #333;
+    --template-theme-heading2-foreground: #fff;
+    --template-theme-heading2-background: linear-gradient(90deg, #F14040 0%, #FF7676 100%);
+    --template-theme-heading2-after-foreground: rgb(255 255 255 / 0.2);
+    --template-theme-primary-content-foreground: #333;
+    --template-theme-primary-content-background: rgb(255 255 255 / 0.7);
+    --template-theme-heading3-background: linear-gradient(90deg, #F14040 0%, #FF7676 100%);
+    --template-theme-heading3-foreground: #fff;
+    --template-theme-background-image: url('/images/them-bg-rose-red.png')
   }
 
-  :where(p) {
-    margin-top: 5px;
+  /* common */
+  .one-theme {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
+    padding-left: 12px;
+    padding-right: 12px;
+    padding-top: 13px;
+    padding-bottom: 13px;
+  }
+
+  .one-theme__bg {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 150%;
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-color: var(--template-theme-background);
+    z-index: 0;
+  }
+
+  .one-theme__title {
+    position: relative;
+    z-index: 1;
     margin-bottom: 5px;
-    line-height: 1.7;
+    font-weight: bold;
+    font-size: var(--template-theme-heading1-font-size);
+    color: var(--template-theme-heading1-foreground);
   }
 
-  :where(ul>li, ol>li):not(:where([class~=one-child-item])) {
-    margin-top: .75rem;
-    margin-bottom: .75rem;
+  .one-theme__content {
+    position: relative;
+    z-index: 2;
+    font-size: var(--template-theme-heading1-desc-font-size);
   }
 
-  :where(ol):not(:where([class~=one-item__children])) {
-    list-style-type: decimal;
-    padding-left: 1.625rem;
+  .one-theme__logo {
+    position: absolute;
+    z-index: 3;
+    height: 18px;
+    right: 26px;
+    top: 26px;
+
+    img {
+      width: auto;
+      height: 100%;
+    }
   }
 
-  :where(ul ul, ol ul, ol ol, ul ol):not(:where([class~=one-item__children])) {
-    margin-top: .75rem;
-    margin-bottom: .75rem;
-  }
-}
-
-.one-item__images {
-  margin-bottom: 10px;
-}
-
-.one-item__children {
-  margin-bottom: 10px;
-}
-
-.one-child-item {
-  margin-top: 20px;
-  margin-bottom: 20px;
-
-  :where(:first-child) {
-    margin-top: 0;
+  .one-item {
+    background-color: var(--template-theme-background);
+    padding-left: 12px;
+    padding-right: 12px;
+    padding-top: 13px;
+    padding-bottom: 13px;
   }
 
-  :where(:last-child) {
-    margin-bottom: 0;
+  .one-item__title {
+    position: relative;
+    margin-bottom: 13px;
+    padding: var(--template-theme-heading2-padding-y) var(--template-theme-heading2-padding-x);
+    font-size: var(--template-theme-heading2-font-size);
+    font-weight: bold;
+    line-height: var(--template-theme-heading2-line-height);
+    color: var(--template-theme-heading2-foreground);
+    background: var(--template-theme-heading2-background);
+    border-radius: 9999px 9999px 9999px 2px;
   }
-}
 
-.one-child-item__title {
-  display: flex;
-  align-items: center;
-  width: fit-content;
-  margin-bottom: 10px !important;
-  line-height: var(--template-theme-heading3-line-height);
-  border-radius: 9999px 9999px 9999px 2px;
-  font-weight: bold;
-  padding: var(--template-theme-heading3-padding-y) var(--template-theme-heading3-padding-x);
-  font-size: var(--template-theme-heading3-font-size);
-  background: var(--template-theme-heading3-background);
-  color: var(--template-theme-heading3-foreground);
+  .one-item__content {
+    position: relative;
+    padding: 12px 18px;
+    border-radius: 12px;
+    font-size: var(--template-theme-primary-content-font-size);
+    /* box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); */
+    background-color: var(--template-theme-primary-content-background);
+    color: var(--template-theme-primary-content-foreground);
+    text-align: justify;
 
-  p {
-    line-height: inherit;
+    :where(:first-child) {
+      margin-top: 0 !important;
+    }
+
+    :where(:last-child) {
+      margin-bottom: 0 !important;
+    }
+
+    :where(ul):not(:where([class~=one-item__children])) {
+      list-style-type: disc;
+      padding-left: 1.625rem;
+    }
+
+    :where(p) {
+      margin-top: 5px;
+      margin-bottom: 5px;
+      line-height: 1.7;
+    }
+
+    :where(ul>li, ol>li):not(:where([class~=one-child-item])) {
+      margin-top: .75rem;
+      margin-bottom: .75rem;
+    }
+
+    :where(ol):not(:where([class~=one-item__children])) {
+      list-style-type: decimal;
+      padding-left: 1.625rem;
+    }
+
+    :where(ul ul, ol ul, ol ol, ul ol):not(:where([class~=one-item__children])) {
+      margin-top: .75rem;
+      margin-bottom: .75rem;
+    }
+  }
+
+  .one-item__images {
+    margin-bottom: 10px;
+  }
+
+  .one-item__children {
+    margin-bottom: 10px;
+  }
+
+  .one-child-item {
+    margin-top: 20px;
+    margin-bottom: 20px;
+
+    :where(:first-child) {
+      margin-top: 0;
+    }
+
+    :where(:last-child) {
+      margin-bottom: 0;
+    }
+  }
+
+  .one-child-item__title {
+    display: flex;
+    align-items: center;
+    width: fit-content;
+    margin-bottom: 10px !important;
+    line-height: var(--template-theme-heading3-line-height);
+    border-radius: 9999px 9999px 9999px 2px;
+    font-weight: bold;
+    padding: var(--template-theme-heading3-padding-y) var(--template-theme-heading3-padding-x);
+    font-size: var(--template-theme-heading3-font-size);
+    background: var(--template-theme-heading3-background);
+    color: var(--template-theme-heading3-foreground);
+
+    p {
+      line-height: inherit;
+    }
   }
 }
 
 .wechat-post-1 {
   .one-theme__bg {
-    background-image: url('/images/banner.png');
+    background-image: var(--template-theme-background-image);
   }
 
   .one-item__title {

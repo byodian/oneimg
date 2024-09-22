@@ -134,3 +134,20 @@ export function cleanHtml(html?: string) {
 
   return html
 }
+
+/**
+ * 获取主题 CSS 类基础名
+ * @param theme
+ * @returns
+ */
+export function getThemeBaseClass(theme: string) {
+  if (theme.startsWith('wechat-post')) {
+    return 'wechat-post'
+  }
+
+  if (theme.startsWith('red-post')) {
+    return 'red-post'
+  }
+
+  return 'default'
+}
