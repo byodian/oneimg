@@ -10,8 +10,12 @@ import Bold from '@tiptap/extension-bold'
 import Italic from '@tiptap/extension-italic'
 import Underline from '@tiptap/extension-underline'
 import Placeholder from '@tiptap/extension-placeholder'
-import { EditorContent, useEditor } from '@tiptap/react'
+import History from '@tiptap/extension-history'
+import { BubbleMenu, EditorContent, useEditor } from '@tiptap/react'
 import { forwardRef, useEffect, useImperativeHandle } from 'react'
+import { BoldIcon, ItalicIcon, ListIcon, ListOrderedIcon, UnderlineIcon } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
 import type { ActionType, Content, EditorMethods } from '@/types/common'
 import { cn } from '@/lib/utils'
 
@@ -28,7 +32,7 @@ const EditorContainer = forwardRef<EditorMethods, EditorProps>(
     const titleEditor = useEditor({
       extensions: [Document, Paragraph, Text, Placeholder.configure({
         placeholder: titlePlaceholder || '请输入标题',
-      })],
+      }), History],
       content: initialContent?.title || '',
       editorProps: {
         attributes: {
@@ -57,6 +61,7 @@ const EditorContainer = forwardRef<EditorMethods, EditorProps>(
           inline: true,
           allowBase64: true,
         }),
+        History,
       ],
 
       content: initialContent?.content || '',
@@ -103,9 +108,134 @@ const EditorContainer = forwardRef<EditorMethods, EditorProps>(
       }
     }, [titleEditor, contentEditor, onContentUpdate])
 
+    const buttonVariants = (tag: string, options = {}) => {
+      const isActive = contentEditor?.isActive(tag, options) ? 'bg-[#666]' : ''
+
+      return cn(isActive, 'hover:text-white hover:bg-[#3d3d3d] bg-none text-white w-6 h-6')
+    }
+
     return (
       <div className={cn('mb-6 flex flex-col gap-1 editor-content')}>
         <EditorContent editor={titleEditor} />
+
+        {contentEditor && <BubbleMenu editor={contentEditor} tippyOptions={{ duration: 0 }}>
+          <div className="bg-black flex gap-x-1 border border-gray-50 px-2 py-1.5 rounded-md">
+            <Button
+              type="button"
+              onClick={() => contentEditor.chain().focus().toggleBold().run()}
+              variant="ghost"
+              size="icon"
+              disabled={
+                !contentEditor.can()
+                  .chain()
+                  .focus()
+                  .toggleBold()
+                  .run()
+              }
+              className={buttonVariants('bold')}
+            >
+              <BoldIcon className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => contentEditor.chain().focus().toggleItalic().run()}
+              disabled={
+                !contentEditor.can()
+                  .chain()
+                  .focus()
+                  .toggleItalic()
+                  .run()
+              }
+              className={buttonVariants('italic')}
+            >
+              <ItalicIcon className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              onClick={() => contentEditor.chain().focus().toggleUnderline().run()}
+              variant="ghost"
+              size="icon"
+              disabled={
+                !contentEditor.can()
+                  .chain()
+                  .focus()
+                  .toggleUnderline()
+                  .run()
+              }
+              className={buttonVariants('underline')}
+            >
+              <UnderlineIcon className="h-4 w-4" />
+            </Button>
+
+            <Separator orientation="vertical" className="h-6 bg-[#666]" />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => contentEditor.chain().focus().toggleBulletList().run()}
+              className={buttonVariants('bulletList')}
+            >
+              <ListIcon className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => contentEditor.chain().focus().toggleOrderedList().run()}
+              className={buttonVariants('orderedList')}
+            >
+              {/* ListChecks */}
+              {/* ListTodo */}
+              <ListOrderedIcon className="h-4 w-4" />
+            </Button>
+
+            {/* <Button */}
+            {/*   variant="ghost" */}
+            {/*   size="icon" */}
+            {/*   onClick={() => editor.chain().focus().undo().run()} */}
+            {/*   disabled={ */}
+            {/*     !editor.can() */}
+            {/*       .chain() */}
+            {/*       .focus() */}
+            {/*       .undo() */}
+            {/*       .run() */}
+            {/*   } */}
+            {/* > */}
+            {/*   <Undo className="h-4 w-4" /> */}
+            {/* </Button> */}
+            {/* <Button */}
+            {/*   variant="ghost" */}
+            {/*   size="icon" */}
+            {/*   onClick={() => editor.chain().focus().redo().run()} */}
+            {/*   disabled={ */}
+            {/*     !editor.can() */}
+            {/*       .chain() */}
+            {/*       .focus() */}
+            {/*       .redo() */}
+            {/*       .run() */}
+            {/*   } */}
+            {/* > */}
+            {/*   <Redo className="h-4 w-4" /> */}
+            {/* </Button> */}
+            {/* <Button */}
+            {/*   variant="ghost" */}
+            {/*   size="icon" */}
+            {/*   onClick={() => editor.chain().focus().toggleHighlight().run()} */}
+            {/*   className={buttonVariants('highlight')} */}
+            {/*   disabled={ */}
+            {/*     !editor.can() */}
+            {/*       .chain() */}
+            {/*       .focus() */}
+            {/*       .toggleLink({ href: textLink }) */}
+            {/*       .run() */}
+            {/*   } */}
+            {/* > */}
+            {/*   <Highlighter className="h-4 w-4" /> */}
+            {/* </Button> */}
+          </div>
+        </BubbleMenu>}
         <EditorContent editor={contentEditor} />
       </div>
     )
