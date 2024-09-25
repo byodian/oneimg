@@ -20,6 +20,7 @@ const PreviewItem = forwardRef<HTMLLIElement, { content: Content, children?: Rea
 
   return (
     <li
+      id={`${content.id}`}
       className={cn(content.parentId ? 'one-child-item' : content.type === 'theme_content' ? 'one-theme' : 'one-item')}
       ref={ref}>
       {content.type === 'theme_content' && (

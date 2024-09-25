@@ -134,7 +134,7 @@ export default function Home() {
         setThemeColor={setThemeColor}
       />
       <main className="flex h-[calc(100%-58px)]">
-        <div className={cn(theme, themeColor, getThemeBaseClass(theme), 'one hidden w-full sm:block sm:w-[375px] overflow-y-auto sm:min-w-[375px] h-full')}>
+        <div className={cn(theme, themeColor, getThemeBaseClass(theme), 'one hidden w-full sm:block sm:w-[375px] overflow-y-auto scroll-smooth sm:min-w-[375px] h-full')}>
           <Preview ref={previewRef} contents={contents} className="w-full flex flex-col m-auto" />
         </div>
         <div className="flex-grow flex justify-center items-start bg-card text-card-foreground overflow-y-auto">

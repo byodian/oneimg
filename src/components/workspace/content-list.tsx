@@ -98,7 +98,7 @@ export default function ContentList(props: ContentListProps) {
                 />
               </div>
             ) : (
-              <div className={cn(!content.parentId ? 'group font-bold' : 'group/child ', 'border-b border-b-border py-4')}>
+              <a className={cn(!content.parentId ? 'group font-bold' : 'group/child ', 'block border-b border-b-border py-4')} href={`/#${content.id}`}>
                 <div className="mr-28">{parse(DOMPurify.sanitize(content.title))}</div>
                 <div className={cn(!content.parentId ? 'group-hover:flex' : 'group-hover/child:flex', 'hidden absolute right-4 top-0 gap-4')}>
                   {content.type === 'normal_content' && (
@@ -140,7 +140,7 @@ export default function ContentList(props: ContentListProps) {
                   </div>
                   }
                 </div>
-              </div>
+              </a>
             )}
 
             {childContentsMap.get(content.id) && (
