@@ -127,12 +127,26 @@ export function compressImage(file: File, quality = 0.8, outFormat = 'image/jpeg
   })
 }
 
-export function cleanHtml(html?: string) {
+/**
+ * 去除输入字符串中的空段落。
+ * 如果输入为空或未定义，返回原值。
+ */
+export function stripEmptyParagraphs(html?: string) {
   if (html) {
     return html.replace(/<p>\s*<\/p>/g, '').trim()
   }
 
-  return html
+  return ''
+}
+
+/**
+ * 剔除HTML标签
+ */
+export function removeHtmlTags(html?: string) {
+  if (!html) {
+    return ''
+  }
+  return html.replace(/<[^>]*>/g, '').trim()
 }
 
 /**

@@ -39,6 +39,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { removeHtmlTags } from '@/lib/utils'
 
 interface HeaderProps {
   contents: Content[];
@@ -57,6 +58,7 @@ export function Header(props: HeaderProps) {
   const [imageDialogOpen, setImageDialogOpen] = useState(false)
   const [dialogType, setDialogType] = useState<DialogType>('save_file')
   const [isExporting, setIsExporting] = useState(true)
+  const [scale, setScale] = useState('1')
   const { contents, setContents, previewRef, theme, themeColor, setTheme, setThemeColor } = props
   const { toast } = useToast()
   const fileRef = useRef<HTMLInputElement>(null)
@@ -160,14 +162,18 @@ export function Header(props: HeaderProps) {
       data: exportContents,
     }
 
+    // get theme content
+    const title = exportContents.find(item => item.type === 'theme_content')?.title
+    const date = new Date()
+    const fullDateString = `${date.toLocaleDateString().replace(/\//g, '-')}_${date.toLocaleTimeString().replaceAll(':', '')}`
+    const fileName = `${removeHtmlTags(title) || '未命名'}-${fullDateString}.oneimg`
+
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
     try {
       // open the system file save dialog
       if (typeof window !== 'undefined' && 'showSaveFilePicker' in window) {
-        const date = new Date()
-        const fullDateString = `${date.toLocaleDateString().replace(/\//g, '-')} ${date.toLocaleTimeString().replaceAll(':', '')}`
         const handle = await (window as any).showSaveFilePicker({
-          suggestedName: `未命名-${fullDateString}.oneimg`,
+          suggestedName: fileName,
           types: [{
             description: 'OneImg File',
             accept: { 'application/json': ['.oneimg'] },
@@ -182,10 +188,10 @@ export function Header(props: HeaderProps) {
         })
       } else {
         // eslint-disable-next-line no-alert
-        const fileName = prompt('请输入文件名称', '未命名.oneimg') || '未命名.oneimg'
+        const suggestedName = prompt('请输入文件名称', fileName) || fileName
         const a = document.createElement('a')
         a.href = URL.createObjectURL(blob)
-        a.download = fileName
+        a.download = suggestedName
         a.click()
         URL.revokeObjectURL(a.href)
       }
@@ -204,9 +210,10 @@ export function Header(props: HeaderProps) {
   }
 
   // open the dialog of saving as image
-  async function handleImageDialogOpen() {
+  async function handleImageExportDialogOpen() {
     setImageDialogOpen(true)
     setIsExporting(true)
+    setScale('1')
   }
 
   return (
@@ -240,7 +247,7 @@ export function Header(props: HeaderProps) {
               <Trash2 className="w-4 h-4 mr-2" />
               <span>重置主题</span>
             </MenubarItem>
-            <MenubarItem onClick={handleImageDialogOpen}>
+            <MenubarItem onClick={handleImageExportDialogOpen}>
               <ImageDown className="w-4 h-4 mr-2" />
               <span>导出图片</span>
             </MenubarItem>
@@ -294,27 +301,8 @@ export function Header(props: HeaderProps) {
         </MenubarMenu>
       </Menubar>
       <div className="flex flex-wrap gap-2 ml-auto">
-        {/* <Button variant="outline" size="sm" onClick={() => { */}
-        {/*   if (!contents.length) { */}
-        {/*     handleOpenfileBtnClick() */}
-        {/*   } else { */}
-        {/*     handleDialogOpen('open_file') */}
-        {/*   } */}
-        {/* }}> */}
-        {/*   <Folder className="w-4 h-4 mr-2" /> */}
-        {/*   <span>打开文件</span> */}
-        {/*   <Input onChange={handleFileImport} type="file" className="hidden" ref={fileRef} /> */}
-        {/* </Button> */}
-        {/* <Button variant="outline" size="sm" onClick={() => handleDialogOpen('save_file')}> */}
-        {/*   <Download className="w-4 h-4 mr-2" /> */}
-        {/*   <span>保存文件</span> */}
-        {/* </Button> */}
-        {/* <Button variant="outline" size="sm" onClick={() => handleDialogOpen('reset_data')}> */}
-        {/*   <Trash2 className="w-4 h-4 mr-2" /> */}
-        {/*   <span>重置主题</span> */}
-        {/* </Button> */}
         <Input onChange={handleFileImport} type="file" className="hidden" ref={fileRef} />
-        <Button size="sm" onClick={handleImageDialogOpen}>
+        <Button size="sm" onClick={handleImageExportDialogOpen}>
           <ImageDown className="w-4 h-4 mr-2" />
           <span>导出图片</span>
         </Button>
@@ -344,7 +332,7 @@ export function Header(props: HeaderProps) {
               <div className="text-center flex flex-col gap-4 px-6 py-4">
                 <h3 className="font-bold text-xl">导出为图片</h3>
                 <p className="text-sm flex-grow">将主题数据导出为图片，以便以后导入。</p>
-                <Button variant="outline" size="lg" onClick={handleImageDialogOpen}>导出为图片</Button>
+                <Button variant="outline" size="lg" onClick={handleImageExportDialogOpen}>导出为图片</Button>
               </div>
 
               <div className="text-center flex flex-col gap-4 px-6 py-4">
@@ -427,6 +415,8 @@ export function Header(props: HeaderProps) {
       </Dialog>
       <ExportImageDialog
         previewRef={previewRef}
+        scale={scale}
+        setScale={setScale}
         isExportModalOpen={imageDialogOpen}
         setIsExportModalOpen={setImageDialogOpen}
         isExporting={isExporting}

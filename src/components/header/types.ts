@@ -16,6 +16,7 @@ export interface ExportContent {
   title: string;
   content?: string;
   parentId?: number;
+  type?: 'theme_content' | 'normal_content'
   uploadFiles?: ImageFile[];
 }
 

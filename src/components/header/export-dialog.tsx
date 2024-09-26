@@ -19,18 +19,28 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from '@/components/ui/carousel'
-import { cn } from '@/lib/utils'
+import { cn, removeHtmlTags } from '@/lib/utils'
+import { getContents } from '@/lib/indexed-db'
 
 interface ExportImageProps {
   previewRef: React.RefObject<PreviewRef>;
   isExportModalOpen: boolean;
   isExporting: boolean;
+  scale: string;
+  setScale: (scale: string) => void;
   setIsExportModalOpen: (open: boolean) => void;
   setIsExporting: (isExporting: boolean) => void;
 }
 
-export function ExportImageDialog({ previewRef, isExportModalOpen, isExporting, setIsExporting, setIsExportModalOpen }: ExportImageProps) {
-  const [scale, setScale] = useState('1')
+export function ExportImageDialog({
+  previewRef,
+  isExportModalOpen,
+  scale,
+  setScale,
+  isExporting,
+  setIsExporting,
+  setIsExportModalOpen,
+}: ExportImageProps) {
   const [previewImages, setPreviewImages] = useState<ExportImage[]>([])
   const [api, setApi] = useState<CarouselApi>()
   const [current, setCurrent] = useState(0)
@@ -60,14 +70,23 @@ export function ExportImageDialog({ previewRef, isExportModalOpen, isExporting, 
         const images: ExportImage[] = []
 
         try {
+          const data = await getContents()
+          const dataMap = new Map()
+          for (const content of data) {
+            dataMap.set(content.id, content.title)
+          }
+
           // 导出整个 Preview
-          images.push(await exportImage(previewRef.current.containerRef.current!, 'full_preview.png', exportOption))
+          let index = 1
+          images.push(await exportImage(previewRef.current.containerRef.current!, `${index}_full_preview.png`, exportOption))
+          index = index + 1
 
           // 导出每个顶层 PreviewItem
           const itemRefs = previewRef.current.itemRefs.current!
           for (const [id, ref] of Object.entries(itemRefs)) {
             if (ref) {
-              images.push(await exportImage(ref, `preview_item_${id}.png`, exportOption))
+              images.push(await exportImage(ref, `${index}_${removeHtmlTags(dataMap.get(Number(id)))}.png`, exportOption))
+              index++
             }
           }
 
@@ -160,23 +179,23 @@ export function ExportImageDialog({ previewRef, isExportModalOpen, isExporting, 
               <div className="flex p-1 border rounded-lg">
                 <div
                   data-scale="1"
-                  className={cn(scale === '1' && 'bg-primary text-primary-foreground', 'px-2 rounded-sm text-sm cursor-pointer')}
+                  className={cn(scale === '1' && 'bg-primary text-primary-foreground', 'py-0.5 px-2.5 rounded-lg text-sm cursor-pointer')}
                   onClick={onScaleChange}
                 >
-                  1x
+                  1×
                 </div>
                 <div
                   data-scale="2"
-                  className={cn(scale === '2' && 'bg-primary text-primary-foreground', 'px-2 rounded-sm text-sm cursor-pointer')}
+                  className={cn(scale === '2' && 'bg-primary text-primary-foreground', 'py-0.5 px-2.5 rounded-lg text-sm cursor-pointer')}
                   onClick={onScaleChange}
                 >
-                  2x
+                  2×
                 </div>
                 <div data-scale="3"
-                  className={cn(scale === '3' && 'bg-primary text-primary-foreground', 'px-2 rounded-sm text-sm cursor-pointer')}
+                  className={cn(scale === '3' && 'bg-primary text-primary-foreground', 'py-0.5 px-2.5 rounded-lg text-sm cursor-pointer')}
                   onClick={onScaleChange}
                 >
-                  3x
+                  3×
                 </div>
               </div>
             </div>
