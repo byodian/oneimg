@@ -60,7 +60,6 @@
     position: relative;
     display: flex;
     flex-direction: column;
-    align-items: center;
     justify-content: center;
     min-height: 200px;
     padding-left: 12px;
@@ -75,7 +74,7 @@
     top: 0;
     width: 100%;
     height: 150%;
-    background-size: cover;
+    background-size: contain;
     background-repeat: no-repeat;
     background-color: var(--template-theme-background);
     z-index: 0;
@@ -84,6 +83,7 @@
   .one-theme__title {
     position: relative;
     z-index: 1;
+    margin-top: 45px;
     margin-bottom: 5px;
     font-weight: bold;
     font-size: var(--template-theme-heading1-font-size);
@@ -96,12 +96,11 @@
     font-size: var(--template-theme-heading1-desc-font-size);
   }
 
-  .one-theme__logo {
-    position: absolute;
-    z-index: 3;
-    height: 18px;
-    right: 26px;
-    top: 26px;
+  .one-theme__image {
+    position: relative;
+    z-index: 2;
+    margin-top: 5px;
+    margin-bottom: 5px;
 
     img {
       width: auto;

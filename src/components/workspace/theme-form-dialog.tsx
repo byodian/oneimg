@@ -7,6 +7,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Button } from '@/components/ui/button'
 import type { ThemeContent } from '@/types/common'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { themeTemplates } from '@/lib/constants'
 
 const formSchema = z.object({
   title: z.string(),
@@ -103,11 +104,11 @@ export function ThemeFormDialog({ onSubmit, onOpenChange, open }: ThemeFormProps
                       </FormControl>
                       <SelectContent>
                         <SelectGroup>
-                          {/* <SelectLabel>模板</SelectLabel> */}
-                          <SelectItem value="wechat-post-1">公众号长图推文</SelectItem>
-                          <SelectItem value="wechat-post-more" disabled>更多模版尽情期待</SelectItem>
-                          {/* <SelectItem value="red-post-1">小红书推文</SelectItem> */}
-                          {/* <SelectItem value="default">默认</SelectItem> */}
+                          {themeTemplates.map(template => (
+                            <SelectItem key={template.value} value={template.value} disabled={template.disabled}>
+                              {template.label}
+                            </SelectItem>
+                          ))}
                         </SelectGroup>
                       </SelectContent>
                     </Select>
