@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { Noto_Sans_SC } from 'next/font/google'
 import '@/app/globals.css'
-import '@/app/styles/theme.css'
+import '@/app/styles/index.css'
 import { headers } from 'next/headers'
 import { cn } from '@/lib/utils'
 import { Toaster } from '@/components/ui/toaster'

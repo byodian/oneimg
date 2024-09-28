@@ -47,11 +47,11 @@ const PreviewItem = forwardRef<HTMLLIElement, { content: Content, children?: Rea
           </div>)
       }
       {content.type === 'theme_content' && imageFiles.length > 0 && (
-        <div className="one-theme__logo">
+        <div className="one-theme__image">
           <Image src={imageFiles[0].dataUrl} alt={imageFiles[0].name} width={100} height={100} />
         </div>
       )}
-    </li >
+    </li>
   )
 })
 PreviewItem.displayName = 'PreviewItem'

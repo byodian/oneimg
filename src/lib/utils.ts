@@ -165,3 +165,15 @@ export function getThemeBaseClass(theme: string) {
 
   return 'default'
 }
+
+export function getPreviewWidthClass(theme: string) {
+  if (theme.startsWith('wechat-post')) {
+    return 'sm:w-[375px] sm:min-w-[375px]'
+  }
+
+  if (theme.startsWith('red-post')) {
+    return 'sm:w-[414px] sm:min-w-[414px]'
+  }
+
+  return 'sm:w-[375px] sm:min-w-[375px]'
+}

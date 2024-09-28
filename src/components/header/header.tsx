@@ -39,7 +39,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { removeHtmlTags } from '@/lib/utils'
+import { cn, removeHtmlTags, themeTemplates } from '@/lib'
 
 interface HeaderProps {
   contents: Content[];
@@ -263,43 +263,57 @@ export function Header(props: HeaderProps) {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    {/* <SelectLabel>模板</SelectLabel> */}
-                    <SelectItem value="wechat-post-1">公众号长图推文</SelectItem>
-                    <SelectItem value="wechat-post-more" disabled>更多模版尽情期待</SelectItem>
-                    {/* <SelectItem value="red-post-1">小红书推文</SelectItem> */}
-                    {/* <SelectItem value="default">默认</SelectItem> */}
+                    {
+                      themeTemplates.map(template => (
+                        <SelectItem key={template.value} value={template.value} disabled={template.disabled}>
+                          {template.label}
+                        </SelectItem>
+                      ))
+                    }
                   </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
+                </SelectContent >
+              </Select >
+            </div >
             <div className="px-1.5 py-2 text-sm">
               <div className="mb-2">模版色</div>
               <div>
-                <Button variant="ghost" size="sm" onClick={() => {
-                  setThemeColor('tech_blue')
-                  localStorage.setItem('currentThemeColor', 'tech_blue')
-                }}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setThemeColor('tech_blue')
+                    localStorage.setItem('currentThemeColor', 'tech_blue')
+                  }}
+                  className={cn({ 'bg-accent': themeColor === 'tech_blue' })}>
                   <div className="w-4 h-4 bg-[#4383EC] rounded-full"></div>
                 </Button>
 
-                <Button variant="ghost" size="sm" onClick={() => {
-                  setThemeColor('vibrant_orange')
-                  localStorage.setItem('currentThemeColor', 'vibrant_orange')
-                }}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setThemeColor('vibrant_orange')
+                    localStorage.setItem('currentThemeColor', 'vibrant_orange')
+                  }}
+                  className={cn({ 'bg-accent': themeColor === 'vibrant_orange' })}>
                   <div className="w-4 h-4 bg-[#FF611D] rounded-full"></div>
                 </Button>
 
-                <Button variant="ghost" size="sm" onClick={() => {
-                  setThemeColor('rose_red')
-                  localStorage.setItem('currentThemeColor', 'rose_red')
-                }}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setThemeColor('rose_red')
+                    localStorage.setItem('currentThemeColor', 'rose_red')
+                  }}
+                  className={cn({ 'bg-accent': themeColor === 'rose_red' })}>
                   <div className="w-4 h-4 bg-[#F14040] rounded-full"></div>
                 </Button>
               </div>
             </div>
-          </MenubarContent>
-        </MenubarMenu>
-      </Menubar>
+          </MenubarContent >
+        </MenubarMenu >
+      </Menubar >
       <div className="flex flex-wrap gap-2 ml-auto">
         <Input onChange={handleFileImport} type="file" className="hidden" ref={fileRef} />
         <Button size="sm" onClick={handleImageExportDialogOpen}>

@@ -117,7 +117,7 @@ const EditorContainer = forwardRef<EditorMethods, EditorProps>(
     return (
       <div className={cn('mb-6 flex flex-col gap-1 editor-content')}>
         <EditorContent editor={titleEditor} />
-
+        <Separator />
         {contentEditor && <BubbleMenu editor={contentEditor} tippyOptions={{ duration: 0 }}>
           <div className="bg-black flex gap-x-1 border border-gray-50 px-2 py-1.5 rounded-md">
             <Button
@@ -190,7 +190,6 @@ const EditorContainer = forwardRef<EditorMethods, EditorProps>(
               {/* ListTodo */}
               <ListOrderedIcon className="h-4 w-4" />
             </Button>
-
             {/* <Button */}
             {/*   variant="ghost" */}
             {/*   size="icon" */}
