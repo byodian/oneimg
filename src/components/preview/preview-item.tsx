@@ -1,12 +1,11 @@
 import DOMPurify from 'dompurify'
 import parse from 'html-react-parser'
 import { forwardRef, useMemo } from 'react'
-import Image from 'next/image'
 import { ImageList } from './image-list'
 import type { Content, ImageFile } from '@/types/common'
-import { base64ToBlob, cn, stripEmptyParagraphs } from '@/lib/utils'
+import { base64ToBlob, cn, getThemeBaseClass, stripEmptyParagraphs } from '@/lib/utils'
 
-const PreviewItem = forwardRef<HTMLLIElement, { content: Content, children?: React.ReactNode, index: number }>(({ content, children, index }, ref) => {
+const PreviewItem = forwardRef<HTMLLIElement, { content: Content, children?: React.ReactNode, index: number, theme: string }>(({ content, children, index, theme }, ref) => {
   const uploadFiles = content.uploadFiles
 
   const imageFiles: ImageFile[] = useMemo(() => {
@@ -40,17 +39,12 @@ const PreviewItem = forwardRef<HTMLLIElement, { content: Content, children?: Rea
         ((stripEmptyParagraphs(content.content)) || (imageFiles.length > 0) || children) && (
           <div className={cn(content.parentId ? 'one-child-item__content' : content.type === 'theme_content' ? 'one-theme__content' : 'one-item__content')}>
             {content.content && <>{parse(DOMPurify.sanitize(content.content))}</>}
-            {content.type === 'normal_content' && imageFiles.length > 0 && (
-              <ImageList images={imageFiles} />
+            {imageFiles.length > 0 && (
+              <ImageList images={imageFiles} gridLayout={getThemeBaseClass(theme) === 'red-post'} />
             )}
             {children}
           </div>)
       }
-      {content.type === 'theme_content' && imageFiles.length > 0 && (
-        <div className="one-theme__image">
-          <Image src={imageFiles[0].dataUrl} alt={imageFiles[0].name} width={100} height={100} />
-        </div>
-      )}
     </li>
   )
 })

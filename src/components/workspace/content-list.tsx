@@ -91,7 +91,7 @@ export default function ContentList(props: ContentListProps) {
                 <EditorForm
                   titlePlaceholder={content.type === 'theme_content' ? '请输入主标题' : '请输入标题'}
                   contentPlaceholder={content.type === 'theme_content' ? '请输入副标题' : '请输入正文内容'}
-                  multiple={content.type !== 'theme_content'}
+                  multiple
                   initialContent={content}
                   onSubmit={onSubmit}
                   hideEditor={handleEditorHide}

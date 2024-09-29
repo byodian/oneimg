@@ -1,9 +1,9 @@
 import Image from 'next/image'
 import type { ImageFile } from '@/types/common'
-import { cn } from '@/lib/utils'
-export function ImageList({ images }: { images: ImageFile[] }) {
+import { cn, getImageLayout } from '@/lib/utils'
+export function ImageList({ images, gridLayout }: { images: ImageFile[], gridLayout: boolean }) {
   return (
-    <div className={cn('one-item__images grid gap-2 grid-cols-1')}>
+    <div className={cn('one-item__images grid gap-2 grid-cols-1', gridLayout && getImageLayout(images.length))}>
       {images.length > 0 && images.map(image => (
         <div key={image.uid}>
           <Image

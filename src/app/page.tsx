@@ -135,7 +135,7 @@ export default function Home() {
       />
       <main className="flex h-[calc(100%-58px)]">
         <div className={cn(theme, themeColor, getThemeBaseClass(theme), getPreviewWidthClass(theme), 'one hidden w-full sm:block overflow-y-auto scroll-smooth h-full')}>
-          <Preview ref={previewRef} contents={contents} className="w-full flex flex-col m-auto" />
+          <Preview ref={previewRef} contents={contents} theme={theme} className="w-full flex flex-col m-auto" />
         </div>
         <div className="flex-grow flex justify-center items-start bg-card text-card-foreground overflow-y-auto">
           <Workspace

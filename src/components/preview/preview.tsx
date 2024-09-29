@@ -3,7 +3,7 @@ import { PreviewItem } from './preview-item'
 import type { Content, PreviewRef } from '@/types/common'
 import { cn } from '@/lib/utils'
 
-const Preview = forwardRef<PreviewRef, { contents: Content[]; className?: string }>(({ contents, className }, ref) => {
+const Preview = forwardRef<PreviewRef, { contents: Content[]; className?: string, theme: string }>(({ contents, className, theme }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const itemRefs = useRef<{ [key: string | number]: HTMLLIElement }>({})
 
@@ -42,6 +42,7 @@ const Preview = forwardRef<PreviewRef, { contents: Content[]; className?: string
         <ul className="one-list">
           {parentContents.map((content, parentIndex) => (
             <PreviewItem
+              theme={theme}
               index={parentIndex}
               content={content}
               key={content.id}
@@ -51,7 +52,7 @@ const Preview = forwardRef<PreviewRef, { contents: Content[]; className?: string
               {childContentsMap.get(content.id as number) && (
                 <ul className="one-item__children">
                   {childContentsMap.get(content.id!)!.map((item, index) => (
-                    <PreviewItem content={item} key={item.id} index={index} />
+                    <PreviewItem content={item} key={item.id} index={index} theme={theme} />
                   ))}
                 </ul>
               )}
