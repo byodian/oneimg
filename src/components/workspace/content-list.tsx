@@ -4,6 +4,7 @@ import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import EditorForm from '../editor/editor-form'
 import { Button } from '../ui/button'
+import ContentImage from '../content-image'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader } from '@/components/ui/dialog'
 import {
   Tooltip,
@@ -76,16 +77,7 @@ export default function ContentList(props: ContentListProps) {
     <TooltipProvider delayDuration={0}>
       <ul className="mb-2">
         {parentContents.map(content => (
-          <li
-            key={content.id}
-            className={
-              cn(
-                !content.parentId ? 'text-lg text-primary' : 'text-base ml-4 text-secondary-foreground',
-                content.type === 'theme_content' && 'text-2xl',
-                'relative cursor-pointer',
-              )
-            }
-          >
+          <li key={content.id} className={cn('relative cursor-pointer')}>
             {editorStatus === editorEditStatus && editingContentId === content.id ? (
               <div className="my-2">
                 <EditorForm
@@ -98,8 +90,15 @@ export default function ContentList(props: ContentListProps) {
                 />
               </div>
             ) : (
-              <a className={cn(!content.parentId ? 'group font-bold' : 'group/child ', 'block border-b border-b-border py-4')} href={`/#${content.id}`}>
-                <div className="mr-28">{parse(DOMPurify.sanitize(content.title))}</div>
+              <a className={cn(!content.parentId ? 'group' : 'group/child ', 'block border-b border-b-border py-4')} href={`/#${content.id}`}>
+                <div className="flex flex-col gap-2">
+                  <div className={cn(!content.parentId ? 'text-lg text-primary' : 'text-base ml-4 text-secondary-foreground', content.type === 'theme_content' && 'text-2xl', 'mr-28 font-bold')}>{parse(DOMPurify.sanitize(content.title))}</div>
+                  {content.content && <div className={cn(content.parentId && 'ml-4', 'text-base text-secondary-foreground')}>{parse(DOMPurify.sanitize(content.content))}</div>}
+                  {content.uploadFiles && content.uploadFiles.length > 0 && <ContentImage
+                    className={cn(content.parentId && 'ml-4', 'mb-0')}
+                    uploadFiles={content.uploadFiles}
+                  />}
+                </div>
                 <div className={cn(!content.parentId ? 'group-hover:flex' : 'group-hover/child:flex', 'hidden absolute right-4 top-0 gap-4')}>
                   {content.type === 'normal_content' && (
                     <>

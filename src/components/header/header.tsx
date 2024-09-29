@@ -39,7 +39,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { removeHtmlTags, themeTemplates, cn } from '@/lib'
+import { cn, removeHtmlTags, themeTemplates } from '@/lib'
 
 interface HeaderProps {
   contents: Content[];

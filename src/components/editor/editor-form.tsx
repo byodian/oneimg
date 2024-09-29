@@ -1,7 +1,7 @@
 'use client'
 import { useReducer, useRef } from 'react'
+import ContentImage from '../content-image'
 import { EditorContainer } from './editor-container'
-import EditorImage from './editor-image'
 import EditorButton from './editor-button'
 import { cn } from '@/lib/utils'
 import type { ActionType, Content, EditorMethods, ImageFile } from '@/types/common'
@@ -115,7 +115,7 @@ export default function EditorForm(props: EditorProps) {
           ref={editorRef}
         />
         <div className="editor-footer">
-          <EditorImage
+          <ContentImage
             onFilesChange={handleFilesChange}
             uploadFiles={content.uploadFiles}
           />
