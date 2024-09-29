@@ -1,0 +1,64 @@
+{
+  "type": "oneimg",
+  "version": 1,
+  "source": "https://oneimgai.com",
+  "theme": "wechat-post-1",
+  "themeColor": "rose_red",
+  "data": [
+    {
+      "id": 12,
+      "title": "oneimg 应用介绍",
+      "type": "theme_content",
+      "content": "<p>一个纯前端实现的<strong>长图生成器应用</strong>，您可以通过编辑器输入文本和图片，使用预设的 CSS 模板样式，快速生成预览，并导出为图片格式。</p>"
+    },
+    {
+      "id": 13,
+      "title": "<p>特性</p>",
+      "type": "normal_content",
+      "content": "<ul><li><p>快速图文转长图，大幅提高内容创作效率</p></li><li><p>内置多种模版和主题色，<strong>更多模版还在开发中</strong></p></li><li><p>固定布局编辑器，无需考虑复杂的排版问题</p></li><li><p>实时预览生成的长图</p></li><li><p>导出为 <strong>PNG</strong> 长图和多张切图</p></li><li><p>开放格式，导出主题为 <em>.oneimg </em> json 文件</p></li><li><p>正文编辑器支持<strong>加粗</strong>、<em>斜体</em>、<u>下划线</u>等文本格式</p></li></ul>",
+      "uploadFiles": []
+    },
+    {
+      "id": 14,
+      "title": "<p>应用场景</p>",
+      "type": "normal_content",
+      "content": "<p><strong>项目地址：</strong><u>https://github.com/byodian/oneimg</u></p><p><strong>在线地址：</strong><u>https://oneimgai.com/</u></p><ul><li><p>微信公众号长图推文</p></li><li><p>小红书图文（模版正在开发中）</p></li></ul>",
+      "uploadFiles": []
+    },
+    {
+      "id": 15,
+      "title": "<p>技术栈</p>",
+      "type": "normal_content",
+      "content": "<p>数据存储在本地浏览器。</p><p><strong>前端：</strong>Next.js、tiptap 编辑器、tailwindcss、shadcn/ui</p><p><strong>图片处理：</strong>html-to-image，UPNG</p><p><strong>数据库</strong>：IndexedDB (本地存储)</p>",
+      "uploadFiles": []
+    },
+    {
+      "id": 17,
+      "title": "<p>快速开始</p>",
+      "type": "normal_content",
+      "content": "<p><strong>安装依赖</strong></p><p>pnpm install </p><p><strong>启动项目</strong></p><p>pnpm dev</p>",
+      "uploadFiles": []
+    },
+    {
+      "id": 18,
+      "title": "<p>使用方法</p>",
+      "type": "normal_content",
+      "content": "<ol><li><p>打开应用后，点击<strong>创建主题</strong>按钮，填写主题信息</p></li><li><p>选择预设的 CSS 样式模板</p></li><li><p>使用编辑器输入内容，实时预览效果</p></li><li><p>点击<strong>导出图片</strong>按钮，生成 PNG 格式的图片并下载。</p></li></ol>",
+      "uploadFiles": []
+    },
+    {
+      "id": 19,
+      "title": "<p>贡献</p>",
+      "type": "normal_content",
+      "content": "<p>我们欢迎各类贡献。如果你有新的功能或改进，欢迎提交 PR：</p><ol><li><p>Fork 本项目。</p></li><li><p>创建新的分支 (git checkout -b feature/your-feature)。</p></li><li><p>提交修改 (git commit -m 'add some feature')。</p></li><li><p>推送到分支 (git push origin feature/your-feature)。</p></li><li><p>创建 Pull Request。</p></li></ol>",
+      "uploadFiles": []
+    },
+    {
+      "id": 20,
+      "title": "<p>许可证</p>",
+      "type": "normal_content",
+      "content": "<p>本项目基于 <u>MIT license</u> 开源。</p>",
+      "uploadFiles": []
+    }
+  ]
+}

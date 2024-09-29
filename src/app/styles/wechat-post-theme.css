@@ -133,10 +133,8 @@
     padding: 12px 18px;
     border-radius: 12px;
     font-size: var(--template-theme-primary-content-font-size);
-    /* box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); */
     background-color: var(--template-theme-primary-content-background);
     color: var(--template-theme-primary-content-foreground);
-    text-align: justify;
 
     :where(:first-child) {
       margin-top: 0 !important;
