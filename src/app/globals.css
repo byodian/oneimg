@@ -10,7 +10,7 @@
     --card-foreground: hsl(222.2 84% 4.9%);
     --popover: hsl(0 0% 100%);
     --popover-foreground: hsl(222.2 84% 4.9%);
-    --primary: hsl(0 0 10%);
+    --primary: hsl(0 0% 10%);
     --primary-foreground: hsl(210 40% 98%);
     --secondary: hsl(210 40% 96.1%);
     --secondary-foreground: hsl(222.2 47.4% 11.2%);
@@ -85,6 +85,10 @@
 @layer base {
   * {
     @apply border-border;
+  }
+
+  html {
+    text-size-adjust: none;
   }
 
   body {

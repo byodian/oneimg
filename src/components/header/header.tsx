@@ -3,6 +3,7 @@
 import { ChevronDown, Download, Folder, ImageDown, LinkIcon, Trash2, TriangleAlert } from 'lucide-react'
 // import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
+import Image from 'next/image'
 import { ExportImageDialog } from './export-dialog'
 import { useToast } from '@/components/ui/use-toast'
 import { Button } from '@/components/ui/button'
@@ -250,6 +251,19 @@ export function Header(props: HeaderProps) {
             <MenubarItem onClick={handleImageExportDialogOpen}>
               <ImageDown className="w-4 h-4 mr-2" />
               <span>导出图片</span>
+            </MenubarItem>
+            <MenubarSeparator />
+            <MenubarItem asChild>
+              <a href="https://github.com/byodian/oneimg" target="_blank" rel="noreferrer">
+                <Image src="/images/github.svg" alt="github icon" className="w-4 h-4 mr-2" width={24} height={24} />
+                <span>Github</span>
+              </a>
+            </MenubarItem>
+            <MenubarItem asChild>
+              <a href="https://t.me/oneimg" target="_blank" rel="noreferrer">
+                <Image src="/images/telegram.svg" alt="telegram icon" className="w-4 h-4 mr-2" width={24} height={24} />
+                <span>用户群</span>
+              </a>
             </MenubarItem>
             <MenubarSeparator />
             <div className="px-1.5 py-2 text-sm">

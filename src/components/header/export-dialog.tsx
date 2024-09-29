@@ -135,15 +135,15 @@ export function ExportImageDialog({
 
   return (
     <Dialog open={isExportModalOpen} onOpenChange={setIsExportModalOpen}>
-      <DialogContent className="max-w-full sm:max-w-[840px] px-10 py-8 sm:h-[500px] overflow-y-auto flex flex-col gap-4">
+      <DialogContent className="flex flex-col max-w-full sm:max-w-[840px] sm:h-[500px] px-10 py-8 overflow-y-auto gap-4">
         <DialogHeader>
           <DialogTitle className="text-2xl">导出图片</DialogTitle>
           <DialogDescription className="hidden">
             save as images
           </DialogDescription>
         </DialogHeader>
-        <div className="flex-grow flex gap-4">
-          <div className="w-[480px] px-12 border rounded-lg">
+        <div className="flex-grow flex flex-col gap-4">
+          <div className="sm:w-[480px] px-12 border rounded-lg">
             <Carousel setApi={setApi} className="w-full py-2 px-4">
               <CarouselContent>
                 {previewImages.length > 0 && !isExporting ? previewImages.map(item => (

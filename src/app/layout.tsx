@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Noto_Sans_SC } from 'next/font/google'
 import '@/app/globals.css'
 import '@/app/styles/index.css'
@@ -10,6 +10,13 @@ const notoSansSc = Noto_Sans_SC({
   subsets: ['latin'],
   variable: '--font-noto-sans-sc',
 })
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+}
 
 export const metadata: Metadata = {
   title: {
