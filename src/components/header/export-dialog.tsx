@@ -142,7 +142,7 @@ export function ExportImageDialog({
             save as images
           </DialogDescription>
         </DialogHeader>
-        <div className="flex-grow flex flex-col gap-4">
+        <div className="flex-grow flex flex-col sm:flex-row gap-4">
           <div className="sm:w-[480px] px-12 border rounded-lg">
             <Carousel setApi={setApi} className="w-full py-2 px-4">
               <CarouselContent>

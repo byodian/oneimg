@@ -58,7 +58,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full overflow-hidden" data-platform={getPlatform()}>
+    <html lang="en" className="h-full break-words overflow-hidden" data-platform={getPlatform()}>
       <body className={cn('h-full overflow-hidden antialiased', notoSansSc.variable)}>
         {children}
         <Toaster />
