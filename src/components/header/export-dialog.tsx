@@ -135,7 +135,7 @@ export function ExportImageDialog({
 
   return (
     <Dialog open={isExportModalOpen} onOpenChange={setIsExportModalOpen}>
-      <DialogContent className="flex flex-col max-w-full sm:max-w-[840px] sm:h-[500px] px-10 py-8 overflow-y-auto gap-4">
+      <DialogContent className="flex flex-col max-w-full sm:max-w-[840px] h-full sm:h-[500px] px-10 py-8 overflow-y-auto gap-4">
         <DialogHeader>
           <DialogTitle className="text-2xl">导出图片</DialogTitle>
           <DialogDescription className="hidden">
@@ -144,10 +144,10 @@ export function ExportImageDialog({
         </DialogHeader>
         <div className="flex-grow flex flex-col sm:flex-row gap-4">
           <div className="sm:w-[480px] px-12 border rounded-lg">
-            <Carousel setApi={setApi} className="w-full py-2 px-4">
+            <Carousel setApi={setApi} className="w-full py-2 px-4 h-[500px] sm:h-[300px]">
               <CarouselContent>
                 {previewImages.length > 0 && !isExporting ? previewImages.map(item => (
-                  <CarouselItem key={item.id} className="h-[300px]">
+                  <CarouselItem key={item.id} className="h-[500px] sm:h-[300px]">
                     <Image
                       src={item.data ? URL.createObjectURL(item.data) : ''}
                       alt="Preview"
@@ -157,7 +157,7 @@ export function ExportImageDialog({
                     />
                   </CarouselItem>
                 )) : (
-                  <CarouselItem className="h-[300px] flex items-center justify-center">
+                  <CarouselItem className="h-[500px] sm:h-[300px] flex items-center justify-center">
                     <div className="flex gap-2 items-center text-gray-500">
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       图片生成中...
@@ -199,7 +199,7 @@ export function ExportImageDialog({
                 </div>
               </div>
             </div>
-            <div className="mt-auto ml-auto">
+            <div className="mt-4 sm:mt-auto ml-auto">
               <Button onClick={exportImages} disabled={isExporting}>
                 {isExporting ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />

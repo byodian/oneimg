@@ -50,6 +50,7 @@ interface HeaderProps {
   themeColor: ThemeColor;
   setTheme: (theme: string) => void;
   setThemeColor: (color: ThemeColor) => void
+  setTableValue?: (tab: string) => void
 }
 
 type DialogType = 'save_file' | 'open_file' | 'reset_data'
@@ -60,7 +61,7 @@ export function Header(props: HeaderProps) {
   const [dialogType, setDialogType] = useState<DialogType>('save_file')
   const [isExporting, setIsExporting] = useState(true)
   const [scale, setScale] = useState('1')
-  const { contents, setContents, previewRef, theme, themeColor, setTheme, setThemeColor } = props
+  const { contents, setContents, previewRef, theme, themeColor, setTheme, setThemeColor, setTableValue } = props
   const { toast } = useToast()
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -189,7 +190,7 @@ export function Header(props: HeaderProps) {
         })
       } else {
         // eslint-disable-next-line no-alert
-        const suggestedName = prompt('请输入文件名称', fileName) || fileName
+        const suggestedName = prompt('文件名称', fileName) || fileName
         const a = document.createElement('a')
         a.href = URL.createObjectURL(blob)
         a.download = suggestedName
@@ -215,6 +216,8 @@ export function Header(props: HeaderProps) {
     setImageDialogOpen(true)
     setIsExporting(true)
     setScale('1')
+    // open preview
+    setTableValue && setTableValue('preview')
   }
 
   return (
@@ -358,15 +361,15 @@ export function Header(props: HeaderProps) {
             </div>
             <div className="flex flex-col sm:flex-row justify-between gap-4">
               <div className="text-center flex flex-col gap-4 px-6 py-4">
-                <h3 className="font-bold text-xl">导出为图片</h3>
-                <p className="text-sm flex-grow">将主题数据导出为图片，以便以后导入。</p>
-                <Button variant="outline" size="lg" onClick={handleImageExportDialogOpen}>导出为图片</Button>
-              </div>
-
-              <div className="text-center flex flex-col gap-4 px-6 py-4">
                 <h3 className="font-bold text-xl">保存到本地</h3>
                 <p className="text-sm flex-grow">将主题数据导出为文件，以便以后导入。</p>
                 <Button variant="outline" size="lg" onClick={handleFileSave}>保存到本地</Button>
+              </div>
+
+              <div className="text-center flex flex-col gap-4 px-6 py-4">
+                <h3 className="font-bold text-xl">导出为图片</h3>
+                <p className="text-sm flex-grow">将主题数据导出为图片</p>
+                <Button variant="outline" size="lg" onClick={handleImageExportDialogOpen}>导出为图片</Button>
               </div>
 
               <div className="text-center flex flex-col gap-4 px-6 py-4">

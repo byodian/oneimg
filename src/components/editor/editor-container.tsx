@@ -31,12 +31,12 @@ const EditorContainer = forwardRef<EditorMethods, EditorProps>(
     // 标题编辑器
     const titleEditor = useEditor({
       extensions: [Document, Paragraph, Text, Placeholder.configure({
-        placeholder: titlePlaceholder || '请输入标题',
+        placeholder: titlePlaceholder || '标题',
       }), History],
       content: initialContent?.title || '',
       editorProps: {
         attributes: {
-          class: 'focus:outline-none max-w-full font-bold text-base',
+          class: 'focus:outline-none max-w-full font-bold text-xl mb-3',
         },
       },
       immediatelyRender: false,
@@ -55,7 +55,7 @@ const EditorContainer = forwardRef<EditorMethods, EditorProps>(
         OrderedList,
         ListItem,
         Placeholder.configure({
-          placeholder: contentPlaceholder || '请输入正文',
+          placeholder: contentPlaceholder || '正文',
         }),
         Image.configure({
           inline: true,
@@ -117,7 +117,6 @@ const EditorContainer = forwardRef<EditorMethods, EditorProps>(
     return (
       <div className={cn('mb-6 flex flex-col gap-1 editor-content')}>
         <EditorContent editor={titleEditor} />
-        <Separator />
         {contentEditor && <BubbleMenu editor={contentEditor} tippyOptions={{ duration: 0 }}>
           <div className="bg-black flex gap-x-1 border border-gray-50 px-2 py-1.5 rounded-md">
             <Button

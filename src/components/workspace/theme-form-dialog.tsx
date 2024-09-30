@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form'
 import { Button } from '@/components/ui/button'
 import type { ThemeContent } from '@/types/common'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -46,7 +46,7 @@ export function ThemeFormDialog({ onSubmit, onOpenChange, open }: ThemeFormProps
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="text-2xl mb-4">新建主题</DialogTitle>
+          <DialogTitle className="text-2xl mb-4">新建项目</DialogTitle>
           <DialogDescription className="hidden">
             save as images
           </DialogDescription>
@@ -59,13 +59,14 @@ export function ThemeFormDialog({ onSubmit, onOpenChange, open }: ThemeFormProps
                 name="title"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>标题</FormLabel>
+                    {/* <FormLabel>项目名称</FormLabel> */}
                     <FormControl>
                       <Input
                         {...field}
                         type="title"
                         required
-                        placeholder="请输入项目的标题"
+                        placeholder="项目名称"
+                        className="h-12"
                       />
                     </FormControl>
                     {/* <FormDescription>This is your email</FormDescription> */}
@@ -78,12 +79,13 @@ export function ThemeFormDialog({ onSubmit, onOpenChange, open }: ThemeFormProps
                 name="content"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>副标题</FormLabel>
+                    {/* <FormLabel>副标题</FormLabel> */}
                     <FormControl>
                       <Input
                         {...field}
                         type="content"
-                        placeholder="请输入项目的副标题"
+                        placeholder="描述"
+                        className="h-12"
                       />
                     </FormControl>
                     <FormMessage />
@@ -95,11 +97,11 @@ export function ThemeFormDialog({ onSubmit, onOpenChange, open }: ThemeFormProps
                 name="theme"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>模版</FormLabel>
+                    {/* <FormLabel>模版</FormLabel> */}
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
-                        <SelectTrigger>
-                          <SelectValue className="text-muted-foreground" placeholder="请选择一个主题模版" />
+                        <SelectTrigger className="h-12">
+                          <SelectValue className="text-muted-foreground" placeholder="选择模版" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>

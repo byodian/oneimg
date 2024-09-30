@@ -89,8 +89,8 @@ export default function ContentList(props: ContentListProps) {
             {editorStatus === editorEditStatus && editingContentId === content.id ? (
               <div className="my-2">
                 <EditorForm
-                  titlePlaceholder={content.type === 'theme_content' ? '请输入主标题' : '请输入标题'}
-                  contentPlaceholder={content.type === 'theme_content' ? '请输入副标题' : '请输入正文内容'}
+                  titlePlaceholder={content.type === 'theme_content' ? '项目名称' : '标题'}
+                  contentPlaceholder={content.type === 'theme_content' ? '描述' : '正文'}
                   multiple
                   initialContent={content}
                   onSubmit={onSubmit}

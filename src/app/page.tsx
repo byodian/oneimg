@@ -6,6 +6,7 @@ import { ToastAction } from '@/components/ui/toast'
 import { Workspace } from '@/components/workspace/workspace'
 import { Header } from '@/components/header/header'
 import { Preview } from '@/components/preview/preview'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import type { Content, PreviewRef, ThemeColor, ThemeContent } from '@/types/common'
 import { cn, getPreviewWidthClass, getThemeBaseClass } from '@/lib/utils'
@@ -14,6 +15,7 @@ export default function Home() {
   const [contents, setContents] = useState<Content[]>([])
   const [theme, setTheme] = useState('')
   const [themeColor, setThemeColor] = useState<ThemeColor>('tech_blue')
+  const [tabValue, setTabValue] = useState('workspace')
   const { toast } = useToast()
   const previewRef = useRef<PreviewRef>(null)
 
@@ -132,19 +134,36 @@ export default function Home() {
         setTheme={setTheme}
         themeColor={themeColor}
         setThemeColor={setThemeColor}
+        setTableValue={setTabValue}
       />
-      <main className="flex h-[calc(100%-58px)]">
-        <div className={cn(theme, themeColor, getThemeBaseClass(theme), getPreviewWidthClass(theme), 'one hidden w-full sm:block overflow-y-auto scroll-smooth h-full')}>
-          <Preview ref={previewRef} contents={contents} theme={theme} className="w-full flex flex-col m-auto" />
-        </div>
-        <div className="flex-grow flex justify-center items-start bg-card text-card-foreground overflow-y-auto">
-          <Workspace
-            contents={contents}
-            onContentSubmit={handleContentSubmit}
-            onContentDelete={handleContentDelete}
-            onThemeContentSubmit={handleThemeContentSubmit}
-          />
-        </div>
+      <main className="h-[calc(100%-58px)]">
+        <Tabs
+          defaultValue="workspace"
+          activationMode="manual"
+          value={tabValue}
+          onValueChange={setTabValue}
+          className="h-full flex flex-col sm:flex-row"
+        >
+          <TabsList className="grid w-full grid-cols-2 sm:hidden">
+            <TabsTrigger value="workspace">编辑器</TabsTrigger>
+            <TabsTrigger value="preview">预览</TabsTrigger>
+          </TabsList>
+          <TabsContent value="preview" forceMount className="data-[state=inactive]:hidden flex-grow sm:flex-grow-0 sm:!block overflow-y-auto sm:mt-0">
+            <div className={cn(theme, themeColor, getThemeBaseClass(theme), 'one w-full scroll-smooth h-full mx-auto', getPreviewWidthClass(theme))}>
+              <Preview ref={previewRef} contents={contents} theme={theme} className="w-full flex flex-col m-auto" />
+            </div>
+          </TabsContent>
+          <TabsContent value="workspace" forceMount className="data-[state=inactive]:hidden sm:flex-grow sm:!block overflow-auto">
+            <div className="h-full flex-grow flex justify-center items-start bg-card text-card-foreground">
+              <Workspace
+                contents={contents}
+                onContentSubmit={handleContentSubmit}
+                onContentDelete={handleContentDelete}
+                onThemeContentSubmit={handleThemeContentSubmit}
+              />
+          </div>
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   )

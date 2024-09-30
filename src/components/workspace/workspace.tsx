@@ -46,10 +46,10 @@ export function Workspace(props: WorkspaceProps) {
         </>)}
       {contents.length === 0 && (
         <>
-          <div className="flex flex-col gap-4 justify-center items-center w-full h-full max-w-sm mx-auto text-muted-foreground">
+          <div className="flex flex-col gap-2 justify-center items-center w-full h-full max-w-sm mx-auto text-muted-foreground">
             <p>从新建主题开始</p>
             <p>您的所有数据都存储在浏览器本地。</p>
-            <Button className="sm:w-[256px]" variant="outline" size="sm" onClick={() => setOpen(true)}>
+            <Button className="sm:w-[256px] mt-4" variant="outline" size="sm" onClick={() => setOpen(true)}>
               <FolderPlus className="w-4 h-4 mr-2" />
               新建主题
             </Button>

@@ -66,6 +66,7 @@
     padding-right: 12px;
     padding-top: 13px;
     padding-bottom: 13px;
+    text-align: center;
   }
 
   .one-theme__bg {
@@ -73,8 +74,8 @@
     left: 0;
     top: 0;
     width: 100%;
-    height: 150%;
-    background-size: contain;
+    min-height: 150%;
+    background-size: cover;
     background-repeat: no-repeat;
     background-color: var(--template-theme-background);
     z-index: 0;
