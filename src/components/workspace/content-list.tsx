@@ -2,6 +2,7 @@ import parse from 'html-react-parser'
 import DOMPurify from 'dompurify'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { DialogTitle } from '@radix-ui/react-dialog'
 import EditorForm from '../editor/editor-form'
 import { Button } from '../ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader } from '@/components/ui/dialog'
@@ -170,14 +171,15 @@ export default function ContentList(props: ContentListProps) {
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogContent aria-describedby={undefined}>
             <DialogHeader>
-              <DialogDescription className="hidden">确定删除此标题以及子标题吗?</DialogDescription>
+            <DialogTitle hidden>确定删除此标题以及子标题吗?</DialogTitle>
+              <DialogDescription hidden>确定删除此标题以及子标题吗?</DialogDescription>
             </DialogHeader>
             <div className="flex">
               <span>您确定永久删除</span>
               {DOMPurify && typeof DOMPurify.sanitize === 'function' && <div className="font-bold">{parse(DOMPurify.sanitize(curContent.title))}</div>}
               <span>{`${!curContent.parentId ? '和它的子标题' : ''}？`}</span>
             </div>
-            <DialogFooter>
+            <DialogFooter className="mt-4">
               <div>
                 <Button className="mr-4" variant="outline" onClick={() => setIsOpen(false)}>取消</Button>
                 <Button variant="destructive" onClick={() => {

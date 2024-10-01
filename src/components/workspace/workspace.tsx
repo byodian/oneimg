@@ -20,7 +20,7 @@ export function Workspace(props: WorkspaceProps) {
   const [open, setOpen] = useState(false)
 
   return (
-    <div className={cn('sm:w-[650px] lg:w-[800px] flex flex-col p-8 min-h-full', contents.length === 0 && 'justify-center')}>
+    <div className={cn('w-full sm:w-[800px] flex flex-col p-8 min-h-full', contents.length === 0 && 'justify-center')}>
       {contents.length > 0 && (
         <>
           <ContentList

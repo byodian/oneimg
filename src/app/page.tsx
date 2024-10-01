@@ -96,13 +96,21 @@ export default function Home() {
 
   async function handleContentDelete(content: Content) {
     try {
-      setContents(contents.filter(item => item.id !== content.id))
-      await deleteContent(content.id!)
+      const allDeletedContents = contents.filter(item => item.parentId === content.id)
+      allDeletedContents.push(content)
+      const allDeletedContentIds = allDeletedContents.map(item => item.id)
+      setContents(contents.filter(item => !allDeletedContentIds.includes(item.id)))
+
+      // Iterate through all deleted contents and delete each one
+      for (const content of allDeletedContents) {
+        await deleteContent(content.id!)
+      }
+
       toast({
         title: '内容已删除',
         description: '',
         duration: 5000,
-        action: <ToastAction altText="undo" onClick={() => handeleContenUndo(content)}>撤销</ToastAction>,
+        action: <ToastAction altText="undo" onClick={() => handeleContentsUndo(allDeletedContents)}>撤销</ToastAction>,
       })
     } catch (error) {
       toast({
@@ -112,10 +120,14 @@ export default function Home() {
     }
   }
 
-  async function handeleContenUndo(content: Content) {
+  async function handeleContentsUndo(deletedContents: Content[]) {
+    console.log(JSON.stringify(contents))
+    console.log(JSON.stringify(deletedContents))
     try {
-      await addContent(content)
-      setContents(contents.map(item => (item.id === content.id ? content : item)))
+      for (const content of deletedContents) {
+        await addContent(content)
+      }
+      setContents(contents)
     } catch (error) {
       toast({
         title: '撤销失败',
