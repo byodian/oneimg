@@ -80,7 +80,7 @@ export async function generateImageByHtml2Image(element: HTMLElement, option: Ex
 }
 
 export async function exportImage(element: HTMLElement, filename: string, exportOption: ExportOption) {
-  const imageBlob = await generateImageByHtml2Image(element, exportOption)
+  const imageBlob = await generateImage(element, exportOption)
   return {
     id: filename,
     data: imageBlob,
