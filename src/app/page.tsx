@@ -35,8 +35,8 @@ export default function Home() {
         setContents(data)
       } catch (error) {
         toast({
-          title: 'Failed to load contents',
-          description: 'Please refresh the page.',
+          title: '加载失败',
+          description: '请刷新后重试',
           duration: 1000,
         })
       }
@@ -62,8 +62,8 @@ export default function Home() {
       }
     } catch (error) {
       toast({
-        title: 'Failed to add theme content',
-        description: 'Please try again.',
+        title: '添加失败',
+        description: '请重试',
       })
     }
   }
@@ -88,8 +88,8 @@ export default function Home() {
       }
     } catch (error) {
       toast({
-        title: 'Failed to add content',
-        description: 'Please try again.',
+        title: '添加失败',
+        description: '请重试',
       })
     }
   }
@@ -99,15 +99,15 @@ export default function Home() {
       setContents(contents.filter(item => item.id !== content.id))
       await deleteContent(content.id!)
       toast({
-        title: 'Content deleted',
-        description: 'Content deleted successfully',
+        title: '内容已删除',
+        description: '',
         duration: 5000,
-        action: <ToastAction altText="undo" onClick={() => handeleContenUndo(content)}>Undo</ToastAction>,
+        action: <ToastAction altText="undo" onClick={() => handeleContenUndo(content)}>撤销</ToastAction>,
       })
     } catch (error) {
       toast({
-        title: 'Failed to delete content',
-        description: 'Please try again.',
+        title: '删除失败',
+        description: '请重试',
       })
     }
   }
@@ -118,8 +118,8 @@ export default function Home() {
       setContents(contents.map(item => (item.id === content.id ? content : item)))
     } catch (error) {
       toast({
-        title: 'Failed to add content',
-        description: 'Please try again.',
+        title: '撤销失败',
+        description: '',
       })
     }
   }
@@ -148,7 +148,7 @@ export default function Home() {
             <TabsTrigger value="workspace">编辑器</TabsTrigger>
             <TabsTrigger value="preview">预览</TabsTrigger>
           </TabsList>
-          <TabsContent value="preview" forceMount className="data-[state=inactive]:hidden flex-grow sm:flex-grow-0 sm:!block overflow-y-auto sm:mt-0">
+          <TabsContent value="preview" forceMount className="data-[state=inactive]:hidden flex-grow sm:flex-grow-0 sm:!block overflow-y-auto mt-0">
             <div className={cn(theme, themeColor, getThemeBaseClass(theme), 'one w-full scroll-smooth h-full mx-auto', getPreviewWidthClass(theme))}>
               <Preview ref={previewRef} contents={contents} theme={theme} className="w-full flex flex-col m-auto" />
             </div>

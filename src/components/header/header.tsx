@@ -1,9 +1,10 @@
 'use client'
 
-import { ChevronDown, Download, Folder, ImageDown, LinkIcon, Trash2, TriangleAlert } from 'lucide-react'
+import { BookOpen, ChevronDown, Download, Folder, ImageDown, LinkIcon, MessageSquareMore, Trash2, TriangleAlert } from 'lucide-react'
 // import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@radix-ui/react-tooltip'
 import { ExportImageDialog } from './export-dialog'
 import { useToast } from '@/components/ui/use-toast'
 import { Button } from '@/components/ui/button'
@@ -221,238 +222,276 @@ export function Header(props: HeaderProps) {
   }
 
   return (
-    <header className="h-[58px] flex gap-4 items-center px-4 border-b border-b-gray-200">
-      {/* <Link href="/"> */}
-      {/*   <Logo type="full" /> */}
-      {/* </Link> */}
-      <Menubar className="p-0 cursor-pointer border-none bg-white hover:bg-accent">
-        <MenubarMenu>
-          <MenubarTrigger>
-            <Logo type="full" />
-            <ChevronDown className="ml-2 h-4 w-4" />
-          </MenubarTrigger>
-          <MenubarContent>
-            <MenubarItem onClick={() => {
-              if (!contents.length) {
-                handleOpenfileBtnClick()
-              } else {
-                handleDialogOpen('open_file')
-              }
-            }}>
-              <Folder className="w-4 h-4 mr-2" />
-              <span>打开文件</span>
-              {/* <MenubarShortcut>⌘T</MenubarShortcut> */}
-            </MenubarItem>
-            <MenubarItem onClick={() => handleDialogOpen('save_file')}>
-              <Download className="w-4 h-4 mr-2" />
-              <span>保存文件</span>
-            </MenubarItem>
-            <MenubarItem onClick={() => handleDialogOpen('reset_data')}>
-              <Trash2 className="w-4 h-4 mr-2" />
-              <span>重置主题</span>
-            </MenubarItem>
-            <MenubarItem onClick={handleImageExportDialogOpen}>
-              <ImageDown className="w-4 h-4 mr-2" />
-              <span>导出图片</span>
-            </MenubarItem>
-            <MenubarSeparator />
-            <MenubarItem asChild>
-              <a href="https://github.com/byodian/oneimg" target="_blank" rel="noreferrer">
-                <Image src="/images/github.svg" alt="github icon" className="w-4 h-4 mr-2" width={24} height={24} />
-                <span>Github</span>
-              </a>
-            </MenubarItem>
-            <MenubarItem asChild>
-              <a href="https://t.me/oneimg" target="_blank" rel="noreferrer">
-                <Image src="/images/telegram.svg" alt="telegram icon" className="w-4 h-4 mr-2" width={24} height={24} />
-                <span>用户群</span>
-              </a>
-            </MenubarItem>
-            <MenubarSeparator />
-            <div className="px-1.5 py-2 text-sm">
-              <div className="mb-2">模板</div>
-              <Select value={theme} onValueChange={(value) => {
-                setTheme(value)
-                localStorage.setItem('currentTheme', value)
+    <TooltipProvider>
+      <header className="h-[58px] flex gap-4 items-center px-4 border-b border-b-gray-200">
+        {/* <Link href="/"> */}
+        {/*   <Logo type="full" /> */}
+        {/* </Link> */}
+        <Menubar className="p-0 cursor-pointer border-none bg-white hover:bg-accent">
+          <MenubarMenu>
+            <MenubarTrigger>
+              <Logo type="full" />
+              <ChevronDown className="ml-2 h-4 w-4" />
+            </MenubarTrigger>
+            <MenubarContent>
+              <MenubarItem onClick={() => {
+                if (!contents.length) {
+                  handleOpenfileBtnClick()
+                } else {
+                  handleDialogOpen('open_file')
+                }
               }}>
-                <SelectTrigger className="h-8">
-                  <SelectValue className="text-muted-foreground" placeholder="请选择一个主题模版" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {
-                      themeTemplates.map(template => (
-                        <SelectItem key={template.value} value={template.value} disabled={template.disabled}>
-                          {template.label}
-                        </SelectItem>
-                      ))
-                    }
-                  </SelectGroup>
-                </SelectContent >
-              </Select >
-            </div >
-            <div className="px-1.5 py-2 text-sm">
-              <div className="mb-2">模版色</div>
-              <div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setThemeColor('tech_blue')
-                    localStorage.setItem('currentThemeColor', 'tech_blue')
-                  }}
-                  className={cn({ 'bg-accent': themeColor === 'tech_blue' })}>
-                  <div className="w-4 h-4 bg-[#4383EC] rounded-full"></div>
-                </Button>
+                <Folder className="w-4 h-4 mr-2" />
+                <span>打开文件</span>
+                {/* <MenubarShortcut>⌘T</MenubarShortcut> */}
+              </MenubarItem>
+              <MenubarItem onClick={() => handleDialogOpen('save_file')}>
+                <Download className="w-4 h-4 mr-2" />
+                <span>保存文件</span>
+              </MenubarItem>
+              <MenubarItem onClick={() => handleDialogOpen('reset_data')}>
+                <Trash2 className="w-4 h-4 mr-2" />
+                <span>重置项目</span>
+              </MenubarItem>
+              <MenubarItem onClick={handleImageExportDialogOpen}>
+                <ImageDown className="w-4 h-4 mr-2" />
+                <span>导出图片</span>
+              </MenubarItem>
+              <MenubarItem>
+                <BookOpen className="w-4 h-4 mr-2" />
+                <span>使用指南</span>
+              </MenubarItem>
+              <Tooltip delayDuration={0}>
+                <TooltipTrigger className="w-full px-2 py-1.5 hidden sm:block">
+                  <div className="flex items-center text-sm">
+                    <MessageSquareMore className="w-4 h-4 mr-2" />
+                    <span>反馈建议</span>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="right" sideOffset={-50}>
+                  <div className="rounded-sm px-2 py-1.5 text-white bg-black text-sm">
+                    <p>您有任何问题或改进建议，</p>
+                    <p>可以发送电子邮件至 support@oneimgai.com 与我们取得联系。</p>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+              <MenubarItem asChild className="sm:hidden">
+                <a href="mailto:support@oneimgai.com?subject=改进建议或问题反馈&body=您好，%0A%0A我想反馈以下问题或提供一些改进建议： %0A%0A[请在这里描述您的问题或建议]%0A%0A系统信息%0A操作系统：%0A浏览器：%0A应用版本：%0A%0A谢谢！" target="_blank" rel="noreferrer">
+                  <MessageSquareMore className="w-4 h-4 mr-2" />
+                  <span>反馈建议</span>
+                </a>
+              </MenubarItem>
+              <MenubarSeparator />
+              <MenubarItem asChild>
+                <a href="https://github.com/byodian/oneimg" target="_blank" rel="noreferrer">
+                  <Image src="/images/github.svg" alt="github icon" className="w-4 h-4 mr-2" width={24} height={24} />
+                  <span>Github</span>
+                </a>
+              </MenubarItem>
+              <MenubarItem asChild>
+                <a href="https://t.me/oneimg" target="_blank" rel="noreferrer">
+                  <Image src="/images/telegram.svg" alt="telegram icon" className="w-4 h-4 mr-2" width={24} height={24} />
+                  <span>交流群</span>
+                </a>
+              </MenubarItem>
+              <MenubarItem asChild>
+                <a href="https://x.com/byodian1" target="_blank" rel="noreferrer">
+                  <Image src="/images/x.svg" alt="x icon" className="w-4 h-4 mr-2" width={24} height={24} />
+                  <span>Follow us</span>
+                </a>
+              </MenubarItem>
+              <MenubarItem asChild>
+                <a href="https://www.xiaohongshu.com/user/profile/61278fd2000000000100a607" target="_blank" rel="noreferrer">
+                  <Image src="/images/xiaohongshu.svg" alt="x icon" className="w-4 h-4 mr-2" width={24} height={24} />
+                  <span>小红书</span>
+                </a>
+              </MenubarItem>
+              <MenubarSeparator />
+              <div className="px-1.5 py-2 text-sm">
+                <div className="mb-2">模板</div>
+                <Select value={theme} onValueChange={(value) => {
+                  setTheme(value)
+                  localStorage.setItem('currentTheme', value)
+                }}>
+                  <SelectTrigger className="h-8">
+                    <SelectValue className="text-muted-foreground" placeholder="请选择一个主题模版" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {
+                        themeTemplates.map(template => (
+                          <SelectItem key={template.value} value={template.value} disabled={template.disabled}>
+                            {template.label}
+                          </SelectItem>
+                        ))
+                      }
+                    </SelectGroup>
+                  </SelectContent >
+                </Select >
+              </div >
+              <div className="px-1.5 py-2 text-sm">
+                <div className="mb-2">模版色</div>
+                <div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setThemeColor('tech_blue')
+                      localStorage.setItem('currentThemeColor', 'tech_blue')
+                    }}
+                    className={cn({ 'bg-accent': themeColor === 'tech_blue' })}>
+                    <div className="w-4 h-4 bg-[#4383EC] rounded-full"></div>
+                  </Button>
 
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setThemeColor('vibrant_orange')
-                    localStorage.setItem('currentThemeColor', 'vibrant_orange')
-                  }}
-                  className={cn({ 'bg-accent': themeColor === 'vibrant_orange' })}>
-                  <div className="w-4 h-4 bg-[#FF611D] rounded-full"></div>
-                </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setThemeColor('vibrant_orange')
+                      localStorage.setItem('currentThemeColor', 'vibrant_orange')
+                    }}
+                    className={cn({ 'bg-accent': themeColor === 'vibrant_orange' })}>
+                    <div className="w-4 h-4 bg-[#FF611D] rounded-full"></div>
+                  </Button>
 
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setThemeColor('rose_red')
-                    localStorage.setItem('currentThemeColor', 'rose_red')
-                  }}
-                  className={cn({ 'bg-accent': themeColor === 'rose_red' })}>
-                  <div className="w-4 h-4 bg-[#F14040] rounded-full"></div>
-                </Button>
-              </div>
-            </div>
-          </MenubarContent >
-        </MenubarMenu >
-      </Menubar >
-      <div className="flex flex-wrap gap-2 ml-auto">
-        <Input onChange={handleFileImport} type="file" className="hidden" ref={fileRef} />
-        <Button size="sm" onClick={handleImageExportDialogOpen}>
-          <ImageDown className="w-4 h-4 mr-2" />
-          <span>导出图片</span>
-        </Button>
-      </div>
-      <Dialog open={isOpenFile} onOpenChange={setIsOpenFile}>
-        {dialogType === 'open_file' && <DialogContent className="max-w-full sm:max-w-[900px] px-10 py-8 h-full overflow-y-auto sm:h-auto">
-          <DialogHeader>
-            <DialogTitle className="text-2xl mb-4">从文件加载</DialogTitle>
-            <DialogDescription className="hidden">
-              open file
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-8">
-            <div className="flex items-center gap-4 p-8 bg-gray-300 rounded-lg">
-              <div className="flex flex-grow-0 flex-shrink-0 items-center justify-center bg-yellow-400 w-[56px] h-[56px] rounded-full">
-                <TriangleAlert className="w-6 h-6" />
-              </div>
-              <div>
-                <p>从文件加载将<strong>替换您现有的内容</strong>。</p>
-                <p>您可以先使用下列方式备份您的数据</p>
-              </div>
-              <Button variant="default" className="ml-auto bg-yellow-400 text-black hover:bg-yellow-500" onClick={handleOpenfileBtnClick}>
-                从文件加载
-              </Button>
-            </div>
-            <div className="flex flex-col sm:flex-row justify-between gap-4">
-              <div className="text-center flex flex-col gap-4 px-6 py-4">
-                <h3 className="font-bold text-xl">保存到本地</h3>
-                <p className="text-sm flex-grow">将主题数据导出为文件，以便以后导入。</p>
-                <Button variant="outline" size="lg" onClick={handleFileSave}>保存到本地</Button>
-              </div>
-
-              <div className="text-center flex flex-col gap-4 px-6 py-4">
-                <h3 className="font-bold text-xl">导出为图片</h3>
-                <p className="text-sm flex-grow">将主题数据导出为图片</p>
-                <Button variant="outline" size="lg" onClick={handleImageExportDialogOpen}>导出为图片</Button>
-              </div>
-
-              <div className="text-center flex flex-col gap-4 px-6 py-4">
-                <h3 className="font-bold text-xl">OneIMG+</h3>
-                <p className="text-sm flex-grow">将主题数据保存到您的 OneIMG+ 工作区。</p>
-                <Button variant="outline" size="lg" disabled={true}>即将上线</Button>
-              </div>
-            </div>
-          </div>
-        </DialogContent>}
-        {dialogType === 'save_file' && <DialogContent className="max-w-full sm:max-w-[900px] px-10 py-8 h-full overflow-y-auto sm:h-auto">
-          <DialogHeader className="pb-4 border-b mb-4">
-            <DialogTitle className="text-2xl">保存到...</DialogTitle>
-            <DialogDescription className="hidden">
-              save as...
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-8">
-            <div className="flex flex-col sm:flex-row justify-between gap-4">
-              <div className="flex items-center justify-center flex-col gap-4 px-8 py-4">
-                <div className="flex flex-grow-0 flex-shrink-0 items-center justify-center bg-primary w-[110px] h-[110px] rounded-full">
-                  <Download className="w-12 h-12 text-primary-foreground" />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setThemeColor('rose_red')
+                      localStorage.setItem('currentThemeColor', 'rose_red')
+                    }}
+                    className={cn({ 'bg-accent': themeColor === 'rose_red' })}>
+                    <div className="w-4 h-4 bg-[#F14040] rounded-full"></div>
+                  </Button>
                 </div>
-                <h3 className="font-bold text-xl">保存到本地</h3>
-                <p className="text-sm flex-grow">将主题数据导出为文件，以便以后导入。</p>
-                <Button
-                  variant="outline"
-                  size="lg"
-                  onClick={async () => {
-                    await handleFileSave()
-                    setIsOpenFile(false)
-                  }}>保存到本地</Button>
               </div>
-
-              <div className="flex items-center justify-center flex-col gap-4 px-8 py-4">
-                <div className="flex flex-grow-0 flex-shrink-0 items-center justify-center bg-primary w-[110px] h-[110px] rounded-full">
-                  <LinkIcon className="w-12 h-12 text-primary-foreground" />
+            </MenubarContent >
+          </MenubarMenu >
+        </Menubar >
+        <div className="flex flex-wrap gap-2 ml-auto">
+          <Input onChange={handleFileImport} type="file" className="hidden" ref={fileRef} />
+          <Button size="sm" onClick={handleImageExportDialogOpen}>
+            <ImageDown className="w-4 h-4 mr-2" />
+            <span>导出图片</span>
+          </Button>
+        </div>
+        <Dialog open={isOpenFile} onOpenChange={setIsOpenFile}>
+          {dialogType === 'open_file' && <DialogContent className="max-w-full sm:max-w-[900px] px-10 py-8 h-full overflow-y-auto sm:h-auto">
+            <DialogHeader>
+              <DialogTitle className="text-2xl mb-4">从文件加载</DialogTitle>
+              <DialogDescription className="hidden">
+                open file
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-col gap-8">
+              <div className="flex items-center gap-4 p-8 bg-gray-300 rounded-lg">
+                <div className="flex flex-grow-0 flex-shrink-0 items-center justify-center bg-yellow-400 w-[56px] h-[56px] rounded-full">
+                  <TriangleAlert className="w-6 h-6" />
                 </div>
-                <h3 className="font-bold text-xl">分享链接</h3>
-                <p className="text-sm flex-grow">导出为只读链接</p>
-                <Button variant="outline" size="lg" disabled={true}>即将上线</Button>
+                <div>
+                  <p>从文件加载将<strong>替换您现有的内容</strong>。</p>
+                  <p>您可以先使用下列方式备份您的数据</p>
+                </div>
+                <Button variant="default" className="ml-auto bg-yellow-400 text-black hover:bg-yellow-500" onClick={handleOpenfileBtnClick}>
+                  从文件加载
+                </Button>
               </div>
-
-              <div className="flex items-center justify-center flex-col gap-4 px-8 py-4">
-                <div className="flex flex-grow-0 flex-shrink-0 items-center justify-center bg-warning w-[110px] h-[110px] rounded-full">
-                  <Logo type="part" className="w-12 h-12 text-warning-foreground" />
+              <div className="flex flex-col sm:flex-row justify-between gap-4">
+                <div className="text-center flex flex-col gap-4 px-6 py-4">
+                  <h3 className="font-bold text-xl">保存到本地</h3>
+                  <p className="text-sm flex-grow">将主题数据导出为文件，以便以后导入。</p>
+                  <Button variant="outline" size="lg" onClick={handleFileSave}>保存到本地</Button>
                 </div>
-                <h3 className="font-bold text-xl">OneIMG+</h3>
-                <p className="text-sm flex-grow">将主题数据保存到您的 OneIMG+ 工作区。</p>
-                <Button variant="outline" size="lg" disabled={true}>即将上线</Button>
+
+                <div className="text-center flex flex-col gap-4 px-6 py-4">
+                  <h3 className="font-bold text-xl">导出为图片</h3>
+                  <p className="text-sm flex-grow">将主题数据导出为图片</p>
+                  <Button variant="outline" size="lg" onClick={handleImageExportDialogOpen}>导出为图片</Button>
+                </div>
+
+                <div className="text-center flex flex-col gap-4 px-6 py-4">
+                  <h3 className="font-bold text-xl">OneIMG+</h3>
+                  <p className="text-sm flex-grow">将主题数据保存到您的 OneIMG+ 工作区。</p>
+                  <Button variant="outline" size="lg" disabled={true}>即将上线</Button>
+                </div>
               </div>
             </div>
-          </div>
-        </DialogContent>}
-        {dialogType === 'reset_data' && <DialogContent className="max-w-full sm:max-w-[495px] px-10 py-8 h-full overflow-y-auto sm:h-auto">
-          <DialogHeader className="text-2xl pb-4 border-b mb-4">
-            <DialogTitle className="">清除数据</DialogTitle>
-            <DialogDescription className="hidden">
-              reset all data
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-8 mb-8">
-            <p>
-              这将会清除整个主题数据。您是否继续？
-            </p>
-          </div>
-          <DialogFooter>
-            <div className="flex gap-4">
-              <Button variant="outline" onClick={() => setIsOpenFile(false)}>取消</Button>
-              <Button variant="destructive" onClick={handleDataClear}>确定</Button>
+          </DialogContent>}
+          {dialogType === 'save_file' && <DialogContent className="max-w-full sm:max-w-[900px] px-10 py-8 h-full overflow-y-auto sm:h-auto">
+            <DialogHeader className="pb-4 border-b mb-4">
+              <DialogTitle className="text-2xl">保存到...</DialogTitle>
+              <DialogDescription className="hidden">
+                save as...
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-col gap-8">
+              <div className="flex flex-col sm:flex-row justify-between gap-4">
+                <div className="flex items-center justify-center flex-col gap-4 px-8 py-4">
+                  <div className="flex flex-grow-0 flex-shrink-0 items-center justify-center bg-primary w-[110px] h-[110px] rounded-full">
+                    <Download className="w-12 h-12 text-primary-foreground" />
+                  </div>
+                  <h3 className="font-bold text-xl">保存到本地</h3>
+                  <p className="text-sm flex-grow">将主题数据导出为文件，以便以后导入。</p>
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    onClick={async () => {
+                      await handleFileSave()
+                      setIsOpenFile(false)
+                    }}>保存到本地</Button>
+                </div>
+
+                <div className="flex items-center justify-center flex-col gap-4 px-8 py-4">
+                  <div className="flex flex-grow-0 flex-shrink-0 items-center justify-center bg-primary w-[110px] h-[110px] rounded-full">
+                    <LinkIcon className="w-12 h-12 text-primary-foreground" />
+                  </div>
+                  <h3 className="font-bold text-xl">分享链接</h3>
+                  <p className="text-sm flex-grow">导出为只读链接</p>
+                  <Button variant="outline" size="lg" disabled={true}>即将上线</Button>
+                </div>
+
+                <div className="flex items-center justify-center flex-col gap-4 px-8 py-4">
+                  <div className="flex flex-grow-0 flex-shrink-0 items-center justify-center bg-warning w-[110px] h-[110px] rounded-full">
+                    <Logo type="part" className="w-12 h-12 text-warning-foreground" />
+                  </div>
+                  <h3 className="font-bold text-xl">OneIMG+</h3>
+                  <p className="text-sm flex-grow">将主题数据保存到您的 OneIMG+ 工作区。</p>
+                  <Button variant="outline" size="lg" disabled={true}>即将上线</Button>
+                </div>
+              </div>
             </div>
-          </DialogFooter>
-        </DialogContent>}
-      </Dialog>
-      <ExportImageDialog
-        previewRef={previewRef}
-        scale={scale}
-        setScale={setScale}
-        isExportModalOpen={imageDialogOpen}
-        setIsExportModalOpen={setImageDialogOpen}
-        isExporting={isExporting}
-        setIsExporting={setIsExporting}
-      />
-    </header >
+          </DialogContent>}
+          {dialogType === 'reset_data' && <DialogContent className="max-w-full sm:max-w-[495px] px-10 py-8 h-full overflow-y-auto sm:h-auto">
+            <DialogHeader className="text-2xl pb-4 border-b mb-4">
+              <DialogTitle className="">清除数据</DialogTitle>
+              <DialogDescription className="hidden">
+                reset all data
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-col gap-8 mb-8">
+              <p>
+                这将会清除整个主题数据。您是否继续？
+              </p>
+            </div>
+            <DialogFooter>
+              <div className="flex gap-4">
+                <Button variant="outline" onClick={() => setIsOpenFile(false)}>取消</Button>
+                <Button variant="destructive" onClick={handleDataClear}>确定</Button>
+              </div>
+            </DialogFooter>
+          </DialogContent>}
+        </Dialog>
+        <ExportImageDialog
+          previewRef={previewRef}
+          scale={scale}
+          setScale={setScale}
+          isExportModalOpen={imageDialogOpen}
+          setIsExportModalOpen={setImageDialogOpen}
+          isExporting={isExporting}
+          setIsExporting={setIsExporting}
+        />
+      </header >
+    </TooltipProvider>
   )
 }

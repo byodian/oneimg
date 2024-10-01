@@ -100,8 +100,8 @@ export function ThemeFormDialog({ onSubmit, onOpenChange, open }: ThemeFormProps
                     {/* <FormLabel>模版</FormLabel> */}
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
-                        <SelectTrigger className="h-12">
-                          <SelectValue className="text-muted-foreground" placeholder="选择模版" />
+                        <SelectTrigger className="h-12 placeholder:text-muted-foreground">
+                          <SelectValue placeholder="选择模版" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -118,7 +118,7 @@ export function ThemeFormDialog({ onSubmit, onOpenChange, open }: ThemeFormProps
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="mt-8">保存</Button>
+              <Button type="submit" className="mt-8 h-12">保存</Button>
             </form>
           </Form>
         </div>

@@ -158,7 +158,7 @@ export default function ContentList(props: ContentListProps) {
               <div className="my-2 ml-4">
                 <EditorForm
                   multiple
-                  titlePlaceholder="请输入子标题"
+                  titlePlaceholder="子标题"
                   onSubmit={handleSubContentSubmit}
                   hideEditor={handleEditorHide}
                 />
@@ -170,12 +170,12 @@ export default function ContentList(props: ContentListProps) {
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogContent aria-describedby={undefined}>
             <DialogHeader>
-              <DialogDescription className="hidden">确定删除此标题吗?</DialogDescription>
+              <DialogDescription className="hidden">确定删除此标题以及子标题吗?</DialogDescription>
             </DialogHeader>
             <div className="flex">
-              <span>您确定删除</span>
+              <span>您确定永久删除</span>
               {DOMPurify && typeof DOMPurify.sanitize === 'function' && <div className="font-bold">{parse(DOMPurify.sanitize(curContent.title))}</div>}
-              <span>？</span>
+              <span>{`${!curContent.parentId ? '和它的子标题' : ''}？`}</span>
             </div>
             <DialogFooter>
               <div>

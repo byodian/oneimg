@@ -20,7 +20,7 @@ export function Workspace(props: WorkspaceProps) {
   const [open, setOpen] = useState(false)
 
   return (
-    <div className={cn('w-[800px] flex flex-col p-8 min-h-full', contents.length === 0 && 'justify-center')}>
+    <div className={cn('sm:w-[650px] lg:w-[800px] flex flex-col p-8 min-h-full', contents.length === 0 && 'justify-center')}>
       {contents.length > 0 && (
         <>
           <ContentList
@@ -47,11 +47,11 @@ export function Workspace(props: WorkspaceProps) {
       {contents.length === 0 && (
         <>
           <div className="flex flex-col gap-2 justify-center items-center w-full h-full max-w-sm mx-auto text-muted-foreground">
-            <p>从新建主题开始</p>
+            <p>从新建项目开始</p>
             <p>您的所有数据都存储在浏览器本地。</p>
             <Button className="sm:w-[256px] mt-4" variant="outline" size="sm" onClick={() => setOpen(true)}>
               <FolderPlus className="w-4 h-4 mr-2" />
-              新建主题
+              新建项目
             </Button>
           </div>
           <ThemeFormDialog
