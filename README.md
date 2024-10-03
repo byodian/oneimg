@@ -1,11 +1,22 @@
-# oneimg
+<a href="https://oneimgai.com/" target="_blank" rel="noopener">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" alt="OneIMG" srcset="./docs/oneimg-banner.png" />
+    <img alt="OneIMG" src="./docs/oneimg-banner.png" />
+  </picture>
+</a>
 
-一个纯前端实现的长图生成器应用，您可以通过编辑器输入文本和图片，使用预设的 CSS 模板样式，快速生成预览，并导出为图片格式。
+## 介绍
+
+一个纯前端实现的文字转图片应用，您可以通过编辑器输入文本和图片，使用预设的 CSS 模板样式，快速生成预览，并导出为图片。
+
+适合微信公众号长图推文以及小红书、Instagram 等图片社交媒体贴文制作。
+
+## 应用截图
 
 ![应用截图](./docs//oneimg.png)
 
 ## 特性
-- 快速图文转长图，大幅提高内容创作效率
+- 快速文字转图片，大幅提高内容创作效率
 - 内置多种模版和主题色，**更多模版还在开发中**
 - 固定布局编辑器，无需考虑复杂的排版问题
 - 实时预览生成的长图

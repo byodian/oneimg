@@ -23,7 +23,13 @@ export const metadata: Metadata = {
     template: '%s | OneIMG',
     default: 'OneIMG',
   },
-  description: 'OneIMG',
+  description: 'OneIMG - 文字转图片应用，快速生成多种尺寸的图片',
+  openGraph: {
+    title: 'OneIMG',
+    description: 'OneIMG - 文字转图片应用，快速生成多种尺寸的图片',
+    url: 'https://ongimgai.com',
+    siteName: 'OneIMG',
+  },
 }
 
 function getPlatform() {

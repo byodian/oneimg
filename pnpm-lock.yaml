@@ -8,9 +8,6 @@ dependencies:
   '@byodian/eslint-config-react':
     specifier: ^0.1.6
     version: 0.1.6(eslint@8.57.0)(typescript@5.5.4)
-  '@cantoo/html2canvas':
-    specifier: ^1.5.9
-    version: 1.5.9
   '@dnd-kit/core':
     specifier: ^6.1.0
     version: 6.1.0(react-dom@18.3.1)(react@18.3.1)
@@ -296,14 +293,6 @@ packages:
       - eslint-import-resolver-typescript
       - eslint-import-resolver-webpack
       - supports-color
-    dev: false
-
-  /@cantoo/html2canvas@1.5.9:
-    resolution: {integrity: sha512-N0YBXKwlUtB4xpZh62MFNEbDisVh8N73Bg19qLmFp35CrWvECuYWxzDEhC7xWnhTmsqHZ15dQ009l+UTrjfeEw==}
-    engines: {node: '>=8.0.0'}
-    dependencies:
-      css-line-break: 2.1.0
-      text-segmentation: 1.0.3
     dev: false
 
   /@cloudflare/kv-asset-handler@0.3.4:
@@ -2298,7 +2287,7 @@ packages:
       estree-walker: 2.0.2
       glob: 7.2.3
       graceful-fs: 4.2.11
-      micromatch: 4.0.7
+      micromatch: 4.0.8
       node-gyp-build: 4.8.2
       resolve-from: 5.0.0
     transitivePeerDependencies:
