@@ -5,27 +5,28 @@ export interface Content {
   uploadFiles?: ImageFile[];
   // createdAt?: string;
   // updatedAt?: string;
-  parentId?: number;
+  parentId?: number | null;
+  childOrder?: number;
   type?: 'theme_content' | 'normal_content'
+}
+
+export interface ContentWithId extends Content {
+  id: number;
 }
 
 export interface ThemeContent {
   id?: number;
   title: string;
   content?: string;
-  logoFile?: ImageFile;
-  bannerFile?: ImageFile;
   theme: string
 }
 
-export type EditorStatus = 'add' | 'edit' | 'close' | 'add_sub' | 'edit_sub'
+export type EditorType = 'add' | 'add_sub' | 'close'
 export interface ContentListProps {
-  editorStatus: EditorStatus;
-  contents: Content[];
-  editorEditStatus?: 'edit' | 'edit_sub';
+  contents: ContentWithId[];
+  setContents: (contents: ContentWithId[]) => void;
   onSubmit: (content: Content) => Promise<void>;
-  onContentDelete: (content: Content) => void;
-  onEditorStatusChange: (status: EditorStatus) => void;
+  onContentDelete: (content: ContentWithId) => void;
 }
 
 export type UploadFiles = UploadFile[]
@@ -105,3 +106,17 @@ export interface PreviewItem {
 }
 
 export type ThemeColor = 'tech_blue' | 'vibrant_orange' | 'rose_red'
+
+export interface SortableItemProps {
+  item: ContentWithId;
+  children: React.ReactNode;
+  disabled?: boolean
+}
+
+export interface ContainerProps {
+  item: ContentWithId;
+  childItemMap: Map<number, ContentWithId[]>;
+  items?: ContentWithId[];
+  onSubmit: (content: Content) => Promise<void>;
+  handleDialogOpen: (content: ContentWithId) => void;
+}

@@ -10,7 +10,6 @@ import { toast } from '@/components/ui/use-toast'
 type EditorProps = {
   className?: string;
   initialContent?: Content;
-  editorAddStatus?: 'add_sub' | 'add';
   titlePlaceholder?: string;
   contentPlaceholder?: string;
   quality?: number;
@@ -70,6 +69,7 @@ export default function EditorForm(props: EditorProps) {
         title: content.title as string,
         content: content.content,
         uploadFiles: content.uploadFiles,
+        parentId: content.parentId ? content.parentId : null,
       } as Content
 
       await onSubmit(newContent)

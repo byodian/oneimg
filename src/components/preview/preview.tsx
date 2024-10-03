@@ -1,9 +1,9 @@
 import { forwardRef, useImperativeHandle, useMemo, useRef } from 'react'
 import { PreviewItem } from './preview-item'
-import type { Content, PreviewRef } from '@/types/common'
+import type { ContentWithId, PreviewRef } from '@/types/common'
 import { cn } from '@/lib/utils'
 
-const Preview = forwardRef<PreviewRef, { contents: Content[]; className?: string, theme: string }>(({ contents, className, theme }, ref) => {
+const Preview = forwardRef<PreviewRef, { contents: ContentWithId[]; className?: string, theme: string }>(({ contents, className, theme }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const itemRefs = useRef<{ [key: string | number]: HTMLLIElement }>({})
 
@@ -20,7 +20,7 @@ const Preview = forwardRef<PreviewRef, { contents: Content[]; className?: string
   }, [contents])
 
   const childContentsMap = useMemo(() => {
-    const childContents = new Map<number, Content[]>()
+    const childContents = new Map<number, ContentWithId[]>()
     for (const content of contents) {
       if (content.parentId) {
         if (!childContents.has(content.parentId)) {
@@ -47,11 +47,11 @@ const Preview = forwardRef<PreviewRef, { contents: Content[]; className?: string
               content={content}
               key={content.id}
               ref={(el) => {
-                itemRefs.current[content.id!] = el!
+                itemRefs.current[content.id] = el!
               }}>
               {childContentsMap.get(content.id as number) && (
                 <ul className="one-item__children">
-                  {childContentsMap.get(content.id!)!.map((item, index) => (
+                  {childContentsMap.get(content.id)!.map((item, index) => (
                     <PreviewItem content={item} key={item.id} index={index} theme={theme} />
                   ))}
                 </ul>

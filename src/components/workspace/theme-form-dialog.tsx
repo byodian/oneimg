@@ -36,6 +36,7 @@ export function ThemeFormDialog({ onSubmit, onOpenChange, open }: ThemeFormProps
       title: values.title,
       content: values.content,
       theme: values.theme,
+      parentId: null,
     } as ThemeContent
     await onSubmit(content)
     // reset dialog state

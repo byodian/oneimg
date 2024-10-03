@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 
 export default function PlatformDetector() {
   useEffect(() => {
-    const platform = detectPlatform()
+    const platform = detectPlatform() || ''
     document.documentElement.setAttribute('data-platform', platform)
   }, [])
 
@@ -12,6 +12,10 @@ export default function PlatformDetector() {
 }
 
 function detectPlatform() {
+  if (!window || !window.navigator) {
+    return
+  }
+
   const userAgent = window.navigator.userAgent
   const platform = window.navigator.platform
   const macosPlatforms = ['Macintosh', 'MacIntel', 'MacPPC', 'Mac68K']

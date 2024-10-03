@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Logo } from '@/components/logo'
-import type { Content, PreviewRef, ThemeColor } from '@/types/common'
+import type { Content, ContentWithId, PreviewRef, ThemeColor } from '@/types/common'
 import type { ExportContent, ExportJSON } from '@/components/header/types'
 import { addAllContents, removeAllContents } from '@/lib/indexed-db'
 
@@ -45,7 +45,7 @@ import { cn, removeHtmlTags, themeTemplates } from '@/lib'
 
 interface HeaderProps {
   contents: Content[];
-  setContents: (contents: Content[]) => void;
+  setContents: (contents: ContentWithId[]) => void;
   previewRef: React.RefObject<PreviewRef>;
   theme: string;
   themeColor: ThemeColor;
@@ -112,7 +112,7 @@ export function Header(props: HeaderProps) {
 
           if (importData.data && typeof importData.data === 'object') {
             const exportContents = importData.data
-            const contents: Content[] = exportContents.map(item => item)
+            const contents: ContentWithId[] = exportContents.map(item => item)
 
             // remove previous all data
             await removeAllContents()
@@ -146,7 +146,7 @@ export function Header(props: HeaderProps) {
     const exportContents = await Promise.all(
       contents.map((item) => {
         return {
-          id: item.id!,
+          id: item.id,
           title: item.title,
           type: item.type,
           content: item.content,

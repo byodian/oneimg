@@ -8,11 +8,11 @@ import { Header } from '@/components/header/header'
 import { Preview } from '@/components/preview/preview'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
-import type { Content, PreviewRef, ThemeColor, ThemeContent } from '@/types/common'
+import type { Content, ContentWithId, PreviewRef, ThemeColor, ThemeContent } from '@/types/common'
 import { cn, getPreviewWidthClass, getThemeBaseClass } from '@/lib/utils'
 
 export default function Home() {
-  const [contents, setContents] = useState<Content[]>([])
+  const [contents, setContents] = useState<ContentWithId[]>([])
   const [theme, setTheme] = useState('')
   const [themeColor, setThemeColor] = useState<ThemeColor>('tech_blue')
   const [tabValue, setTabValue] = useState('workspace')
@@ -45,20 +45,24 @@ export default function Home() {
     fetchContents()
   }, [toast])
 
-  async function handleThemeContentSubmit(content: ThemeContent) {
+  async function handleThemeContentSubmit(themeContent: ThemeContent) {
     try {
-      if ('id' in content) {
-        await updateContent(content)
-        setContents(contents.map(item => (item.id === content.id ? content : item)))
+      if ('id' in themeContent) {
+        const updatedContent = {
+          ...themeContent,
+          type: 'theme_content',
+        } as ContentWithId
+        await updateContent(updatedContent)
+        setContents(contents.map(item => (item.id === updatedContent.id ? updatedContent : item)))
       } else {
         const newContent = {
-          ...content,
+          ...themeContent,
           type: 'theme_content',
         } as Content
         const id = await addContent(newContent)
         setContents(prevContents => [...prevContents, { ...newContent, id }])
-        setTheme(content.theme)
-        window.localStorage.setItem('currentTheme', content.theme)
+        setTheme(themeContent.theme)
+        window.localStorage.setItem('currentTheme', themeContent.theme)
       }
     } catch (error) {
       toast({
@@ -71,13 +75,8 @@ export default function Home() {
   async function handleContentSubmit(content: Content) {
     try {
       if ('id' in content) {
-        await updateContent(content)
-        setContents(contents.map(item => (item.id === content.id ? content : item)))
-        // toast({
-        //   title: 'Content updated',
-        //   description: 'Content updated successfully.',
-        //   duration: 1000,
-        // })
+        await updateContent(content as ContentWithId)
+        setContents(contents.map(item => (item.id === content.id ? content as ContentWithId : item)))
       } else {
         const newContent = {
           ...content,
@@ -94,7 +93,7 @@ export default function Home() {
     }
   }
 
-  async function handleContentDelete(content: Content) {
+  async function handleContentDelete(content: ContentWithId) {
     try {
       const allDeletedContents = contents.filter(item => item.parentId === content.id)
       allDeletedContents.push(content)
@@ -103,7 +102,7 @@ export default function Home() {
 
       // Iterate through all deleted contents and delete each one
       for (const content of allDeletedContents) {
-        await deleteContent(content.id!)
+        await deleteContent(content.id)
       }
 
       toast({
@@ -121,8 +120,6 @@ export default function Home() {
   }
 
   async function handeleContentsUndo(deletedContents: Content[]) {
-    console.log(JSON.stringify(contents))
-    console.log(JSON.stringify(deletedContents))
     try {
       for (const content of deletedContents) {
         await addContent(content)
@@ -169,11 +166,12 @@ export default function Home() {
             <div className="h-full flex-grow flex justify-center items-start bg-card text-card-foreground">
               <Workspace
                 contents={contents}
+                setContents={setContents}
                 onContentSubmit={handleContentSubmit}
                 onContentDelete={handleContentDelete}
                 onThemeContentSubmit={handleThemeContentSubmit}
               />
-          </div>
+            </div>
           </TabsContent>
         </Tabs>
       </main>

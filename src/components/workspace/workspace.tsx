@@ -5,40 +5,45 @@ import EditorForm from '@/components/editor/editor-form'
 import ContentList from '@/components/workspace/content-list'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import type { Content, EditorStatus, ThemeContent } from '@/types/common'
+import type { Content, ContentWithId, ThemeContent } from '@/types/common'
+import { useEditorStore } from '@/store/use-editor-store'
 
 interface WorkspaceProps {
-  contents: Content[];
+  contents: ContentWithId[];
+  setContents: (contents: ContentWithId[]) => void
   onContentSubmit: (content: Content) => Promise<void>;
   onThemeContentSubmit: (content: ThemeContent) => Promise<void>;
-  onContentDelete: (content: Content) => Promise<void>;
+  onContentDelete: (content: ContentWithId) => Promise<void>;
 }
 
 export function Workspace(props: WorkspaceProps) {
-  const { contents, onContentSubmit, onContentDelete, onThemeContentSubmit } = props
-  const [editorStatus, setEditorStatus] = useState<EditorStatus>('close')
+  const { contents, setContents, onContentSubmit, onContentDelete, onThemeContentSubmit } = props
+  const { editorType, setEditorType, setEditingContentId } = useEditorStore()
   const [open, setOpen] = useState(false)
 
   return (
-    <div className={cn('w-full sm:w-[800px] flex flex-col p-8 min-h-full', contents.length === 0 && 'justify-center')}>
+    <div className={cn('w-full flex flex-col p-4 sm:p-8 min-h-full', contents.length === 0 && 'justify-center')}>
       {contents.length > 0 && (
         <>
           <ContentList
-            editorEditStatus="edit"
-            editorStatus={editorStatus}
             contents={contents}
-            onEditorStatusChange={(status: EditorStatus) => setEditorStatus(status)}
+            setContents={setContents}
             onContentDelete={onContentDelete}
             onSubmit={onContentSubmit}
           />
-          {editorStatus === 'add' ? (
+          {editorType === 'add' ? (
             <EditorForm
               multiple
               onSubmit={onContentSubmit}
-              hideEditor={() => setEditorStatus('close')}
+              hideEditor={() => setEditorType('close')}
+              className="ml-6"
             />
           ) : (
-            <Button className={cn('w-full')} onClick={() => setEditorStatus('add')}>
+            <Button className={cn('w-full')} onClick={() => {
+              // escape editing
+              setEditingContentId(null)
+              setEditorType('add')
+            }}>
               <PlusIcon className="w-4 h-4 mr-2" />
               添加标题
             </Button>

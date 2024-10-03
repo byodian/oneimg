@@ -1,4 +1,4 @@
-import type { Content } from '@/types/common'
+import type { Content, ContentWithId } from '@/types/common'
 
 const DB_NAME = 'ContentDB'
 const STORE_NAME = 'contents'
@@ -17,13 +17,13 @@ export function openDB(): Promise<IDBDatabase> {
   })
 }
 
-export async function getContents(): Promise<Content[]> {
+export async function getContents(): Promise<ContentWithId[]> {
   try {
     const db = await openDB()
     return new Promise((resolve, reject) => {
       const transaction: IDBTransaction = db.transaction(STORE_NAME, 'readonly')
       const store: IDBObjectStore = transaction.objectStore(STORE_NAME)
-      const request: IDBRequest<Content[]> = store.getAll()
+      const request: IDBRequest<ContentWithId[]> = store.getAll()
 
       request.onerror = () => reject(new Error('Failed to fetch contents'))
       request.onsuccess = () => resolve(request.result)
@@ -91,7 +91,7 @@ export async function addContent(content: Content): Promise<number> {
   }
 }
 
-export async function updateContent(content: Content): Promise<void> {
+export async function updateContent(content: ContentWithId): Promise<void> {
   try {
     const db = await openDB()
     return new Promise((resolve, reject) => {
