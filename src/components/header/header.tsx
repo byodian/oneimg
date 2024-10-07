@@ -28,6 +28,7 @@ import {
   MenubarItem,
   MenubarMenu,
   MenubarSeparator,
+  MenubarShortcut,
   // MenubarShortcut,
   MenubarTrigger,
 } from '@/components/ui/menubar'
@@ -62,6 +63,7 @@ export function Header(props: HeaderProps) {
   const [dialogType, setDialogType] = useState<DialogType>('save_file')
   const [isExporting, setIsExporting] = useState(true)
   const [scale, setScale] = useState('1')
+  const [platform, setPlatform] = useState('')
   const { contents, setContents, previewRef, theme, themeColor, setTheme, setThemeColor, setTableValue } = props
   const { toast } = useToast()
   const fileRef = useRef<HTMLInputElement>(null)
@@ -70,6 +72,47 @@ export function Header(props: HeaderProps) {
     // Regenerate images when the contents are updated
     setIsExporting(true)
   }, [contents])
+
+  useEffect(() => {
+    const userAgent = navigator.userAgent
+    if (userAgent.indexOf('Mac') > -1 && navigator.platform !== 'iPhone') {
+      setPlatform('mac')
+    } else if (userAgent.indexOf('Win') > -1 || userAgent.indexOf('Linux') > -1) {
+      setPlatform('windows')
+    } else {
+      setPlatform('other')
+    }
+  }, [])
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'o' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
+        if (!contents.length) {
+          handleOpenfileBtnClick()
+        } else {
+          handleDialogOpen('open_file')
+        }
+      }
+
+      if (e.key === 'e' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
+        setImageDialogOpen(true)
+        setIsExporting(true)
+        setScale('1')
+        // open preview
+        setTableValue && setTableValue('preview')
+      }
+
+      if (e.key === 's' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
+        handleDialogOpen('save_file')
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [contents.length, setTableValue])
 
   // open different dialog by type
   function handleDialogOpen(type: DialogType) {
@@ -227,14 +270,16 @@ export function Header(props: HeaderProps) {
         {/* <Link href="/"> */}
         {/*   <Logo type="full" /> */}
         {/* </Link> */}
+        <Input onChange={handleFileImport} type="file" className="hidden" ref={fileRef} />
         <Menubar className="p-0 cursor-pointer border-none bg-white hover:bg-accent">
           <MenubarMenu>
             <MenubarTrigger>
               <Logo type="full" />
               <ChevronDown className="ml-2 h-4 w-4" />
             </MenubarTrigger>
-            <MenubarContent>
+            <MenubarContent className="max-h-[calc(100vh-150px)] overflow-y-auto">
               <MenubarItem onClick={() => {
+                console.log(123)
                 if (!contents.length) {
                   handleOpenfileBtnClick()
                 } else {
@@ -243,11 +288,14 @@ export function Header(props: HeaderProps) {
               }}>
                 <Folder className="w-4 h-4 mr-2" />
                 <span>打开文件</span>
-                {/* <MenubarShortcut>⌘T</MenubarShortcut> */}
+                {platform === 'mac' && <MenubarShortcut>⌘+O</MenubarShortcut>}
+                {platform === 'windows' && <MenubarShortcut>Ctrl+O</MenubarShortcut>}
               </MenubarItem>
               <MenubarItem onClick={() => handleDialogOpen('save_file')}>
                 <Download className="w-4 h-4 mr-2" />
-                <span>保存文件</span>
+                <span>保存到...</span>
+                {platform === 'mac' && <MenubarShortcut>⌘+S</MenubarShortcut>}
+                {platform === 'windows' && <MenubarShortcut>Ctrl+S</MenubarShortcut>}
               </MenubarItem>
               <MenubarItem onClick={() => handleDialogOpen('reset_data')}>
                 <Trash2 className="w-4 h-4 mr-2" />
@@ -256,10 +304,12 @@ export function Header(props: HeaderProps) {
               <MenubarItem onClick={handleImageExportDialogOpen}>
                 <ImageDown className="w-4 h-4 mr-2" />
                 <span>导出图片</span>
+                {platform === 'mac' && <MenubarShortcut>⌘+E</MenubarShortcut>}
+                {platform === 'windows' && <MenubarShortcut>Ctrl+E</MenubarShortcut>}
               </MenubarItem>
               <MenubarItem>
                 <BookOpen className="w-4 h-4 mr-2" />
-                <span>使用指南</span>
+                <span>指南</span>
               </MenubarItem>
               <Tooltip delayDuration={0}>
                 <TooltipTrigger className="w-full px-2 py-1.5 hidden sm:block">
@@ -370,7 +420,6 @@ export function Header(props: HeaderProps) {
           </MenubarMenu >
         </Menubar >
         <div className="flex flex-wrap gap-2 ml-auto">
-          <Input onChange={handleFileImport} type="file" className="hidden" ref={fileRef} />
           <Button size="sm" onClick={handleImageExportDialogOpen}>
             <ImageDown className="w-4 h-4 mr-2" />
             <span>导出图片</span>

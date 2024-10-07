@@ -157,8 +157,17 @@ export default function Home() {
             <TabsTrigger value="workspace">编辑器</TabsTrigger>
             <TabsTrigger value="preview">预览</TabsTrigger>
           </TabsList>
-          <TabsContent value="preview" forceMount className="data-[state=inactive]:hidden flex-grow sm:flex-grow-0 sm:!block overflow-y-auto mt-0">
-            <div className={cn(theme, themeColor, getThemeBaseClass(theme), 'one w-full scroll-smooth h-full mx-auto', getPreviewWidthClass(theme))}>
+          <TabsContent value="preview" forceMount className="data-[state=inactive]:hidden sm:!block flex-grow sm:flex-grow-0 flex-shrink sm:flex-shrink-0 overflow-y-auto mt-0">
+            <div
+              className={
+                cn(
+                  theme,
+                  themeColor,
+                  getThemeBaseClass(theme),
+                  'one w-full scroll-smooth h-full mx-auto',
+                  getPreviewWidthClass(theme),
+                )
+              }>
               <Preview ref={previewRef} contents={contents} theme={theme} className="w-full flex flex-col m-auto" />
             </div>
           </TabsContent>

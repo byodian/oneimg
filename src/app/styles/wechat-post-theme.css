@@ -136,40 +136,6 @@
     font-size: var(--template-theme-primary-content-font-size);
     background-color: var(--template-theme-primary-content-background);
     color: var(--template-theme-primary-content-foreground);
-
-    :where(:first-child) {
-      margin-top: 0 !important;
-    }
-
-    :where(:last-child) {
-      margin-bottom: 0 !important;
-    }
-
-    :where(ul):not(:where([class~=one-item__children])) {
-      list-style-type: disc;
-      padding-left: 1.625rem;
-    }
-
-    :where(p) {
-      margin-top: 5px;
-      margin-bottom: 5px;
-      line-height: 1.7;
-    }
-
-    :where(ul>li, ol>li):not(:where([class~=one-child-item])) {
-      margin-top: .75rem;
-      margin-bottom: .75rem;
-    }
-
-    :where(ol):not(:where([class~=one-item__children])) {
-      list-style-type: decimal;
-      padding-left: 1.625rem;
-    }
-
-    :where(ul ul, ol ul, ol ol, ul ol):not(:where([class~=one-item__children])) {
-      margin-top: .75rem;
-      margin-bottom: .75rem;
-    }
   }
 
   .one-item__images {

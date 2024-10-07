@@ -27,9 +27,10 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'OneIMG',
     description: 'OneIMG - 文字转图片应用，快速生成多种尺寸的图片',
-    url: 'https://ongimgai.com',
+    url: 'https://oneimgai.com',
     siteName: 'OneIMG',
   },
+  metadataBase: new URL('https://oneimgai.com'),
 }
 
 function getPlatform() {

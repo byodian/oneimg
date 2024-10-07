@@ -61,7 +61,7 @@ export function ContentItem(props: ContainerProps) {
         <div className={cn(
           !item.parentId ? 'group font-bold' : 'group/child ',
           item.type === 'theme_content' ? 'cursor-default' : 'cursor-pointer',
-          'px-6 relative',
+          'px-6 relative w-full',
         )}>
           <div className={cn(
             item.type === 'theme_content' && '!hidden',
@@ -106,19 +106,6 @@ export function ContentItem(props: ContainerProps) {
 
         </SortableContext>
       )}
-
-      {/* {childItems && childItems.length > 0 && <> */}
-      {/*     {childItems.map(childItem => ( */}
-      {/*       <Container */}
-      {/*         key={childItem.id} */}
-      {/*         item={childItem} */}
-      {/*         childItemMap={childItemMap} */}
-      {/*         onSubmit={onSubmit} */}
-      {/*         handleDialogOpen={handleDialogOpen} */}
-      {/*       /> */}
-      {/*     ))} */}
-      {/*   </> */}
-      {/* } */}
 
       {/* Only the root node can have sub-content */}
       {editorType === 'add_sub' && parentContentId === item.id && !item.parentId && (
