@@ -83,10 +83,6 @@
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
-
   html {
     text-size-adjust: none;
   }

@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Logo } from '@/components/logo'
-import type { Content, ContentWithId, PreviewRef, ThemeColor } from '@/types/common'
+import type { Content, ContentWithId, PreviewRef, Theme } from '@/types/common'
 import type { ExportContent, ExportJSON } from '@/components/header/types'
 import { addAllContents, removeAllContents } from '@/lib/indexed-db'
 
@@ -42,16 +42,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { cn, removeHtmlTags, themeTemplates } from '@/lib'
+import { cn, defaultTheme, defaultThemeColor, removeHtmlTags, themeColorMap, themeTemplates } from '@/lib'
 
 interface HeaderProps {
   contents: Content[];
   setContents: (contents: ContentWithId[]) => void;
   previewRef: React.RefObject<PreviewRef>;
-  theme: string;
-  themeColor: ThemeColor;
-  setTheme: (theme: string) => void;
-  setThemeColor: (color: ThemeColor) => void
+  theme: Theme;
+  themeColor: string;
+  setTheme: (theme: Theme) => void;
+  setThemeColor: (color: string) => void
   setTableValue?: (tab: string) => void
 }
 
@@ -163,8 +163,8 @@ export function Header(props: HeaderProps) {
             await addAllContents(contents)
             setContents(contents)
 
-            const theme = importData.theme ?? 'default'
-            const themeColor = importData.themeColor ?? 'tech_blue'
+            const theme = (importData.theme ?? defaultTheme) as Theme
+            const themeColor = importData.themeColor ?? defaultThemeColor.label
             setTheme(theme)
             setThemeColor(themeColor)
             localStorage.setItem('currentTheme', theme)
@@ -203,8 +203,8 @@ export function Header(props: HeaderProps) {
       type: 'oneimg',
       version: 1,
       source: 'https://oneimgai.com',
-      theme: theme ?? 'default',
-      themeColor: themeColor ?? 'tech_blue',
+      theme: theme ?? defaultTheme,
+      themeColor: themeColor ?? defaultThemeColor.label,
       data: exportContents,
     }
 
@@ -251,8 +251,8 @@ export function Header(props: HeaderProps) {
     localStorage.clear()
     setContents([])
     setIsOpenFile(false)
-    setTheme('')
-    setThemeColor('tech_blue')
+    setTheme(defaultTheme)
+    setThemeColor(defaultThemeColor.label)
   }
 
   // open the dialog of saving as image
@@ -279,7 +279,6 @@ export function Header(props: HeaderProps) {
             </MenubarTrigger>
             <MenubarContent className="max-h-[calc(100vh-150px)] overflow-y-auto">
               <MenubarItem onClick={() => {
-                console.log(123)
                 if (!contents.length) {
                   handleOpenfileBtnClick()
                 } else {
@@ -307,9 +306,11 @@ export function Header(props: HeaderProps) {
                 {platform === 'mac' && <MenubarShortcut>⌘+E</MenubarShortcut>}
                 {platform === 'windows' && <MenubarShortcut>Ctrl+E</MenubarShortcut>}
               </MenubarItem>
-              <MenubarItem>
-                <BookOpen className="w-4 h-4 mr-2" />
-                <span>指南</span>
+              <MenubarItem asChild>
+                <a href="" target="_blank" rel="noreferrer">
+                  <BookOpen className="w-4 h-4 mr-2" />
+                  <span>指南</span>
+                </a>
               </MenubarItem>
               <Tooltip delayDuration={0}>
                 <TooltipTrigger className="w-full px-2 py-1.5 hidden sm:block">
@@ -359,9 +360,12 @@ export function Header(props: HeaderProps) {
               <MenubarSeparator />
               <div className="px-1.5 py-2 text-sm">
                 <div className="mb-2">模板</div>
-                <Select value={theme} onValueChange={(value) => {
+                <Select value={theme} onValueChange={(value: Theme) => {
+                  const themeColor = themeColorMap[value][0].label
                   setTheme(value)
+                  setThemeColor(themeColor)
                   localStorage.setItem('currentTheme', value)
+                  localStorage.setItem('currentThemeColor', themeColor)
                 }}>
                   <SelectTrigger className="h-8">
                     <SelectValue className="text-muted-foreground" placeholder="请选择一个主题模版" />
@@ -382,38 +386,19 @@ export function Header(props: HeaderProps) {
               <div className="px-1.5 py-2 text-sm">
                 <div className="mb-2">模版色</div>
                 <div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setThemeColor('tech_blue')
-                      localStorage.setItem('currentThemeColor', 'tech_blue')
-                    }}
-                    className={cn({ 'bg-accent': themeColor === 'tech_blue' })}>
-                    <div className="w-4 h-4 bg-[#4383EC] rounded-full"></div>
-                  </Button>
-
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setThemeColor('vibrant_orange')
-                      localStorage.setItem('currentThemeColor', 'vibrant_orange')
-                    }}
-                    className={cn({ 'bg-accent': themeColor === 'vibrant_orange' })}>
-                    <div className="w-4 h-4 bg-[#FF611D] rounded-full"></div>
-                  </Button>
-
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setThemeColor('rose_red')
-                      localStorage.setItem('currentThemeColor', 'rose_red')
-                    }}
-                    className={cn({ 'bg-accent': themeColor === 'rose_red' })}>
-                    <div className="w-4 h-4 bg-[#F14040] rounded-full"></div>
-                  </Button>
+                  {themeColorMap[theme].map(color => (
+                    <Button
+                      key={color.value}
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setThemeColor(color.label)
+                        localStorage.setItem('currentThemeColor', color.label)
+                      }}
+                      className={cn({ 'bg-accent': themeColor === color.label })}>
+                      <div className="w-4 h-4 rounded-full" style={{ backgroundColor: color.value }}></div>
+                    </Button>
+                  ))}
                 </div>
               </div>
             </MenubarContent >

@@ -1,4 +1,4 @@
-import type { ImageFile, ThemeColor } from '@/types/common'
+import type { ImageFile, Theme } from '@/types/common'
 
 export interface ExportOption {
   scale: number;
@@ -24,7 +24,7 @@ export interface ExportJSON {
   type: 'oneimg';
   version: number;
   source: string;
-  theme: string;
-  themeColor: ThemeColor;
+  theme: Theme;
+  themeColor: string;
   data: ExportContent[];
 }

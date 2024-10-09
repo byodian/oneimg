@@ -18,7 +18,7 @@ export interface ThemeContent {
   id?: number;
   title: string;
   content?: string;
-  theme: string
+  theme: Theme
 }
 
 export type EditorType = 'add' | 'add_sub' | 'close'
@@ -105,8 +105,6 @@ export interface PreviewItem {
   ref: React.RefObject<HTMLElement>;
 }
 
-export type ThemeColor = 'tech_blue' | 'vibrant_orange' | 'rose_red'
-
 export interface SortableItemProps {
   item: ContentWithId;
   children: React.ReactNode;
@@ -120,3 +118,17 @@ export interface ContainerProps {
   onSubmit: (content: Content) => Promise<void>;
   handleDialogOpen: (content: ContentWithId) => void;
 }
+
+export type ThemeColorItem = {
+  value: string;
+  label: string;
+}
+
+export type ThemeColorMap = {
+  'wechat-post-1': readonly ThemeColorItem[];
+  'apple-style': readonly ThemeColorItem[];
+  'cartoon-style': readonly ThemeColorItem[];
+  'default': readonly ThemeColorItem[]
+}
+
+export type Theme = keyof ThemeColorMap

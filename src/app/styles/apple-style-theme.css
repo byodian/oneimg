@@ -1,0 +1,114 @@
+.apple-style {
+  background-color: var(--template-theme-background);
+
+  --template-theme-heading1-font-size: 34px;
+  --template-theme-heading1-desc-font-size: 19px;
+  --template-theme-heading2-font-size: 30px;
+  --template-theme-heading2-padding-y: 10px;
+  --template-theme-heading2-padding-x: 19px;
+  --template-theme-heading2-line-height: 1.2;
+  --template-theme-primary-content-font-size: 15px;
+  --template-theme-heading3-font-size: 20px;
+  --template-theme-heading3-padding-y: 8px;
+  --template-theme-heading3-padding-x: 20px;
+  --template-theme-heading3-line-height: 1.2;
+
+  &.snow_white {
+    --template-theme-background: #fcfcfc;
+    --template-theme-even-background: #f4f4f4;
+    --template-theme-odd-background: #fcfcfc;
+    --template-theme-primary-foreground: #161616;
+    --template-theme-secondary-foreground: #666;
+  }
+
+  &.midnight_black {
+    --template-theme-background: #000;
+    --template-theme-even-background: #111;
+    --template-theme-odd-background: #000;
+    --template-theme-primary-foreground: #fff;
+    --template-theme-secondary-foreground: #989898;
+  }
+
+  .one-theme {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 45px 36px;
+    text-align: center;
+    background-color: var(--template-theme-background);
+    line-height: 1.2;
+  }
+  
+  .one-theme__title {
+    margin-bottom: 14px;
+    font-weight: bold;
+    font-size: var(--template-theme-heading1-font-size);
+    color: var(--template-theme-primary-foreground);
+  }
+
+  .one-theme__content {
+    font-size: var(--template-theme-heading1-desc-font-size);
+    color: var(--template-theme-secondary-foreground);
+
+    :where(p) {
+      margin-top: 20px;
+      margin-bottom: 20px;
+    }
+
+    :where(:first-child) {
+      margin-top: 0;
+    }
+
+    :where(:last-child) {
+      margin-bottom: 0;
+    }
+  }
+
+  .one-item {
+    padding: 45px 36px;
+
+    &:where(:nth-of-type(even)) {
+      background-color: var(--template-theme-even-background);
+    }
+
+    &:where(:nth-of-type(odd)) {
+      background-color: var(--template-theme-odd-background);
+    }
+  }
+
+  .one-item__title {
+    font-size: var(--template-theme-heading2-font-size);
+    font-weight: bold;
+    line-height: var(--template-theme-heading2-line-height);
+    color: var(--template-theme-primary-foreground);
+  }
+
+  .one-item__content {
+    font-size: var(--template-theme-primary-content-font-size);
+    color: var(--template-theme-secondary-foreground);
+
+    :where(p) {
+      margin-top: 10px;
+      margin-bottom: 10px;
+    }
+  }
+
+  .one-item__children {
+    margin-top: 20px;
+  }
+
+  .one-child-item {
+    margin-top: 40px;
+  }
+
+  .one-child-item__title {
+    line-height: var(--template-theme-heading3-line-height);
+    font-weight: bold;
+    font-size: var(--template-theme-heading3-font-size);
+    color: var(--template-theme-primary-foreground);
+
+    p {
+      line-height: inherit;
+    }
+  }
+}
