@@ -54,3 +54,6 @@ pnpm dev
 
 ## 许可证
 本项目基于 [MIT license](https://opensource.org/licenses/MIT) 开源。
+
+## 捐赠
+[支持我](./DONATIONS.md)
