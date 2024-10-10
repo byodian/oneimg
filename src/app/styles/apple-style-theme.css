@@ -33,6 +33,7 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
+    min-height: 256px;
     padding: 45px 36px;
     text-align: center;
     background-color: var(--template-theme-background);
@@ -51,8 +52,8 @@
     color: var(--template-theme-secondary-foreground);
 
     :where(p) {
-      margin-top: 20px;
-      margin-bottom: 20px;
+      margin-top: 18px;
+      margin-bottom: 18px;
     }
 
     :where(:first-child) {
@@ -88,8 +89,8 @@
     color: var(--template-theme-secondary-foreground);
 
     :where(p) {
-      margin-top: 10px;
-      margin-bottom: 10px;
+      margin-top: 8px;
+      margin-bottom: 8px;
     }
   }
 
@@ -101,6 +102,10 @@
     margin-top: 40px;
   }
 
+  .one-item__images {
+    margin-top: 14px;
+  }
+
   .one-child-item__title {
     line-height: var(--template-theme-heading3-line-height);
     font-weight: bold;
@@ -109,6 +114,7 @@
 
     p {
       line-height: inherit;
+      margin: 0;
     }
   }
 }
