@@ -127,7 +127,7 @@ export function ExportImageDialog({
   }, [previewImages, setIsExporting])
 
   // 更新缩放比例
-  const onScaleChange = (event: React.MouseEvent<HTMLDivElement>) => {
+  const onScaleChange = (event: React.MouseEvent<HTMLButtonElement>) => {
     const scaleValue = event.currentTarget.getAttribute('data-scale') || scale
     setScale(scaleValue)
     setIsExporting(true)
@@ -177,26 +177,33 @@ export function ExportImageDialog({
             <div className="flex justify-between items-center">
               <div className="font-bold">缩放比例</div>
               <div className="flex p-1 border rounded-lg">
-                <div
+                <Button
+                  variant="ghost"
                   data-scale="1"
-                  className={cn(scale === '1' && 'bg-primary text-primary-foreground', 'py-0.5 px-2.5 rounded-lg text-sm cursor-pointer')}
+                  disabled={isExporting}
+                  className={cn('h-6 px-2.5 py-0.5 hover:bg-transparent hover:text-primary', scale === '1' && 'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground')}
                   onClick={onScaleChange}
                 >
                   1×
-                </div>
-                <div
+                </Button>
+                <Button
+                  variant="ghost"
                   data-scale="2"
-                  className={cn(scale === '2' && 'bg-primary text-primary-foreground', 'py-0.5 px-2.5 rounded-lg text-sm cursor-pointer')}
+                  disabled={isExporting}
+                  className={cn('h-6 px-2.5 py-0.5 hover:bg-transparent hover:text-primary', scale === '2' && 'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground')}
                   onClick={onScaleChange}
                 >
                   2×
-                </div>
-                <div data-scale="3"
-                  className={cn(scale === '3' && 'bg-primary text-primary-foreground', 'py-0.5 px-2.5 rounded-lg text-sm cursor-pointer')}
+                </Button>
+                <Button
+                  variant="ghost"
+                  data-scale="3"
+                  disabled={isExporting}
+                  className={cn('h-6 px-2.5 py-0.5 hover:bg-transparent hover:text-primary', scale === '3' && 'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground')}
                   onClick={onScaleChange}
                 >
                   3×
-                </div>
+                </Button>
               </div>
             </div>
             <div className="mt-4 sm:mt-auto ml-auto">

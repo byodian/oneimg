@@ -55,7 +55,7 @@ interface HeaderProps {
   setTableValue?: (tab: string) => void
 }
 
-type DialogType = 'save_file' | 'open_file' | 'reset_data'
+type DialogType = 'save_file' | 'open_file' | 'reset_data' | 'user_guide'
 
 export function Header(props: HeaderProps) {
   const [isOpenFile, setIsOpenFile] = useState(false)
@@ -306,11 +306,9 @@ export function Header(props: HeaderProps) {
                 {platform === 'mac' && <MenubarShortcut>⌘+E</MenubarShortcut>}
                 {platform === 'windows' && <MenubarShortcut>Ctrl+E</MenubarShortcut>}
               </MenubarItem>
-              <MenubarItem asChild>
-                <a href="" target="_blank" rel="noreferrer">
-                  <BookOpen className="w-4 h-4 mr-2" />
-                  <span>指南</span>
-                </a>
+              <MenubarItem onClick={() => handleDialogOpen('user_guide')} >
+                <BookOpen className="w-4 h-4 mr-2" />
+                <span>指南</span>
               </MenubarItem>
               <Tooltip delayDuration={0}>
                 <TooltipTrigger className="w-full px-2 py-1.5 hidden sm:block">
@@ -514,6 +512,20 @@ export function Header(props: HeaderProps) {
                 <Button variant="destructive" onClick={handleDataClear}>确定</Button>
               </div>
             </DialogFooter>
+          </DialogContent>}
+          {dialogType === 'user_guide' && <DialogContent className="max-w-full sm:max-w-[900px] px-10 py-8 h-full overflow-y-auto sm:h-auto">
+            <DialogHeader className="text-2xl pb-4 border-b mb-4">
+              <DialogTitle className="">使用指南</DialogTitle>
+              <DialogDescription className="hidden">
+                User Guide
+              </DialogDescription>
+            </DialogHeader>
+            <div>
+              <video controls autoPlay muted width="100%" height="380px">
+                <source src="https://file.oneimgai.com/user-guide.mp4" type="video/mp4" />
+                Your browser does not support the video tag.
+              </video>
+            </div>
           </DialogContent>}
         </Dialog>
         <ExportImageDialog
