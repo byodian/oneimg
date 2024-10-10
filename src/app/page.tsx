@@ -8,23 +8,24 @@ import { Header } from '@/components/header/header'
 import { Preview } from '@/components/preview/preview'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
-import type { Content, ContentWithId, PreviewRef, ThemeColor, ThemeContent } from '@/types/common'
+import type { Content, ContentWithId, PreviewRef, Theme, ThemeContent } from '@/types/common'
 import { cn, getPreviewWidthClass, getThemeBaseClass } from '@/lib/utils'
+import { defaultTheme, defaultThemeColor } from '@/lib'
 
 export default function Home() {
   const [contents, setContents] = useState<ContentWithId[]>([])
-  const [theme, setTheme] = useState('')
-  const [themeColor, setThemeColor] = useState<ThemeColor>('tech_blue')
+  const [theme, setTheme] = useState<Theme>(defaultTheme)
+  const [themeColor, setThemeColor] = useState(defaultThemeColor.label)
   const [tabValue, setTabValue] = useState('workspace')
   const { toast } = useToast()
   const previewRef = useRef<PreviewRef>(null)
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const currentTheme = localStorage.getItem('currentTheme') || 'wechat-post-1'
+      const currentTheme = (localStorage.getItem('currentTheme') || defaultTheme) as Theme
       setTheme(currentTheme)
-      const currentThemeColor = localStorage.getItem('currentThemeColor') || 'tech_blue'
-      setThemeColor(currentThemeColor as ThemeColor)
+      const currentThemeColor = localStorage.getItem('currentThemeColor') || defaultThemeColor.label
+      setThemeColor(currentThemeColor)
     }
   }, [])
 
@@ -161,10 +162,10 @@ export default function Home() {
             <div
               className={
                 cn(
+                  'one w-full scroll-smooth h-full mx-auto',
+                  getThemeBaseClass(theme),
                   theme,
                   themeColor,
-                  getThemeBaseClass(theme),
-                  'one w-full scroll-smooth h-full mx-auto',
                   getPreviewWidthClass(theme),
                 )
               }>

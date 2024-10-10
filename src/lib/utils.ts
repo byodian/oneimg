@@ -163,7 +163,7 @@ export function getThemeBaseClass(theme: string) {
     return 'red-post'
   }
 
-  return 'default'
+  return theme
 }
 
 export function getPreviewWidthClass(theme: string) {
@@ -175,5 +175,5 @@ export function getPreviewWidthClass(theme: string) {
     return 'w-[414px]'
   }
 
-  return 'w-[375px] '
+  return 'w-[375px]'
 }
