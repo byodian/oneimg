@@ -5,9 +5,9 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Input } from '@/components/ui/input'
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form'
 import { Button } from '@/components/ui/button'
-import type { ThemeContent } from '@/types/common'
+import type { Theme, ThemeContent } from '@/types/common'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { themeTemplates } from '@/lib/constants'
+import { themeColorMap, themeTemplates } from '@/lib/constants'
 
 const formSchema = z.object({
   title: z.string(),
@@ -37,6 +37,7 @@ export function ThemeFormDialog({ onSubmit, onOpenChange, open }: ThemeFormProps
       content: values.content,
       theme: values.theme,
       parentId: null,
+      themeColor: themeColorMap[(values.theme as Theme)][0].label,
     } as ThemeContent
     await onSubmit(content)
     // reset dialog state

@@ -63,6 +63,7 @@ export default function Home() {
         const id = await addContent(newContent)
         setContents(prevContents => [...prevContents, { ...newContent, id }])
         setTheme(themeContent.theme)
+        setThemeColor(themeContent.themeColor)
         window.localStorage.setItem('currentTheme', themeContent.theme)
       }
     } catch (error) {

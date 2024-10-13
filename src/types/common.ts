@@ -18,7 +18,8 @@ export interface ThemeContent {
   id?: number;
   title: string;
   content?: string;
-  theme: Theme
+  theme: Theme;
+  themeColor: string;
 }
 
 export type EditorType = 'add' | 'add_sub' | 'close'
