@@ -19,6 +19,8 @@
     --template-theme-odd-background: #fcfcfc;
     --template-theme-primary-foreground: #161616;
     --template-theme-secondary-foreground: #666;
+    --template-theme-secondary-background: #e8e8e8;
+    --template-theme-thirdary-foreground: #333;
   }
 
   &.midnight_black {
@@ -27,6 +29,8 @@
     --template-theme-odd-background: #000;
     --template-theme-primary-foreground: #fff;
     --template-theme-secondary-foreground: #989898;
+    --template-theme-secondary-background: #282828;
+    --template-theme-thirdary-foreground: #fff;
   }
 
   .one-theme {
@@ -39,7 +43,7 @@
     background-color: var(--template-theme-background);
     line-height: 1.2;
   }
-  
+
   .one-theme__title {
     margin-bottom: 14px;
     font-weight: bold;
@@ -91,6 +95,24 @@
     :where(p) {
       margin-top: 8px;
       margin-bottom: 8px;
+    }
+
+    :where(img) {
+      margin-top: 8px;
+      margin-bottom: 8px;
+    }
+
+    :where(hr) {
+      border-top-color: var(--template-theme-secondary-foreground);
+    }
+
+    :where(blockquote) {
+      border-left-color: var(--template-theme-secondary-foreground);
+    }
+
+    :where(code):not(pre code) {
+      background-color: var(--template-theme-secondary-background);
+      color: var(--template-theme-thirdary-foreground);
     }
   }
 

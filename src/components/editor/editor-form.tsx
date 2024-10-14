@@ -1,5 +1,5 @@
 'use client'
-import { useReducer, useRef } from 'react'
+import { useEffect, useReducer, useRef, useState } from 'react'
 import { EditorContainer } from './editor-container'
 import EditorImage from './editor-image'
 import EditorButton from './editor-button'
@@ -59,6 +59,12 @@ export default function EditorForm(props: EditorProps) {
   }
   const [content, dispatch] = useReducer(contentReducer, initialContent || initialState)
   const editorRef = useRef<EditorMethods>(null)
+  const [disabled, setDisabled] = useState(true)
+
+  // initialize save button disabled state
+  useEffect(() => {
+    setDisabled(!!editorRef.current?.isEmpty())
+  }, [])
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -76,6 +82,7 @@ export default function EditorForm(props: EditorProps) {
       dispatch({ type: 'RESET' })
       if (editorRef.current) {
         editorRef.current.reset()
+        setDisabled(true)
       }
 
       // 如果是编辑，需要隐藏编辑器
@@ -95,6 +102,7 @@ export default function EditorForm(props: EditorProps) {
   }
 
   const handleContentUpdate = (newContent: Content, actionType: ActionType) => {
+    setDisabled(!!editorRef.current?.isEmpty())
     if (actionType === 'SET_TITLE') {
       dispatch({ type: 'SET_TITLE', payload: newContent.title })
     }
@@ -124,7 +132,7 @@ export default function EditorForm(props: EditorProps) {
             setImage={editorRef.current?.setImage}
             hideEditor={hideEditor}
             onFilesChange={handleFilesChange}
-            disabled={!editorRef || !!editorRef.current?.isEmpty()}
+            disabled={disabled}
             uploadFiles={content.uploadFiles}
             quality={quality}
             outputFormat={outputFormat}

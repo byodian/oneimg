@@ -35,6 +35,7 @@ export default function ContentList(props: ContentListProps) {
     // useSensor(MouseSensor),
     useSensor(PointerSensor, {
       activationConstraint: {
+        distance: 1,
         delay: 250,
         tolerance: 5,
       },

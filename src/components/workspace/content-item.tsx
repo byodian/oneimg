@@ -5,6 +5,7 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
+import { useEffect, useState } from 'react'
 import { SortableItem } from './sortable-item'
 import { ContentItemButtons } from './content-item-buttons'
 import EditorForm from '@/components/editor/editor-form'
@@ -15,6 +16,14 @@ import { useEditorStore } from '@/store/use-editor-store'
 export function ContentItem(props: ContainerProps) {
   const { onSubmit, handleDialogOpen, item, childItemMap } = props
   const { editorType, setEditorType, editingContentId, setEditingContentId, parentContentId, setParentContentId } = useEditorStore()
+  const [disabled, setDisabled] = useState(false)
+
+  // Disable drag and drop, when editing forms or content is topic
+  useEffect(() => {
+    setDisabled(
+      item.type === 'theme_content' || editorType !== 'close' || editingContentId !== null,
+    )
+  }, [item.type, editorType, editingContentId])
 
   const childItems = item.id ? childItemMap.get(item.id) : []
 
@@ -45,7 +54,7 @@ export function ContentItem(props: ContainerProps) {
   }
 
   return (
-    <SortableItem item={item} disabled={item.type === 'theme_content'}>
+    <SortableItem item={item} disabled={disabled}>
       {editingContentId === item.id ? (
         <div className="my-2 ml-6">
           <EditorForm
@@ -63,13 +72,16 @@ export function ContentItem(props: ContainerProps) {
           item.type === 'theme_content' ? 'cursor-default' : 'cursor-pointer',
           'px-6 relative w-full',
         )}>
+          {/* drag handle and theme content doesn't diaplay */}
           <div className={cn(
-            item.type === 'theme_content' && '!hidden',
+            disabled && '!hidden',
             !item.parentId ? 'group-hover:block' : 'group-hover/child:block',
             'hidden absolute left-0 top-1/2 -translate-y-1/2 cursor-move',
           )}>
             <GripVertical className="w-4 h-4" />
           </div>
+
+          {/* title content */}
           <a href={`/#${item.id}`} className="relative border-b border-b-border py-4 hidden sm:block">
             <div className="mr-28">{parse(DOMPurify.sanitize(item.title))}</div>
             <ContentItemButtons
@@ -80,7 +92,8 @@ export function ContentItem(props: ContainerProps) {
             />
           </a>
 
-          <div className="relative border-b border-b-border py-4 sm:hidden">
+          {/* buttons */}
+          <div className="relative border-b border-b-border py-4 sm:hidden" onClick={e => e.preventDefault()}>
             <div className="mr-28 select-none">{parse(DOMPurify.sanitize(item.title))}</div>
             <ContentItemButtons
               item={item}

@@ -95,7 +95,7 @@ export function Header(props: HeaderProps) {
         }
       }
 
-      if (e.key === 'e' && (e.metaKey || e.ctrlKey)) {
+      if (e.key === 'e' && e.shiftKey && (e.metaKey || e.ctrlKey)) {
         e.preventDefault()
         setImageDialogOpen(true)
         setIsExporting(true)
@@ -303,8 +303,8 @@ export function Header(props: HeaderProps) {
               <MenubarItem onClick={handleImageExportDialogOpen}>
                 <ImageDown className="w-4 h-4 mr-2" />
                 <span>导出图片</span>
-                {platform === 'mac' && <MenubarShortcut>⌘+E</MenubarShortcut>}
-                {platform === 'windows' && <MenubarShortcut>Ctrl+E</MenubarShortcut>}
+                {platform === 'mac' && <MenubarShortcut>⌘+Shift+E</MenubarShortcut>}
+                {platform === 'windows' && <MenubarShortcut>Ctrl+Shift+E</MenubarShortcut>}
               </MenubarItem>
               <MenubarItem onClick={() => handleDialogOpen('user_guide')} >
                 <BookOpen className="w-4 h-4 mr-2" />

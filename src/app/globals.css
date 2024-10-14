@@ -99,6 +99,10 @@
 
 /* Basic editor styles */
 .tiptap {
+  >*+* {
+    margin-top: 0.75em;
+  }
+
   :where(p) {
     margin-top: 1em;
     margin-bottom: 1em;
@@ -170,18 +174,17 @@
   }
 
   pre {
-    background: var(--black);
-    border-radius: 0.5rem;
-    color: var(--white);
+    background: #0D0D0D;
+    color: #FFF;
     font-family: 'JetBrainsMono', monospace;
-    margin: 1.5rem 0;
     padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
 
     code {
-      background: none;
       color: inherit;
-      font-size: 0.8rem;
       padding: 0;
+      background: none;
+      font-size: 0.8rem;
     }
   }
 
@@ -215,13 +218,13 @@
   }
 
   /* Placeholder (on every new line) */
-  /* .is-empty::before {
-    color: var(--gray-4);
-    content: attr(data-placeholder);
-    float: left;
-    height: 0;
-    pointer-events: none;
-  } */
+  /* .is-empty::before { */
+  /*   color: var(--gray-4); */
+  /*   content: attr(data-placeholder); */
+  /*   float: left; */
+  /*   height: 0; */
+  /*   pointer-events: none; */
+  /* } */
 }
 
 :root {
