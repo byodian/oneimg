@@ -1,6 +1,6 @@
 {
   "name": "oneimage",
-  "version": "0.1.0",
+  "version": "0.3.1",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -9,7 +9,9 @@
     "lint": "next lint",
     "lint:fix": "eslint . --fix",
     "pages:build": "npx @cloudflare/next-on-pages",
-    "prepare": "husky"
+    "typecheck": "tsc --noEmit --incremental false",
+    "prepare": "husky",
+    "release": "bumpp -r"
   },
   "dependencies": {
     "@byodian/eslint-config-react": "^0.1.6",
@@ -51,6 +53,7 @@
     "@types/dompurify": "^3.0.5",
     "@types/file-saver": "^2.0.7",
     "@types/upng-js": "^2.1.5",
+    "bumpp": "^9.7.1",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "dompurify": "^3.1.6",
