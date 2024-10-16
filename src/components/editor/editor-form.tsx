@@ -114,7 +114,7 @@ export default function EditorForm(props: EditorProps) {
 
   return (
     <form onSubmit={handleSubmit} className={cn('editor-container', className)}>
-      <div className="border rounded-[6px] p-3 overflow-auto bg-white relative">
+      <div className="border rounded-[6px] p-3 overflow-auto bg-white">
         <EditorContainer
           titlePlaceholder={titlePlaceholder}
           contentPlaceholder={contentPlaceholder}

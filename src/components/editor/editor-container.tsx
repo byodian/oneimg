@@ -15,15 +15,12 @@ import HardBreak from '@tiptap/extension-hard-break'
 import HorizontalRule from '@tiptap/extension-horizontal-rule'
 import Blockquote from '@tiptap/extension-blockquote'
 import Code from '@tiptap/extension-code'
-import { BubbleMenu, EditorContent, useEditor } from '@tiptap/react'
+import { EditorContent, useEditor } from '@tiptap/react'
 import { forwardRef, useEffect, useImperativeHandle } from 'react'
-import { BoldIcon, CodeIcon, ItalicIcon, ListIcon, ListOrderedIcon, Minus, TextQuote, UnderlineIcon } from 'lucide-react'
 import { TrailingNode } from './tailing-node'
-import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
+import { EditorBubbleMenu } from './editor-bubble-menu'
 import type { ActionType, Content, EditorMethods } from '@/types/common'
 import { cn } from '@/lib/utils'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 type EditorProps = {
   initialContent?: Content;
@@ -48,7 +45,7 @@ const EditorContainer = forwardRef<EditorMethods, EditorProps>(
       content: initialContent?.title || '',
       editorProps: {
         attributes: {
-          class: 'focus:outline-none max-w-full font-bold text-xl mb-6',
+          class: 'focus:outline-none max-w-full font-bold text-xl mb-4',
         },
       },
       immediatelyRender: true,
@@ -125,187 +122,12 @@ const EditorContainer = forwardRef<EditorMethods, EditorProps>(
       }
     }, [titleEditor, contentEditor, onContentUpdate])
 
-    const buttonVariants = (tag: string, options = {}) => {
-      const isActive = contentEditor?.isActive(tag, options) ? 'bg-[#666]' : ''
-
-      return cn(isActive, 'hover:text-white hover:bg-[#3d3d3d] bg-none text-white w-6 h-6')
-    }
-
     return (
-      <TooltipProvider delayDuration={0}>
-        <div className={cn('mb-6 flex flex-col gap-1 editor-content')}>
-          <EditorContent editor={titleEditor} />
-          {contentEditor && <BubbleMenu editor={contentEditor} tippyOptions={{ duration: 0 }}>
-            <div className="bg-black flex gap-x-1 border border-gray-50 px-2 py-1 rounded-md">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    onClick={() => contentEditor.chain().focus().toggleBold().run()}
-                    variant="ghost"
-                    size="icon"
-                    disabled={
-                      !contentEditor.can()
-                        .chain()
-                        .focus()
-                        .toggleBold()
-                        .run()
-                    }
-                    className={buttonVariants('bold')}
-                  >
-                    <BoldIcon className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="text-white bg-black text-sm py-0.5 px-1.5 rounded-sm top-2">
-                  粗体
-                </TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => contentEditor.chain().focus().toggleItalic().run()}
-                    disabled={
-                      !contentEditor.can()
-                        .chain()
-                        .focus()
-                        .toggleItalic()
-                        .run()
-                    }
-                    className={buttonVariants('italic')}
-                  >
-                    <ItalicIcon className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="text-white bg-black text-sm py-0.5 px-1.5 rounded-sm top-2">
-                  斜体
-                </TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    onClick={() => contentEditor.chain().focus().toggleUnderline().run()}
-                    variant="ghost"
-                    size="icon"
-                    disabled={
-                      !contentEditor.can()
-                        .chain()
-                        .focus()
-                        .toggleUnderline()
-                        .run()
-                    }
-                    className={buttonVariants('underline')}
-                  >
-                    <UnderlineIcon className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="text-white bg-black text-sm py-0.5 px-1.5 rounded-sm top-2">
-                  下划线
-                </TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => contentEditor.chain().focus().toggleCode().run()}
-                    disabled={
-                      !contentEditor.can()
-                        .chain()
-                        .focus()
-                        .toggleCode()
-                        .run()
-                    }
-                    className={buttonVariants('code')}
-                  >
-                    <CodeIcon className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="text-white bg-black text-sm py-0.5 px-1.5 rounded-sm top-2">
-                  代码
-                </TooltipContent>
-              </Tooltip>
-
-              <Separator orientation="vertical" className="h-6 bg-[#666]" />
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => contentEditor.chain().focus().toggleBulletList().run()}
-                    className={buttonVariants('bulletList')}
-                  >
-                    <ListIcon className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="text-white bg-black text-sm py-0.5 px-1.5 rounded-sm top-2">
-                  无序列表
-                </TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => contentEditor.chain().focus().toggleOrderedList().run()}
-                    className={buttonVariants('orderedList')}
-                  >
-                    {/* ListChecks */}
-                    {/* ListTodo */}
-                    <ListOrderedIcon className="h-4 w-4" />
-                  </Button>
-
-                </TooltipTrigger>
-                <TooltipContent side="top" className="text-white bg-black text-sm py-0.5 px-1.5 rounded-sm top-2">
-                  有序列表
-                </TooltipContent>
-              </Tooltip>
-
-              <Separator orientation="vertical" className="h-6 bg-[#666]" />
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => contentEditor.chain().focus().toggleBlockquote().run()}
-                    className={buttonVariants('blockquote')}
-                  >
-                    <TextQuote className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="text-white bg-black text-sm py-0.5 px-1.5 rounded-sm top-2">
-                  引用
-                </TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => contentEditor.chain().focus().setHorizontalRule().run()}
-                    className={buttonVariants('horizontalRule')}
-                  >
-                    <Minus className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="text-white bg-black text-sm py-0.5 px-1.5 rounded-sm top-2">
-                  分割线
-                </TooltipContent>
-              </Tooltip>
-            </div>
-          </BubbleMenu>}
-          <EditorContent editor={contentEditor} />
-        </div>
-      </TooltipProvider>
+      <div className={cn('mb-6 flex flex-col gap-1 editor-content')}>
+        <EditorContent editor={titleEditor} />
+        {contentEditor && <EditorBubbleMenu editor={contentEditor} />}
+        <EditorContent editor={contentEditor} />
+      </div>
     )
   },
 )

@@ -43,6 +43,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { cn, defaultTheme, defaultThemeColor, removeHtmlTags, themeColorMap, themeTemplates } from '@/lib'
+import { usePlatform } from '@/hooks/use-platform'
 
 interface HeaderProps {
   contents: Content[];
@@ -63,7 +64,7 @@ export function Header(props: HeaderProps) {
   const [dialogType, setDialogType] = useState<DialogType>('save_file')
   const [isExporting, setIsExporting] = useState(true)
   const [scale, setScale] = useState('1')
-  const [platform, setPlatform] = useState('')
+  const platform = usePlatform()
   const { contents, setContents, previewRef, theme, themeColor, setTheme, setThemeColor, setTableValue } = props
   const { toast } = useToast()
   const fileRef = useRef<HTMLInputElement>(null)
@@ -72,17 +73,6 @@ export function Header(props: HeaderProps) {
     // Regenerate images when the contents are updated
     setIsExporting(true)
   }, [contents])
-
-  useEffect(() => {
-    const userAgent = navigator.userAgent
-    if (userAgent.indexOf('Mac') > -1 && navigator.platform !== 'iPhone') {
-      setPlatform('mac')
-    } else if (userAgent.indexOf('Win') > -1 || userAgent.indexOf('Linux') > -1) {
-      setPlatform('windows')
-    } else {
-      setPlatform('other')
-    }
-  }, [])
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -403,6 +393,11 @@ export function Header(props: HeaderProps) {
           </MenubarMenu >
         </Menubar >
         <div className="flex flex-wrap gap-2 ml-auto">
+          <Button size="sm" asChild variant="ghost" className="py-2 px-2">
+            <a href="https://github.com/byodian/oneimg" target="_blank" rel="noreferrer">
+              <Image src="/images/github.svg" alt="github icon" className="w-6 h-6" width={24} height={24} />
+            </a>
+          </Button>
           <Button size="sm" onClick={handleImageExportDialogOpen}>
             <ImageDown className="w-4 h-4 mr-2" />
             <span>导出图片</span>
