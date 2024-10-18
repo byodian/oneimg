@@ -310,7 +310,8 @@ export function Header(props: HeaderProps) {
                 <TooltipContent side="right" sideOffset={-50}>
                   <div className="rounded-sm px-2 py-1.5 text-white bg-black text-sm">
                     <p>您有任何问题或改进建议，</p>
-                    <p>可以发送电子邮件至 support@oneimgai.com 与我们取得联系。</p>
+                    <p>可以发送电子邮件至 support@oneimgai.com</p>
+                    <p>或者添加微信 <span className="font-bold">byo952</span> 与我们取得联系。</p>
                   </div>
                 </TooltipContent>
               </Tooltip>
@@ -327,10 +328,23 @@ export function Header(props: HeaderProps) {
                   <span>Github</span>
                 </a>
               </MenubarItem>
+              <Tooltip delayDuration={0}>
+                <TooltipTrigger className="w-full px-2 py-1.5 hidden sm:block">
+                  <div className="flex items-center text-sm">
+                    <Image src="/images/wechat.svg" alt="wechat icon" className="w-4 h-4 mr-2" width={24} height={24} />
+                    <span>微信公众号</span>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="right" sideOffset={-50}>
+                  <div className="text-white text-sm">
+                    <Image src="/images/wechat.png" alt="github icon" width={500} height={500} />
+                  </div>
+                </TooltipContent>
+              </Tooltip>
               <MenubarItem asChild>
                 <a href="https://t.me/oneimg" target="_blank" rel="noreferrer">
                   <Image src="/images/telegram.svg" alt="telegram icon" className="w-4 h-4 mr-2" width={24} height={24} />
-                  <span>交流群</span>
+                  <span>TG 交流群</span>
                 </a>
               </MenubarItem>
               <MenubarItem asChild>
@@ -341,7 +355,7 @@ export function Header(props: HeaderProps) {
               </MenubarItem>
               <MenubarItem asChild>
                 <a href="https://www.xiaohongshu.com/user/profile/61278fd2000000000100a607" target="_blank" rel="noreferrer">
-                  <Image src="/images/xiaohongshu.svg" alt="x icon" className="w-4 h-4 mr-2" width={24} height={24} />
+                  <Image src="/images/xiaohongshu.svg" alt="xiaohongshu icon" className="w-4 h-4 mr-2" width={24} height={24} />
                   <span>小红书</span>
                 </a>
               </MenubarItem>
