@@ -14,27 +14,6 @@ import {
 } from '@/components/ui/tooltip'
 import { useToast } from '@/components/ui/use-toast'
 
-async function handleFiles(files: File[], quality?: number, outFormat?: string): Promise<ImageFile[]> {
-  quality = quality ?? 0.5
-  outFormat = outFormat ?? 'image/jpeg'
-
-  const uploadFiles: ImageFile[] = []
-
-  for (const file of files) {
-    const compressedBlob = await compressImage(file, quality, outFormat)
-
-    const uploadFile: ImageFile = {
-      name: file.name,
-      uid: getUid(),
-      dataUrl: compressedBlob.dataUrl,
-      type: file.type,
-    }
-    uploadFiles.push(uploadFile)
-  }
-
-  return uploadFiles
-}
-
 type EditorFooterProps = {
   uploadFiles?: ImageFile[];
   disabled: boolean;
@@ -57,6 +36,7 @@ export default function EditorButton(props: EditorFooterProps) {
     if (!files) {
       return
     }
+
     const currentFiles = uploadFiles || []
     const newFiles = Array.from(files)
 
@@ -97,6 +77,38 @@ export default function EditorButton(props: EditorFooterProps) {
     if (uploadRef.current) {
       uploadRef.current.click()
     }
+  }
+
+  async function handleFiles(files: File[], quality?: number, outFormat?: string): Promise<ImageFile[]> {
+    quality = quality ?? 0.5
+    outFormat = outFormat ?? 'image/jpeg'
+
+    const uploadFiles: ImageFile[] = []
+
+    for (const file of files) {
+      // if file is not an image
+      if (file.type.indexOf('image') === -1) {
+        const subType = file.type.split('/')[1]
+        toast({
+          title: `不支持上传 ${subType} 文件类型`,
+          description: '',
+          duration: 3000,
+        })
+        continue
+      }
+
+      const compressedBlob = await compressImage(file, quality, outFormat)
+
+      const uploadFile: ImageFile = {
+        name: file.name,
+        uid: getUid(),
+        dataUrl: compressedBlob.dataUrl,
+        type: file.type,
+      }
+      uploadFiles.push(uploadFile)
+    }
+
+    return uploadFiles
   }
 
   return (
