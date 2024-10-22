@@ -5,6 +5,12 @@
   </picture>
 </a>
 
+<h4 align="center">
+  <a href="https://oneimgai.com">Oneimg 官网</a> |
+  <a href="https://t.me/oneimg">Telegram 反馈群</a> |
+  <a href="https://support.qq.com/product/673291">吐个槽</a>
+</h4>
+
 ## 介绍
 一个纯前端实现的文字转图片应用，您可以通过编辑器输入文本和图片，使用预设的 CSS 模板样式，快速生成预览，并导出为图片。
 
