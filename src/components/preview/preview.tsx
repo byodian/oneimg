@@ -1,11 +1,13 @@
 import { forwardRef, useImperativeHandle, useMemo, useRef } from 'react'
-import { PreviewItem } from './preview-item'
+import { Card } from './card'
+import { baseStyles, createStyle, wechatPostTemplate } from './template'
+import type { ClassesMap } from './type'
 import type { ContentWithId, PreviewRef } from '@/types/common'
 import { cn } from '@/lib/utils'
 
 const Preview = forwardRef<PreviewRef, { contents: ContentWithId[]; className?: string, theme: string }>(({ contents, className, theme }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null)
-  const itemRefs = useRef<{ [key: string | number]: HTMLLIElement }>({})
+  const itemRefs = useRef<{ [key: string | number]: HTMLDivElement }>({})
 
   // 将 ref 暴露给父组件
   useImperativeHandle(ref, () => ({
@@ -32,6 +34,33 @@ const Preview = forwardRef<PreviewRef, { contents: ContentWithId[]; className?: 
     return childContents
   }, [contents])
 
+  const { classes: containerClasses } = createStyle('primary')({
+    defaultTheme: baseStyles.primary,
+    theme: wechatPostTemplate.primary,
+  })
+
+  const { classes: titleClasses } = createStyle('secondary')({
+    defaultTheme: baseStyles.secondary,
+    theme: wechatPostTemplate.secondary,
+  })
+
+  const { classes: contentClasses } = createStyle('thirdary')({
+    defaultTheme: baseStyles.thirdary,
+    theme: wechatPostTemplate.thirdary,
+  })
+
+  const { classes: defaultClasses } = createStyle('common')({
+    defaultTheme: baseStyles.common,
+    theme: wechatPostTemplate.common,
+  })
+
+  const classesMap: ClassesMap = {
+    common: defaultClasses,
+    primary: containerClasses,
+    secondary: titleClasses,
+    thirdary: contentClasses,
+  }
+
   return (
     <div className={cn(contents.length === 0 && 'h-full', 'one-container', className)} ref={containerRef}>
       {contents.length === 0 ? (
@@ -39,26 +68,21 @@ const Preview = forwardRef<PreviewRef, { contents: ContentWithId[]; className?: 
           <p>无内容可预览</p>
         </div>
       ) : (
-        <ul className="one-list">
+        <div className="one-list">
           {parentContents.map((content, parentIndex) => (
-            <PreviewItem
+            <Card
               theme={theme}
               index={parentIndex}
               content={content}
               key={content.id}
+              classesMap={classesMap}
+              childContentsMap={childContentsMap}
               ref={(el) => {
                 itemRefs.current[content.id] = el!
               }}>
-              {childContentsMap.get(content.id as number) && (
-                <ul className="one-item__children">
-                  {childContentsMap.get(content.id)!.map((item, index) => (
-                    <PreviewItem content={item} key={item.id} index={index} theme={theme} />
-                  ))}
-                </ul>
-              )}
-            </PreviewItem>
+            </Card>
           ))}
-        </ul>
+        </div>
       )}
     </div>
   )

@@ -19,6 +19,7 @@
     "@dnd-kit/modifiers": "^7.0.0",
     "@dnd-kit/sortable": "^8.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@emotion/react": "^11.13.3",
     "@hookform/resolvers": "^3.9.0",
     "@pdf-lib/upng": "^1.0.1",
     "@radix-ui/react-dialog": "^1.1.1",
@@ -74,6 +75,7 @@
     "react-hook-form": "^7.53.0",
     "tailwind-merge": "^2.5.2",
     "tailwindcss-animate": "^1.0.7",
+    "tss-react": "^4.9.13",
     "zod": "^3.23.8",
     "zustand": "5.0.0-rc.2"
   },

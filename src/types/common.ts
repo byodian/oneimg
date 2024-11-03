@@ -98,7 +98,7 @@ export type ActionType = 'SET_TITLE' | 'SET_CONTENT'
 // Preview
 export interface PreviewRef {
   containerRef: React.RefObject<HTMLDivElement>,
-  itemRefs: React.RefObject<{ [key: string]: HTMLLIElement }>,
+  itemRefs: React.RefObject<{ [key: string]: HTMLDivElement }>,
 }
 
 export interface PreviewItem {
