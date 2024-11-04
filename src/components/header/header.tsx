@@ -260,7 +260,7 @@ export function Header(props: HeaderProps) {
         {/* <Link href="/"> */}
         {/*   <Logo type="full" /> */}
         {/* </Link> */}
-        <Input onChange={handleFileImport} type="file" className="hidden" ref={fileRef} />
+        <Input onChange={handleFileImport} type="file" accept=".oneimg" className="hidden" ref={fileRef} />
         <Menubar className="p-0 cursor-pointer border-none bg-white hover:bg-accent">
           <MenubarMenu>
             <MenubarTrigger>
