@@ -1,8 +1,8 @@
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
-
 import UPNG from '@pdf-lib/upng'
-import type { ImageBase } from '@/types/common'
+import { tss } from 'tss-react'
+import type { ArticleModuleTemplate, ImageBase, ModuleClassNameMap, ModuleSection } from '@/types'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -176,4 +176,56 @@ export function getPreviewWidthClass(theme: string) {
   }
 
   return 'w-[375px]'
+}
+
+export const createStyle = (classNamePrefix: string) => {
+  return tss
+    .withParams<{ defaultStyles?: ModuleSection, templateStyles?: ModuleSection }>()
+    .withName(classNamePrefix)
+    .create(({ defaultStyles = {}, templateStyles = {} }) => ({
+      container: {
+        ...defaultStyles.container,
+        ...templateStyles.container,
+      },
+      title: {
+        ...defaultStyles.title,
+        ...templateStyles.title,
+      },
+      content: {
+        ...defaultStyles.content,
+        ...templateStyles.content,
+      },
+    }))
+}
+
+export const createStyleClassMap = (
+  templateStyles: ArticleModuleTemplate, prefix: string, baseStyles = {} as ArticleModuleTemplate,
+) => {
+  const { classes: heroClasses } = createStyle(`${prefix}-hero`)({
+    defaultStyles: baseStyles.hero ?? {},
+    templateStyles: templateStyles.hero,
+  })
+
+  const { classes: mainClasses } = createStyle(`${prefix}-main`)({
+    defaultStyles: baseStyles.main ?? {},
+    templateStyles: templateStyles.main,
+  })
+
+  const { classes: subClasses } = createStyle(`${prefix}-sub`)({
+    defaultStyles: baseStyles.sub ?? {},
+    templateStyles: templateStyles.sub,
+  })
+
+  const { classes: defaultClasses } = createStyle(`${prefix}-common`)({
+    defaultStyles: baseStyles.common ?? {},
+    templateStyles: templateStyles.common,
+  })
+
+  const templateClassNameMap: ModuleClassNameMap = {
+    common: defaultClasses,
+    hero: heroClasses,
+    main: mainClasses,
+    sub: subClasses,
+  }
+  return templateClassNameMap
 }
