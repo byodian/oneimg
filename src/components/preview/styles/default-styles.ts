@@ -1,82 +1,83 @@
-import { tss } from 'tss-react'
-import type { Template, TemplateStyle } from './type'
+import type { ArticleModuleTemplate, CustomCSSProperties } from '@/types/template'
 
-export const baseStyles: Template = {
+export const commonTypography: CustomCSSProperties = {
+  '& :where(p)': {
+    marginTop: '5px',
+    marginBottom: '5px',
+    lineHeight: 1.7,
+  },
+  '& :where(code)': {
+    backgroundColor: 'var(--gray-2)',
+    borderRadius: '0.4rem',
+    color: 'var(--black)',
+    fontSize: '0.85rem',
+    padding: '0.25em 0.3em',
+  },
+  '& :where(pre)': {
+    background: 'var(--black)',
+    borderRadius: '0.5rem',
+    color: 'var(--white)',
+    fontFamily: 'JetBrainsMono, monospace',
+    margin: '1.5rem 0',
+    padding: '0.75rem 1rem',
+    code: {
+      background: 'none',
+      color: 'inherit',
+      fontSize: '0.8rem',
+      padding: '0',
+    },
+  },
+  '& :where(hr)': {
+    border: 'none',
+    borderTop: '1px solid var(--gray-2)',
+    margin: '2rem 0',
+  },
+  '& :where(blockquote)': {
+    borderLeft: '3px solid var(--gray-2)',
+    margin: '1.5rem 0',
+    paddingLeft: '1rem',
+  },
+  '& :where(img)': {
+    display: 'block',
+  },
+  '& :where(ul)': {
+    listStyleType: 'disc',
+    paddingLeft: '1.625rem',
+  },
+  '& :where(ol)': {
+    listStyleType: 'decimal',
+    paddingLeft: '1.625rem',
+  },
+  '& :where(ul>li, ol>li)': {
+    marginTop: '.75rem',
+    marginBottom: '.75rem',
+  },
+  '& :where(ul ul, ol ul, ol ol, ul ol)': {
+    marginTop: '.75rem',
+    marginBottom: '.75rem',
+  },
+  '& [data-class="oneimg-images"]': {
+    display: 'grid',
+    rowGap: '0.5rem',
+    gridTemplateColumns: 'repeat(1, minmax(0, 1fr))',
+    marginTop: '5px',
+    marginBottom: '5px',
+  },
+  '& :where(:first-child)': {
+    marginTop: 0,
+  },
+  '& :where(:last-child)': {
+    marginBottom: 0,
+  },
+}
+
+export const baseTemplateStyle: ArticleModuleTemplate = {
   common: {
     container: {},
     title: {},
-    content: {
-      '& :where(p)': {
-        marginTop: '5px',
-        marginBottom: '5px',
-        lineHeight: 1.7,
-      },
-      '& :where(code)': {
-        backgroundColor: 'var(--gray-2)',
-        borderRadius: '0.4rem',
-        color: 'var(--black)',
-        fontSize: '0.85rem',
-        padding: '0.25em 0.3em',
-      },
-      '& :where(pre)': {
-        background: 'var(--black)',
-        borderRadius: '0.5rem',
-        color: 'var(--white)',
-        fontFamily: 'JetBrainsMono, monospace',
-        margin: '1.5rem 0',
-        padding: '0.75rem 1rem',
-        code: {
-          background: 'none',
-          color: 'inherit',
-          fontSize: '0.8rem',
-          padding: '0',
-        },
-      },
-      '& :where(hr)': {
-        border: 'none',
-        borderTop: '1px solid var(--gray-2)',
-        margin: '2rem 0',
-      },
-      '& :where(blockquote)': {
-        borderLeft: '3px solid var(--gray-2)',
-        margin: '1.5rem 0',
-        paddingLeft: '1rem',
-      },
-      '& :where(img)': {
-        display: 'block',
-      },
-      '& :where(ul)': {
-        listStyleType: 'disc',
-        paddingLeft: '1.625rem',
-      },
-      '& :where(ol)': {
-        listStyleType: 'decimal',
-        paddingLeft: '1.625rem',
-      },
-      '& :where(ul>li, ol>li)': {
-        marginTop: '.75rem',
-        marginBottom: '.75rem',
-      },
-      '& :where(ul ul, ol ul, ol ol, ul ol)': {
-        marginTop: '.75rem',
-        marginBottom: '.75rem',
-      },
-      '& [data-class="oneimg-images"]': {
-        display: 'grid',
-        rowGap: '0.5rem',
-        gridTemplateColumns: 'repeat(1, minmax(0, 1fr))',
-        marginTop: '5px',
-        marginBottom: '5px',
-      },
-      '& :where(:first-child)': {
-        marginTop: 0,
-      },
-      '& :where(:last-child)': {
-        marginBottom: 0,
-      },
-    },
+    content: commonTypography,
   },
-  primary: {
+  hero: {
     container: {
       fontFamily: 'unset',
       fontKerning: 'none',
@@ -152,7 +153,7 @@ export const baseStyles: Template = {
 
     },
   },
-  secondary: {
+  main: {
     container: {
       fontFamily: 'unset',
       fontKerning: 'none',
@@ -226,7 +227,7 @@ export const baseStyles: Template = {
       wordBreak: 'normal',
     },
   },
-  thirdary: {
+  sub: {
     container: {
       fontFamily: 'unset',
       fontKerning: 'none',
@@ -302,135 +303,4 @@ export const baseStyles: Template = {
       wordBreak: 'normal',
     },
   },
-}
-
-export const wechatPostTemplate: Template = {
-  common: {
-    container: {},
-    title: {},
-    content: {},
-  },
-  primary: {
-    container: {
-      'position': 'relative',
-      'display': 'flex',
-      'flexDirection': 'column',
-      'justifyContent': 'center',
-      'paddingLeft': '12px',
-      'paddingRight': '12px',
-      'paddingTop': '13px',
-      'paddingBottom': '13px',
-      'textAlign': 'center',
-      '& [data-class="oneimg-theme__bg"]': {
-        position: 'absolute',
-        left: 0,
-        top: 0,
-        width: '100%',
-        minHeight: '150%',
-        backgroundSize: 'cover',
-        backgroundRepeat: 'no-repeat',
-        backgroundColor: '#ccedff',
-        backgroundImage: 'url(/images/them-bg-tech-blue.png)',
-        zIndex: 0,
-      },
-    },
-    title: {
-      position: 'relative',
-      zIndex: 1,
-      marginTop: '45px',
-      marginBottom: '5px',
-      fontWeight: 'bold',
-      fontSize: '30px',
-      color: '#333',
-      textAlign: 'center',
-    },
-    content: {
-      position: 'relative',
-      zIndex: 2,
-      fontSize: '18px',
-    },
-
-  },
-  secondary: {
-    container: {
-      backgroundColor: '#ccedff',
-      paddingLeft: '12px',
-      paddingRight: '12px',
-      paddingTop: '13px',
-      paddingBottom: '13px',
-    },
-    title: {
-      'position': 'relative',
-      'marginBottom': '13px',
-      'padding': '10px 19px',
-      'fontSize': '19px',
-      'fontWeight': 'bold',
-      'lineHeight': '1.0',
-      'color': '#fff',
-      'backgroundImage': 'linear-gradient(90deg, #3CA0FF 0%, #1D6DFF 100%)',
-      'borderRadius': '10px',
-      '&::after': {
-        content: '"NO." attr(data-index)',
-        position: 'absolute',
-        right: '19px',
-        top: '50%',
-        transform: 'translateY(-50%)',
-        display: 'inline-block',
-        marginLeft: '5px',
-        color: 'rgb(255 255 255 / 0.2)',
-      },
-      'p': {
-        marginRight: '45px',
-      },
-    },
-    content: {
-      position: 'relative',
-      padding: '12px 18px',
-      borderRadius: '12px',
-      fontSize: '15px',
-      backgroundColor: 'rgb(255 255 255 / 0.7)',
-      color: '#333',
-    },
-  },
-  thirdary: {
-    container: {},
-    title: {
-      display: 'flex',
-      alignItems: 'center',
-      width: 'fit-content',
-      marginBottom: '10px',
-      lineHeight: '1.2',
-      borderRadius: '9999px 9999px 9999px 2px',
-      fontWeight: 'bold',
-      padding: '8px 20px',
-      fontSize: '17px',
-      backgroundImage: 'linear-gradient(90deg, #3CA0FF 0%, #1D6DFF 100%)',
-      color: '#fff',
-      p: {
-        lineHeight: 'inherit',
-        margin: 0,
-      },
-    },
-    content: {},
-  },
-}
-
-export const createStyle = (name: string) => {
-  return tss
-    .withParams<{ defaultTheme: TemplateStyle, theme: TemplateStyle }>()
-    .withName(name)
-    .create(({ defaultTheme, theme }) => ({
-      container: {
-        ...defaultTheme.container,
-        ...theme.container,
-      },
-      title: {
-        ...defaultTheme.title,
-        ...theme.title,
-      },
-      content: {
-        ...defaultTheme.content,
-        ...theme.content,
-      },
-    }))
 }

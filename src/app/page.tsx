@@ -170,7 +170,7 @@ export default function Home() {
                   getPreviewWidthClass(theme),
                 )
               }>
-              <Preview ref={previewRef} contents={contents} theme={theme} className="w-full flex flex-col m-auto" />
+              <Preview ref={previewRef} contents={contents} className="w-full flex flex-col m-auto" />
             </div>
           </TabsContent>
           <TabsContent value="workspace" forceMount className="data-[state=inactive]:hidden sm:flex-grow sm:!block overflow-auto">

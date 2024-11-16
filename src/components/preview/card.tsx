@@ -2,20 +2,19 @@ import DOMPurify from 'dompurify'
 import parse from 'html-react-parser'
 import { forwardRef, useMemo } from 'react'
 import { ImageList } from './image-list'
-import type { ClassesMap } from './type'
-import type { ContentWithId, ImageFile } from '@/types/common'
+import type { ContentWithId, ImageFile, ModuleClassNameMap } from '@/types'
 import { base64ToBlob, cn, stripEmptyParagraphs } from '@/lib/utils'
 
 interface PreviewItemProps {
   content: ContentWithId,
   children?: React.ReactNode,
   index: number,
-  theme: string,
   childContentsMap: Map<number, ContentWithId[]>,
-  classesMap: ClassesMap,
+  templateClassNameMap: ModuleClassNameMap,
+  themeClassNameMap: ModuleClassNameMap,
 }
 
-const Card = forwardRef<HTMLDivElement, PreviewItemProps>(({ content, children, index, theme, classesMap, childContentsMap }, ref) => {
+const Card = forwardRef<HTMLDivElement, PreviewItemProps>(({ content, children, index, templateClassNameMap, themeClassNameMap, childContentsMap }, ref) => {
   const uploadFiles = content.uploadFiles
 
   const imageFiles: ImageFile[] = useMemo(() => {
@@ -27,35 +26,36 @@ const Card = forwardRef<HTMLDivElement, PreviewItemProps>(({ content, children, 
     }))
   }, [uploadFiles]) || []
 
-  const primary = classesMap.primary
-  const secondary = classesMap.secondary
-  const thirdary = classesMap.thirdary
+  const heroTemplate = templateClassNameMap.hero
+  const mainTemplate = templateClassNameMap.main
+  const subTemplate = templateClassNameMap.sub
+
+  const heroTheme = themeClassNameMap.hero
+  const mainTheme = themeClassNameMap.main
+  const subTheme = themeClassNameMap.sub
 
   return (
     <div
       id={`${content.id}`}
       className={cn(
-        classesMap.common.container,
+        templateClassNameMap.common.container,
         content.parentId
-          ? thirdary.container
+          ? `${subTemplate.container} ${subTheme.container}`
           : content.type === 'theme_content'
-            ? primary.container
-            : secondary.container,
+            ? `${heroTemplate.container} ${heroTheme.container}`
+            : `${mainTemplate.container} ${mainTheme.container}`,
       )}
       ref={ref}
     >
-      {content.type === 'theme_content' && (
-        <div data-class="oneimg-theme__bg"></div>
-      )}
       {/* card header */}
       {content.title && (
         <div
           className={
             cn(content.parentId
-              ? thirdary.title
+              ? `${subTemplate.title} ${subTheme.title}`
               : content.type === 'theme_content'
-                ? primary.title
-                : secondary.title,
+                ? `${heroTemplate.title} ${heroTheme.title}`
+                : `${mainTemplate.title} ${mainTheme.title}`,
             )
           }
           data-index={index}
@@ -68,12 +68,12 @@ const Card = forwardRef<HTMLDivElement, PreviewItemProps>(({ content, children, 
         ((stripEmptyParagraphs(content.content)) || (imageFiles.length > 0) || children) && (
           <div
             className={
-              cn(classesMap.common.content,
+              cn(templateClassNameMap.common.content,
                 content.parentId
-                  ? thirdary.content
+                  ? `${subTemplate.content} ${subTheme.content}`
                   : content.type === 'theme_content'
-                    ? primary.content
-                    : secondary.content,
+                    ? `${heroTemplate.content} ${heroTheme.content}`
+                    : `${mainTemplate.content} ${mainTheme.content}`,
               )
             }
           >
@@ -90,8 +90,8 @@ const Card = forwardRef<HTMLDivElement, PreviewItemProps>(({ content, children, 
                     content={item}
                     key={item.id}
                     index={index}
-                    theme={theme}
-                    classesMap={classesMap}
+                    templateClassNameMap={templateClassNameMap}
+                    themeClassNameMap={themeClassNameMap}
                     childContentsMap={childContentsMap}
                   />
                 ))}

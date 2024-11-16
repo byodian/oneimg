@@ -1,11 +1,10 @@
 import { forwardRef, useImperativeHandle, useMemo, useRef } from 'react'
 import { Card } from './card'
-import { baseStyles, createStyle, wechatPostTemplate } from './template'
-import type { ClassesMap } from './type'
+import { baseTemplateStyle, createTheme, techTemplateStyle } from './styles'
 import type { ContentWithId, PreviewRef } from '@/types/common'
-import { cn } from '@/lib/utils'
+import { cn, createStyleClassMap } from '@/lib/utils'
 
-const Preview = forwardRef<PreviewRef, { contents: ContentWithId[]; className?: string, theme: string }>(({ contents, className, theme }, ref) => {
+const Preview = forwardRef<PreviewRef, { contents: ContentWithId[]; className?: string }>(({ contents, className }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const itemRefs = useRef<{ [key: string | number]: HTMLDivElement }>({})
 
@@ -34,32 +33,8 @@ const Preview = forwardRef<PreviewRef, { contents: ContentWithId[]; className?: 
     return childContents
   }, [contents])
 
-  const { classes: containerClasses } = createStyle('primary')({
-    defaultTheme: baseStyles.primary,
-    theme: wechatPostTemplate.primary,
-  })
-
-  const { classes: titleClasses } = createStyle('secondary')({
-    defaultTheme: baseStyles.secondary,
-    theme: wechatPostTemplate.secondary,
-  })
-
-  const { classes: contentClasses } = createStyle('thirdary')({
-    defaultTheme: baseStyles.thirdary,
-    theme: wechatPostTemplate.thirdary,
-  })
-
-  const { classes: defaultClasses } = createStyle('common')({
-    defaultTheme: baseStyles.common,
-    theme: wechatPostTemplate.common,
-  })
-
-  const classesMap: ClassesMap = {
-    common: defaultClasses,
-    primary: containerClasses,
-    secondary: titleClasses,
-    thirdary: contentClasses,
-  }
+  const templateClassNameMap = createStyleClassMap(techTemplateStyle, 'template', baseTemplateStyle)
+  const themeClassNameMap = createStyleClassMap(createTheme(), 'theme')
 
   return (
     <div className={cn(contents.length === 0 && 'h-full', 'one-container', className)} ref={containerRef}>
@@ -71,11 +46,11 @@ const Preview = forwardRef<PreviewRef, { contents: ContentWithId[]; className?: 
         <div className="one-list">
           {parentContents.map((content, parentIndex) => (
             <Card
-              theme={theme}
               index={parentIndex}
               content={content}
               key={content.id}
-              classesMap={classesMap}
+              templateClassNameMap={templateClassNameMap}
+              themeClassNameMap={themeClassNameMap}
               childContentsMap={childContentsMap}
               ref={(el) => {
                 itemRefs.current[content.id] = el!
