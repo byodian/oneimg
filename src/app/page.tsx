@@ -148,18 +148,44 @@ export default function Home() {
         setTableValue={setTabValue}
       />
       <main className="h-[calc(100%-58px)]">
+        {/* desktop */}
+        <div className="hidden h-full sm:flex sm:flex-row">
+          <div
+            className={
+              cn(
+                'one w-full h-full mx-auto overflow-y-auto scroll-smooth',
+                getThemeBaseClass(theme),
+                theme,
+                themeColor,
+                getPreviewWidthClass(theme),
+              )
+            }>
+            <Preview ref={previewRef} contents={contents} className="w-full flex flex-col m-auto" />
+          </div>
+          <div className="h-full flex-grow flex items-start bg-card text-card-foreground overflow-y-auto">
+            <Workspace
+              contents={contents}
+              setContents={setContents}
+              onContentSubmit={handleContentSubmit}
+              onContentDelete={handleContentDelete}
+              onThemeContentSubmit={handleThemeContentSubmit}
+            />
+          </div>
+        </div>
+
+        {/* mobile phone */}
         <Tabs
           defaultValue="workspace"
           activationMode="manual"
           value={tabValue}
           onValueChange={setTabValue}
-          className="h-full flex flex-col sm:flex-row"
+          className="h-full flex flex-col sm:hidden"
         >
-          <TabsList className="grid w-full grid-cols-2 sm:hidden">
+          <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="workspace">编辑器</TabsTrigger>
             <TabsTrigger value="preview">预览</TabsTrigger>
           </TabsList>
-          <TabsContent value="preview" forceMount className="data-[state=inactive]:hidden sm:!block flex-grow sm:flex-grow-0 flex-shrink sm:flex-shrink-0 overflow-y-auto mt-0">
+          <TabsContent value="preview" forceMount className="data-[state=inactive]:hidden flex-grow flex-shrink overflow-y-auto mt-0">
             <div
               className={
                 cn(
@@ -173,7 +199,7 @@ export default function Home() {
               <Preview ref={previewRef} contents={contents} className="w-full flex flex-col m-auto" />
             </div>
           </TabsContent>
-          <TabsContent value="workspace" forceMount className="data-[state=inactive]:hidden sm:flex-grow sm:!block overflow-auto">
+          <TabsContent value="workspace" forceMount className="data-[state=inactive]:hidden overflow-auto">
             <div className="h-full flex-grow flex justify-center items-start bg-card text-card-foreground">
               <Workspace
                 contents={contents}
