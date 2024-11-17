@@ -5,14 +5,14 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Input } from '@/components/ui/input'
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form'
 import { Button } from '@/components/ui/button'
-import type { Theme, ThemeContent } from '@/types/common'
+import type { ThemeContent } from '@/types'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { themeColorMap, themeTemplates } from '@/lib/constants'
+import { DEFAULT_TEMPLATES, DEFAULT_THEME_COLOR_MAP } from '@/theme'
 
 const formSchema = z.object({
   title: z.string(),
   content: z.string(),
-  theme: z.string(),
+  template: z.string(),
 })
 
 interface ThemeFormProps {
@@ -35,9 +35,9 @@ export function ThemeFormDialog({ onSubmit, onOpenChange, open }: ThemeFormProps
     const content = {
       title: values.title,
       content: values.content,
-      theme: values.theme,
+      template: values.template,
       parentId: null,
-      themeColor: themeColorMap[(values.theme as Theme)][0].label,
+      theme: DEFAULT_THEME_COLOR_MAP[(values.template)][0].label,
     } as ThemeContent
     await onSubmit(content)
     // reset dialog state
@@ -96,7 +96,7 @@ export function ThemeFormDialog({ onSubmit, onOpenChange, open }: ThemeFormProps
               />
               <FormField
                 control={form.control}
-                name="theme"
+                name="template"
                 render={({ field }) => (
                   <FormItem>
                     {/* <FormLabel>模版</FormLabel> */}
@@ -108,7 +108,7 @@ export function ThemeFormDialog({ onSubmit, onOpenChange, open }: ThemeFormProps
                       </FormControl>
                       <SelectContent>
                         <SelectGroup>
-                          {themeTemplates.map(template => (
+                          {DEFAULT_TEMPLATES.map(template => (
                             <SelectItem key={template.value} value={template.value} disabled={template.disabled}>
                               {template.label}
                             </SelectItem>

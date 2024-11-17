@@ -23,8 +23,8 @@ import {
 import { ContentItem } from './content-item'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader } from '@/components/ui/dialog'
-import type { ContentListProps, ContentWithId } from '@/types/common'
-import { cn } from '@/lib/utils'
+import type { ContentListProps, ContentWithId } from '@/types'
+import { cn } from '@/lib'
 
 export default function ContentList(props: ContentListProps) {
   const { contents, setContents, onSubmit, onContentDelete } = props

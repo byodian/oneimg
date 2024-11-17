@@ -78,19 +78,32 @@ export function ExportImageDialog({
 
           // 导出整个 Preview
           let index = 1
-          images.push(await exportImage(previewRef.current.containerRef.current!, `${index}_full_preview.png`, exportOption))
-          index = index + 1
+          if (previewRef.current.containerRef.current) {
+            const fullPreviewBlobObject = await exportImage(previewRef.current.containerRef.current!, `${index}_full_preview.png`, exportOption)
 
-          // 导出每个顶层 PreviewItem
-          const itemRefs = previewRef.current.itemRefs.current!
-          for (const [id, ref] of Object.entries(itemRefs)) {
-            if (ref) {
-              images.push(await exportImage(ref, `${index}_${removeHtmlTags(dataMap.get(Number(id)))}.png`, exportOption))
-              index++
+            if (fullPreviewBlobObject && fullPreviewBlobObject.data) {
+              images.push(fullPreviewBlobObject)
+            }
+            index = index + 1
+
+            // 导出每个顶层 PreviewItem
+            const itemRefs = previewRef.current.itemRefs.current
+            if (itemRefs) {
+              for (const [id, ref] of Object.entries(itemRefs)) {
+                if (ref) {
+                  const cardPreviewBlobObject = await exportImage(ref, `${index}_${removeHtmlTags(dataMap.get(Number(id)))}.png`, exportOption)
+
+                  if (cardPreviewBlobObject && cardPreviewBlobObject.data) {
+                    images.push(cardPreviewBlobObject)
+                  }
+
+                  index++
+                }
+              }
+
+              setPreviewImages(images)
             }
           }
-
-          setPreviewImages(images)
         } catch (error) {
           console.log(error)
         } finally {
@@ -99,13 +112,9 @@ export function ExportImageDialog({
       }
     }
 
-    // 等待DOM节点更新，延迟生成图片
-    const timer = setTimeout(() => {
-      if (isExporting) {
-        generateImages()
-      }
-    }, 1000)
-    return () => clearTimeout(timer)
+    if (previewRef.current && previewRef.current.itemRefs.current && previewRef.current.containerRef.current) {
+      generateImages()
+    }
   }, [previewRef, scale, setIsExporting, isExporting])
 
   const exportImages = useCallback(async () => {

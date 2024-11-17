@@ -2,7 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-
 @layer base {
   :root {
     --background: hsl(0 0% 98%);
@@ -227,8 +226,6 @@
   /*   pointer-events: none; */
   /* } */
 }
-
-@layer reset, base, tokens, recipes, utilities;
 
 :root {
   --scrollbar-thumb-idle: #c1c1c1;
