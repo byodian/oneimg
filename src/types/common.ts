@@ -18,8 +18,8 @@ export interface ThemeContent {
   id?: number;
   title: string;
   content?: string;
-  theme: Theme;
-  themeColor: string;
+  template: string;
+  theme: string;
 }
 
 export type EditorType = 'add' | 'add_sub' | 'close'
@@ -119,17 +119,3 @@ export interface ContainerProps {
   onSubmit: (content: Content) => Promise<void>;
   handleDialogOpen: (content: ContentWithId) => void;
 }
-
-export type ThemeColorItem = {
-  value: string;
-  label: string;
-}
-
-export type ThemeColorMap = {
-  'wechat-post-1': readonly ThemeColorItem[];
-  'apple-style': readonly ThemeColorItem[];
-  'cartoon-style': readonly ThemeColorItem[];
-  'default': readonly ThemeColorItem[]
-}
-
-export type Theme = keyof ThemeColorMap

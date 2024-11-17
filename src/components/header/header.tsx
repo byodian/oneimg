@@ -18,9 +18,15 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Logo } from '@/components/logo'
-import type { Content, ContentWithId, PreviewRef, Theme } from '@/types/common'
+import type { Content, ContentWithId, PreviewRef } from '@/types'
 import type { ExportContent, ExportJSON } from '@/components/header/types'
-import { addAllContents, removeAllContents } from '@/lib/indexed-db'
+import {
+  CACHE_KEY_TEMPLATE, CACHE_KEY_THEME,
+  addAllContents,
+  cn,
+  removeAllContents,
+  removeHtmlTags,
+} from '@/lib'
 
 import {
   Menubar,
@@ -42,17 +48,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { cn, defaultTheme, defaultThemeColor, removeHtmlTags, themeColorMap, themeTemplates } from '@/lib'
+import {
+  DEFAULT_TEMPLATE,
+  DEFAULT_TEMPLATES,
+  DEFAULT_THEME,
+  DEFAULT_THEME_COLOR_MAP,
+} from '@/theme'
 import { usePlatform } from '@/hooks/use-platform'
 
 interface HeaderProps {
   contents: Content[];
   setContents: (contents: ContentWithId[]) => void;
   previewRef: React.RefObject<PreviewRef>;
-  theme: Theme;
-  themeColor: string;
-  setTheme: (theme: Theme) => void;
-  setThemeColor: (color: string) => void
+  templateName: string;
+  theme: string;
+  setTemplateName: (template: string) => void;
+  setTheme: (color: string) => void
   setTableValue?: (tab: string) => void
 }
 
@@ -65,7 +76,7 @@ export function Header(props: HeaderProps) {
   const [isExporting, setIsExporting] = useState(true)
   const [scale, setScale] = useState('1')
   const platform = usePlatform()
-  const { contents, setContents, previewRef, theme, themeColor, setTheme, setThemeColor, setTableValue } = props
+  const { contents, setContents, previewRef, templateName, theme, setTemplateName, setTheme, setTableValue } = props
   const { toast } = useToast()
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -153,12 +164,12 @@ export function Header(props: HeaderProps) {
             await addAllContents(contents)
             setContents(contents)
 
-            const theme = (importData.theme ?? defaultTheme) as Theme
-            const themeColor = importData.themeColor ?? defaultThemeColor.label
+            const templateName = (importData.theme ?? DEFAULT_TEMPLATE)
+            const theme = importData.themeColor ?? DEFAULT_THEME.label
+            setTemplateName(templateName)
             setTheme(theme)
-            setThemeColor(themeColor)
-            localStorage.setItem('currentTheme', theme)
-            localStorage.setItem('currentThemeColor', themeColor)
+            localStorage.setItem(CACHE_KEY_TEMPLATE, templateName)
+            localStorage.setItem(CACHE_KEY_THEME, theme)
 
             // 允许前后两次选择相同文件
             event.target.value = ''
@@ -193,8 +204,8 @@ export function Header(props: HeaderProps) {
       type: 'oneimg',
       version: 1,
       source: 'https://oneimgai.com',
-      theme: theme ?? defaultTheme,
-      themeColor: themeColor ?? defaultThemeColor.label,
+      theme: templateName ?? DEFAULT_TEMPLATE,
+      themeColor: theme ?? DEFAULT_THEME.label,
       data: exportContents,
     }
 
@@ -241,8 +252,8 @@ export function Header(props: HeaderProps) {
     localStorage.clear()
     setContents([])
     setIsOpenFile(false)
-    setTheme(defaultTheme)
-    setThemeColor(defaultThemeColor.label)
+    setTemplateName(DEFAULT_TEMPLATE)
+    setTheme(DEFAULT_THEME.label)
   }
 
   // open the dialog of saving as image
@@ -347,12 +358,12 @@ export function Header(props: HeaderProps) {
               <MenubarSeparator />
               <div className="px-1.5 py-2 text-sm">
                 <div className="mb-2">模板</div>
-                <Select value={theme} onValueChange={(value: Theme) => {
-                  const themeColor = themeColorMap[value][0].label
-                  setTheme(value)
-                  setThemeColor(themeColor)
-                  localStorage.setItem('currentTheme', value)
-                  localStorage.setItem('currentThemeColor', themeColor)
+                <Select value={templateName} onValueChange={(value: string) => {
+                  const themeColor = DEFAULT_THEME_COLOR_MAP[value][0].label
+                  setTemplateName(value)
+                  setTheme(themeColor)
+                  localStorage.setItem(CACHE_KEY_TEMPLATE, value)
+                  localStorage.setItem(CACHE_KEY_THEME, themeColor)
                 }}>
                   <SelectTrigger className="h-8">
                     <SelectValue className="text-muted-foreground" placeholder="请选择一个主题模版" />
@@ -360,7 +371,7 @@ export function Header(props: HeaderProps) {
                   <SelectContent>
                     <SelectGroup>
                       {
-                        themeTemplates.map(template => (
+                        DEFAULT_TEMPLATES.map(template => (
                           <SelectItem key={template.value} value={template.value} disabled={template.disabled}>
                             {template.label}
                           </SelectItem>
@@ -373,16 +384,16 @@ export function Header(props: HeaderProps) {
               <div className="px-1.5 py-2 text-sm">
                 <div className="mb-2">模版色</div>
                 <div>
-                  {themeColorMap[theme].map(color => (
+                  {DEFAULT_THEME_COLOR_MAP[templateName].map(color => (
                     <Button
                       key={color.value}
                       variant="ghost"
                       size="sm"
                       onClick={() => {
-                        setThemeColor(color.label)
-                        localStorage.setItem('currentThemeColor', color.label)
+                        setTheme(color.label)
+                        localStorage.setItem(CACHE_KEY_THEME, color.label)
                       }}
-                      className={cn({ 'bg-accent': themeColor === color.label })}>
+                      className={cn({ 'bg-accent': theme === color.label })}>
                       <div className="w-4 h-4 rounded-full" style={{ backgroundColor: color.value }}></div>
                     </Button>
                   ))}

@@ -1,5 +1,5 @@
 import Image from 'next/image'
-import type { ImageFile } from '@/types/common'
+import type { ImageFile } from '@/types'
 export function ImageList({ images }: { images: ImageFile[] }) {
   return (
     <div data-class="oneimg-images">

@@ -1,8 +1,7 @@
 import { forwardRef, useImperativeHandle, useMemo, useRef } from 'react'
 import { Card } from './card'
-import { baseTemplateStyle, createTheme, techTemplateStyle } from './styles'
-import type { ContentWithId, PreviewRef } from '@/types/common'
-import { cn, createStyleClassMap } from '@/lib/utils'
+import type { ContentWithId, PreviewRef } from '@/types'
+import { cn } from '@/lib'
 
 const Preview = forwardRef<PreviewRef, { contents: ContentWithId[]; className?: string }>(({ contents, className }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -33,9 +32,6 @@ const Preview = forwardRef<PreviewRef, { contents: ContentWithId[]; className?: 
     return childContents
   }, [contents])
 
-  const templateClassNameMap = createStyleClassMap(techTemplateStyle, 'template', baseTemplateStyle)
-  const themeClassNameMap = createStyleClassMap(createTheme(), 'theme')
-
   return (
     <div className={cn(contents.length === 0 && 'h-full', 'one-container', className)} ref={containerRef}>
       {contents.length === 0 ? (
@@ -49,8 +45,6 @@ const Preview = forwardRef<PreviewRef, { contents: ContentWithId[]; className?: 
               index={parentIndex}
               content={content}
               key={content.id}
-              templateClassNameMap={templateClassNameMap}
-              themeClassNameMap={themeClassNameMap}
               childContentsMap={childContentsMap}
               ref={(el) => {
                 itemRefs.current[content.id] = el!

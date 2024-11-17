@@ -19,3 +19,33 @@ export interface ArticleModuleTemplate {
 export type ModuleClassName = Record<'container' | 'title' | 'content', string>
 
 export type ModuleClassNameMap = Record<'common' | 'hero' | 'main' | 'sub', ModuleClassName>
+
+export interface ThemeConfigProperty {
+  background?: string;
+  foreground?: string;
+  backgroundImage?: string;
+}
+
+export interface ThemeConfig {
+  hero?: {
+    container?: ThemeConfigProperty;
+    title?: ThemeConfigProperty;
+    content?: ThemeConfigProperty;
+  };
+  main?: {
+    container?: ThemeConfigProperty;
+    title?: ThemeConfigProperty;
+    content?: ThemeConfigProperty;
+  };
+  sub?: {
+    container?: ThemeConfigProperty;
+    title?: ThemeConfigProperty;
+    content?: ThemeConfigProperty;
+  };
+}
+
+export type ThemeColorItem = {
+  value: string;
+  label: string;
+  theme?: ThemeConfig;
+}

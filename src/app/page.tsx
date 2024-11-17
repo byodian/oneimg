@@ -1,6 +1,16 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
-import { addContent, deleteContent, getContents, updateContent } from '@/lib/indexed-db'
+import { GlobalStyles } from 'tss-react'
+import {
+  CACHE_KEY_TEMPLATE,
+  CACHE_KEY_THEME,
+  addContent,
+  cn,
+  deleteContent,
+  generateThemeVariables,
+  getContents,
+  updateContent,
+} from '@/lib'
 import { useToast } from '@/components/ui/use-toast'
 import { ToastAction } from '@/components/ui/toast'
 import { Workspace } from '@/components/workspace/workspace'
@@ -8,26 +18,28 @@ import { Header } from '@/components/header/header'
 import { Preview } from '@/components/preview/preview'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
-import type { Content, ContentWithId, PreviewRef, Theme, ThemeContent } from '@/types/common'
-import { cn, getPreviewWidthClass, getThemeBaseClass } from '@/lib/utils'
-import { defaultTheme, defaultThemeColor } from '@/lib'
+import type { Content, ContentWithId, PreviewRef, ThemeContent } from '@/types'
+import { DEFAULT_TEMPLATE, DEFAULT_THEME } from '@/theme'
+import { CustomThemeContext } from '@/contexts/custom-theme-context'
+import { useThemeStore } from '@/store/use-theme-store'
 
 export default function Home() {
   const [contents, setContents] = useState<ContentWithId[]>([])
-  const [theme, setTheme] = useState<Theme>(defaultTheme)
-  const [themeColor, setThemeColor] = useState(defaultThemeColor.label)
+  const { templateName, setTemplateName, theme, setTheme, templateMap, themeMap } = useThemeStore()
+  const [cssVariables, setCssVariables] = useState({})
   const [tabValue, setTabValue] = useState('workspace')
   const { toast } = useToast()
   const previewRef = useRef<PreviewRef>(null)
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const currentTheme = (localStorage.getItem('currentTheme') || defaultTheme) as Theme
+      const currentTemplate = (localStorage.getItem(CACHE_KEY_TEMPLATE) || DEFAULT_TEMPLATE)
+      setTemplateName(currentTemplate)
+
+      const currentTheme = localStorage.getItem(CACHE_KEY_THEME) || DEFAULT_THEME.label
       setTheme(currentTheme)
-      const currentThemeColor = localStorage.getItem('currentThemeColor') || defaultThemeColor.label
-      setThemeColor(currentThemeColor)
     }
-  }, [])
+  }, [setTemplateName, setTheme])
 
   useEffect(() => {
     const fetchContents = async () => {
@@ -46,6 +58,15 @@ export default function Home() {
     fetchContents()
   }, [toast])
 
+  useEffect(() => {
+    const templateConfig = themeMap[templateName].find(item => item.label === theme)
+
+    if (templateConfig) {
+      const cssVariables = generateThemeVariables(templateConfig.theme!)
+      setCssVariables(cssVariables)
+    }
+  }, [theme, templateName, themeMap])
+
   async function handleThemeContentSubmit(themeContent: ThemeContent) {
     try {
       if ('id' in themeContent) {
@@ -62,9 +83,9 @@ export default function Home() {
         } as Content
         const id = await addContent(newContent)
         setContents(prevContents => [...prevContents, { ...newContent, id }])
+        setTemplateName(themeContent.template)
         setTheme(themeContent.theme)
-        setThemeColor(themeContent.themeColor)
-        window.localStorage.setItem('currentTheme', themeContent.theme)
+        window.localStorage.setItem('currentTemplate', themeContent.template)
       }
     } catch (error) {
       toast({
@@ -136,82 +157,53 @@ export default function Home() {
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <Header
-        contents={contents}
-        setContents={setContents}
-        previewRef={previewRef}
-        theme={theme}
-        setTheme={setTheme}
-        themeColor={themeColor}
-        setThemeColor={setThemeColor}
-        setTableValue={setTabValue}
-      />
-      <main className="h-[calc(100%-58px)]">
-        {/* desktop */}
-        <div className="hidden h-full sm:flex sm:flex-row">
-          <div
-            className={
-              cn(
-                'one w-full h-full mx-auto overflow-y-auto scroll-smooth',
-                getThemeBaseClass(theme),
-                theme,
-                themeColor,
-                getPreviewWidthClass(theme),
-              )
-            }>
-            <Preview ref={previewRef} contents={contents} className="w-full flex flex-col m-auto" />
-          </div>
-          <div className="h-full flex-grow flex items-start bg-card text-card-foreground overflow-y-auto">
-            <Workspace
-              contents={contents}
-              setContents={setContents}
-              onContentSubmit={handleContentSubmit}
-              onContentDelete={handleContentDelete}
-              onThemeContentSubmit={handleThemeContentSubmit}
-            />
-          </div>
-        </div>
-
-        {/* mobile phone */}
-        <Tabs
-          defaultValue="workspace"
-          activationMode="manual"
-          value={tabValue}
-          onValueChange={setTabValue}
-          className="h-full flex flex-col sm:hidden"
-        >
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="workspace">编辑器</TabsTrigger>
-            <TabsTrigger value="preview">预览</TabsTrigger>
-          </TabsList>
-          <TabsContent value="preview" forceMount className="data-[state=inactive]:hidden flex-grow flex-shrink overflow-y-auto mt-0">
-            <div
-              className={
-                cn(
-                  'one w-full scroll-smooth h-full mx-auto',
-                  getThemeBaseClass(theme),
-                  theme,
-                  themeColor,
-                  getPreviewWidthClass(theme),
-                )
-              }>
-              <Preview ref={previewRef} contents={contents} className="w-full flex flex-col m-auto" />
-            </div>
-          </TabsContent>
-          <TabsContent value="workspace" forceMount className="data-[state=inactive]:hidden overflow-auto">
-            <div className="h-full flex-grow flex justify-center items-start bg-card text-card-foreground">
-              <Workspace
-                contents={contents}
-                setContents={setContents}
-                onContentSubmit={handleContentSubmit}
-                onContentDelete={handleContentDelete}
-                onThemeContentSubmit={handleThemeContentSubmit}
-              />
-            </div>
-          </TabsContent>
-        </Tabs>
-      </main>
-    </div>
+    <CustomThemeContext.Provider value={{ theme, template: templateMap[templateName] }}>
+      <GlobalStyles styles={{ ':root': cssVariables }} />
+      <div className="flex flex-col h-full">
+        <Header
+          contents={contents}
+          setContents={setContents}
+          previewRef={previewRef}
+          templateName={templateName}
+          setTemplateName={setTemplateName}
+          theme={theme}
+          setTheme={setTheme}
+          setTableValue={setTabValue}
+        />
+        <main className="h-[calc(100%-58px)]">
+          <Tabs
+            defaultValue="workspace"
+            activationMode="manual"
+            value={tabValue}
+            onValueChange={setTabValue}
+            className="h-full flex flex-col sm:flex-row"
+          >
+            <TabsList className="grid w-full grid-cols-2 sm:hidden">
+              <TabsTrigger value="workspace">编辑器</TabsTrigger>
+              <TabsTrigger value="preview">预览</TabsTrigger>
+            </TabsList>
+            <TabsContent value="preview" forceMount className="data-[state=inactive]:hidden sm:!block flex-grow sm:flex-grow-0 flex-shrink sm:flex-shrink-0 overflow-y-auto mt-0">
+              <div
+                className={
+                  cn('one scroll-smooth h-full mx-auto w-[375px]')
+                }>
+                <Preview ref={previewRef} contents={contents} className="w-full flex flex-col m-auto" />
+              </div>
+            </TabsContent>
+            <TabsContent value="workspace" forceMount className="data-[state=inactive]:hidden sm:flex-grow sm:!block overflow-auto">
+              <div className="h-full flex-grow flex justify-center items-start bg-card text-card-foreground">
+                <Workspace
+                  contents={contents}
+                  setContents={setContents}
+                  onContentSubmit={handleContentSubmit}
+                  onContentDelete={handleContentDelete}
+                  onThemeContentSubmit={handleThemeContentSubmit}
+                />
+              </div>
+            </TabsContent>
+          </Tabs>
+        </main>
+      </div>
+    </CustomThemeContext.Provider>
   )
 }

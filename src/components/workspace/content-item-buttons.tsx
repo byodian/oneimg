@@ -2,7 +2,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@radix-ui/react-tooltip
 import { Pencil, Plus, Trash2 } from 'lucide-react'
 import React from 'react'
 import { TooltipProvider } from '../ui/tooltip'
-import type { ContentWithId } from '@/types/common'
+import type { ContentWithId } from '@/types'
 import { cn } from '@/lib'
 
 export interface ContentItemButtonsProps {

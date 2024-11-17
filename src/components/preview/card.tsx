@@ -1,22 +1,22 @@
 import DOMPurify from 'dompurify'
 import parse from 'html-react-parser'
-import { forwardRef, useMemo } from 'react'
+import { forwardRef, useContext, useMemo } from 'react'
 import { ImageList } from './image-list'
-import type { ContentWithId, ImageFile, ModuleClassNameMap } from '@/types'
-import { base64ToBlob, cn, stripEmptyParagraphs } from '@/lib/utils'
+import { baseTemplate, themeColorStyles } from './styles'
+import type { ContentWithId, ImageFile } from '@/types'
+import { base64ToBlob, cn, createStyleClassMap, stripEmptyParagraphs } from '@/lib'
+import { CustomThemeContext } from '@/contexts/custom-theme-context'
 
 interface PreviewItemProps {
   content: ContentWithId,
   children?: React.ReactNode,
   index: number,
   childContentsMap: Map<number, ContentWithId[]>,
-  templateClassNameMap: ModuleClassNameMap,
-  themeClassNameMap: ModuleClassNameMap,
 }
 
-const Card = forwardRef<HTMLDivElement, PreviewItemProps>(({ content, children, index, templateClassNameMap, themeClassNameMap, childContentsMap }, ref) => {
+const Card = forwardRef<HTMLDivElement, PreviewItemProps>(({ content, children, index, childContentsMap }, ref) => {
+  const theme = useContext(CustomThemeContext)
   const uploadFiles = content.uploadFiles
-
   const imageFiles: ImageFile[] = useMemo(() => {
     return uploadFiles?.map(file => ({
       uid: file.uid,
@@ -26,10 +26,15 @@ const Card = forwardRef<HTMLDivElement, PreviewItemProps>(({ content, children, 
     }))
   }, [uploadFiles]) || []
 
+  const templateClassNameMap = createStyleClassMap(theme.template, 'template', baseTemplate)
+  const themeClassNameMap = createStyleClassMap(themeColorStyles, 'theme')
+
+  // template
   const heroTemplate = templateClassNameMap.hero
   const mainTemplate = templateClassNameMap.main
   const subTemplate = templateClassNameMap.sub
 
+  // theme color
   const heroTheme = themeClassNameMap.hero
   const mainTheme = themeClassNameMap.main
   const subTheme = themeClassNameMap.sub
@@ -90,8 +95,6 @@ const Card = forwardRef<HTMLDivElement, PreviewItemProps>(({ content, children, 
                     content={item}
                     key={item.id}
                     index={index}
-                    templateClassNameMap={templateClassNameMap}
-                    themeClassNameMap={themeClassNameMap}
                     childContentsMap={childContentsMap}
                   />
                 ))}

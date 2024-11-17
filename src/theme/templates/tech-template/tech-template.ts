@@ -1,6 +1,6 @@
-import type { ArticleModuleTemplate } from '@/types/template'
+import type { ArticleModuleTemplate } from '@/types'
 
-export const techTemplateStyle: ArticleModuleTemplate = {
+export const techTemplate: ArticleModuleTemplate = {
   common: {
     container: {},
     title: {},
@@ -13,8 +13,8 @@ export const techTemplateStyle: ArticleModuleTemplate = {
       flexDirection: 'column',
       justifyContent: 'center',
       paddingLeft: '12px',
-      paddingRight: '12px',
       paddingTop: '13px',
+      paddingRight: '12px',
       paddingBottom: '13px',
       textAlign: 'center',
       backgroundSize: 'cover',

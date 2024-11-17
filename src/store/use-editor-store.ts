@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import type { EditorType } from '@/types/common'
+import type { EditorType } from '@/types'
+
 interface EditorStore {
   editorType: EditorType;
   editingContentId: number | null;
