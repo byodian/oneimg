@@ -37,6 +37,7 @@
     "@tiptap/extension-bold": "^2.6.4",
     "@tiptap/extension-bullet-list": "^2.6.4",
     "@tiptap/extension-code": "^2.8.0",
+    "@tiptap/extension-code-block": "^2.10.2",
     "@tiptap/extension-document": "^2.6.4",
     "@tiptap/extension-hard-break": "^2.8.0",
     "@tiptap/extension-history": "^2.7.2",

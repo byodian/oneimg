@@ -15,6 +15,7 @@ import HardBreak from '@tiptap/extension-hard-break'
 import HorizontalRule from '@tiptap/extension-horizontal-rule'
 import Blockquote from '@tiptap/extension-blockquote'
 import Code from '@tiptap/extension-code'
+import CodeBlock from '@tiptap/extension-code-block'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { forwardRef, useEffect, useImperativeHandle } from 'react'
 import { TrailingNode } from './tailing-node'
@@ -67,6 +68,7 @@ const EditorContainer = forwardRef<EditorMethods, EditorProps>(
         HorizontalRule,
         Blockquote,
         Code,
+        CodeBlock,
         Placeholder.configure({
           placeholder: contentPlaceholder || '正文',
         }),

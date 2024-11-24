@@ -64,10 +64,10 @@ export const simpleTemplate: ArticleModuleTemplate = {
         marginBottom: '8px',
       },
       '& :where(hr)': {
-        borderTopColor: 'var(--main-content-foreground)',
+        borderTopColor: 'var(--main-content-secondary-background)',
       },
       '& :where(blockquote)': {
-        borderLeftColor: 'var(--main-content-foreground)',
+        borderLeftColor: 'var(--main-content-secondary-background)',
       },
       '& :where(code):not(pre code)': {
         backgroundColor: 'var(--main-content-secondary-background)',
