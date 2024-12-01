@@ -104,6 +104,9 @@ export function ExportImageDialog({
               }
 
               setPreviewImages(images)
+
+              // eslint-disable-next-line no-alert
+              alert(`images.length ${images.length}`)
             }
           }
         } catch (error) {
@@ -223,7 +226,7 @@ export function ExportImageDialog({
             </div>
             <div className="mt-4 sm:mt-auto ml-auto">
               <Button onClick={exportImages} disabled={previewImages.length === 0 || isExporting}>
-                {previewImages.length === 0 || isExporting ? (
+                {isExporting ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 ) : (
                   <Download className="w-4 h-4 mr-2" />
