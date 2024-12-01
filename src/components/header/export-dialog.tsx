@@ -108,6 +108,8 @@ export function ExportImageDialog({
           }
         } catch (error) {
           console.log(error)
+          // eslint-disable-next-line no-alert
+          alert(error)
         } finally {
           setIsExporting(false)
         }
