@@ -58,7 +58,7 @@ export const techTemplate: ArticleModuleTemplate = {
       'padding': '10px 19px',
       'fontSize': '19px',
       'fontWeight': 'bold',
-      'lineHeight': '1.0',
+      'lineHeight': 1.2,
       'color': '#fff',
       'backgroundImage': 'linear-gradient(90deg, #3CA0FF 0%, #1D6DFF 100%)',
       'borderRadius': '10px',
@@ -75,6 +75,7 @@ export const techTemplate: ArticleModuleTemplate = {
       },
       'p': {
         marginRight: '45px',
+        lineHeight: 'inherit',
       },
     },
     content: {

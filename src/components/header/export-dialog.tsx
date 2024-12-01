@@ -219,7 +219,7 @@ export function ExportImageDialog({
             </div>
             <div className="mt-4 sm:mt-auto ml-auto">
               <Button onClick={exportImages} disabled={previewImages.length === 0 || isExporting}>
-                {isExporting ? (
+                {previewImages.length === 0 || isExporting ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 ) : (
                   <Download className="w-4 h-4 mr-2" />
