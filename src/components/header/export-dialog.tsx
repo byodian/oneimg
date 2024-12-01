@@ -65,6 +65,8 @@ export function ExportImageDialog({
       scale: Number(scale),
     } as ExportOption
 
+    setPreviewImages([])
+
     const generateImages = async () => {
       if (previewRef.current) {
         const images: ExportImage[] = []
@@ -189,7 +191,7 @@ export function ExportImageDialog({
                 <Button
                   variant="ghost"
                   data-scale="1"
-                  disabled={isExporting}
+                  disabled={previewImages.length === 0 || isExporting}
                   className={cn('h-6 px-2.5 py-0.5 hover:bg-transparent hover:text-primary', scale === '1' && 'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground')}
                   onClick={onScaleChange}
                 >
@@ -198,7 +200,7 @@ export function ExportImageDialog({
                 <Button
                   variant="ghost"
                   data-scale="2"
-                  disabled={isExporting}
+                  disabled={previewImages.length === 0 || isExporting}
                   className={cn('h-6 px-2.5 py-0.5 hover:bg-transparent hover:text-primary', scale === '2' && 'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground')}
                   onClick={onScaleChange}
                 >
@@ -207,7 +209,7 @@ export function ExportImageDialog({
                 <Button
                   variant="ghost"
                   data-scale="3"
-                  disabled={isExporting}
+                  disabled={previewImages.length === 0 || isExporting}
                   className={cn('h-6 px-2.5 py-0.5 hover:bg-transparent hover:text-primary', scale === '3' && 'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground')}
                   onClick={onScaleChange}
                 >
@@ -216,7 +218,7 @@ export function ExportImageDialog({
               </div>
             </div>
             <div className="mt-4 sm:mt-auto ml-auto">
-              <Button onClick={exportImages} disabled={isExporting}>
+              <Button onClick={exportImages} disabled={previewImages.length === 0 || isExporting}>
                 {isExporting ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 ) : (

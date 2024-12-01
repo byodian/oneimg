@@ -1,2 +1,2 @@
 export * from './tech-template'
-export * from './tech-colors'
+export * from './tech-color-variables'

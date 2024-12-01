@@ -24,6 +24,12 @@ export interface ThemeConfigProperty {
   background?: string;
   foreground?: string;
   backgroundImage?: string;
+  backgroundEven?: string;
+  backgroundOdd?: string;
+  backgroundPrimary?: string;
+  backgroundSecondary?: string;
+  foregroundPrimary?: string;
+  foregroundSecondary?: string;
 }
 
 export interface ThemeConfig {

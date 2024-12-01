@@ -16,13 +16,19 @@ export const simpleTemplate: ArticleModuleTemplate = {
       padding: '45px 36px',
       textAlign: 'center',
       lineHeight: 1.2,
+      color: 'var(--hero-container-foreground)',
+      backgroundColor: 'var(--hero-container-background)',
     },
     title: {
       marginBottom: '14px',
       fontWeight: 700,
       fontSize: '34px',
+      color: 'var(--hero-title-foreground)',
+      backgroundColor: 'var(--hero-title-background)',
     },
     content: {
+      'color': 'var(--hero-content-foreground)',
+      'backgroundColor': 'var(--hero-content-background)',
       'fontSize': '19px',
       ':where(p)': {
         marginTop: '18px',
@@ -52,8 +58,11 @@ export const simpleTemplate: ArticleModuleTemplate = {
       fontSize: '30px',
       fontWeight: 700,
       lineHeight: 1.2,
+      color: 'var(--main-title-foreground)',
     },
     content: {
+      'color': 'var(--main-content-foreground)',
+      'backgroundColor': 'var(--main-content-background)',
       'fontSize': '15px',
       '& :where(p)': {
         marginTop: '8px',
@@ -81,7 +90,10 @@ export const simpleTemplate: ArticleModuleTemplate = {
       lineHeight: 1.2,
       fontWeight: 700,
       fontSize: '20px',
+      color: 'var(--sub-title-foreground)',
     },
-    content: {},
+    content: {
+      color: 'var(--sub-content-foreground)',
+    },
   },
 }

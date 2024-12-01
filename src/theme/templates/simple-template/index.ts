@@ -1,2 +1,2 @@
 export * from './simple-template'
-export * from './simple-colors'
+export * from './simple-color-variables'

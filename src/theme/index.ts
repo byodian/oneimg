@@ -1,4 +1,8 @@
 import {
+  cartoonGreen,
+  cartoonPurple,
+  cartoonTemplate,
+  cartoonYellow,
   simpleSnowBlack,
   simpleSnowWhite,
   simpleTemplate,
@@ -12,6 +16,7 @@ import type { ArticleModuleTemplate, ThemeColorItem } from '@/types'
 export const DEFAULT_TEMPLATES = [
   { label: '简约科技风格', value: 'wechat-post-1', disabled: false, template: techTemplate },
   { label: '黑白苹果风格', value: 'apple-style', disabled: false, template: simpleTemplate },
+  { label: '卡通风格', value: 'cartoon-style', disabled: false, template: cartoonTemplate },
   { label: '更多模版尽情期待', value: 'post-more', disabled: true, template: null },
 ] as const
 
@@ -32,6 +37,11 @@ export const DEFAULT_THEME_COLOR_MAP: Record<string, ThemeColorItem[]> = {
   'apple-style': [
     { value: '#ddd', label: 'snow_white', theme: simpleSnowWhite },
     { value: '#000', label: 'midnight_black', theme: simpleSnowBlack },
+  ],
+  'cartoon-style': [
+    { value: '#b38aef', label: 'purple', theme: cartoonPurple },
+    { value: '#cdea9c', label: 'green', theme: cartoonGreen },
+    { value: '#ffe97f', label: 'yellow', theme: cartoonYellow },
   ],
   'default': [
     { value: '#4383ec', label: 'tech_blue', theme: techBlue },

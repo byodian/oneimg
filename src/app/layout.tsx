@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Noto_Sans_SC } from 'next/font/google'
+import { Noto_Sans_SC, ZCOOL_KuaiLe } from 'next/font/google'
 import '@/app/globals.css'
 import { headers } from 'next/headers'
 import { NextAppDirEmotionCacheProvider } from 'tss-react/next/appDir'
@@ -9,6 +9,12 @@ import { Toaster } from '@/components/ui/toaster'
 const notoSansSc = Noto_Sans_SC({
   subsets: ['latin'],
   variable: '--font-noto-sans-sc',
+})
+
+const zCoolKuaiLe = ZCOOL_KuaiLe({
+  subsets: ['latin'],
+  variable: '--font-zcool-kuailve',
+  weight: '400',
 })
 
 export const viewport: Viewport = {
@@ -66,7 +72,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="h-full break-words overflow-hidden" data-platform={getPlatform()}>
-      <body className={cn('h-full overflow-hidden antialiased', notoSansSc.variable)}>
+      <body className={cn('h-full overflow-hidden antialiased', notoSansSc.variable, zCoolKuaiLe.variable)}>
         <NextAppDirEmotionCacheProvider options={{ key: 'tss' }}>
           {children}
           <Toaster />

@@ -17,10 +17,11 @@ export const techTemplate: ArticleModuleTemplate = {
       paddingRight: '12px',
       paddingBottom: '13px',
       textAlign: 'center',
+      color: 'var(--hero-container-foreground)',
       backgroundSize: 'cover',
       backgroundRepeat: 'no-repeat',
-      backgroundColor: '#ccedff',
-      backgroundImage: 'url(/images/them-bg-tech-blue.png)',
+      backgroundColor: 'var(--hero-container-background)',
+      backgroundImage: 'var(--hero-container-background-image)',
     },
     title: {
       position: 'relative',
@@ -29,23 +30,27 @@ export const techTemplate: ArticleModuleTemplate = {
       marginBottom: '5px',
       fontWeight: 'bold',
       fontSize: '30px',
-      color: '#333',
       textAlign: 'center',
+      color: 'var(--hero-title-foreground)',
+      backgroundColor: 'var(--hero-title-background)',
     },
     content: {
       position: 'relative',
       zIndex: 2,
       fontSize: '18px',
+      color: 'var(--hero-content-foreground)',
+      backgroundColor: 'var(--hero-content-background)',
     },
 
   },
   main: {
     container: {
-      backgroundColor: '#ccedff',
       paddingLeft: '12px',
       paddingRight: '12px',
       paddingTop: '13px',
       paddingBottom: '13px',
+      backgroundColor: 'var(--main-container-background)',
+      color: 'var(--main-container-foreground)',
     },
     title: {
       'position': 'relative',
@@ -65,7 +70,8 @@ export const techTemplate: ArticleModuleTemplate = {
         transform: 'translateY(-50%)',
         display: 'inline-block',
         marginLeft: '5px',
-        color: 'rgb(255 255 255 / 0.2)',
+        color: 'var(--main-title-foreground)',
+        backgroundColor: 'var(--main-title-background)',
       },
       'p': {
         marginRight: '45px',
@@ -77,7 +83,7 @@ export const techTemplate: ArticleModuleTemplate = {
       borderRadius: '12px',
       fontSize: '15px',
       backgroundColor: 'rgb(255 255 255 / 0.7)',
-      color: '#333',
+      color: 'var(--main-content-foreground)',
     },
   },
   sub: {
@@ -92,8 +98,8 @@ export const techTemplate: ArticleModuleTemplate = {
       fontWeight: 'bold',
       padding: '8px 20px',
       fontSize: '17px',
-      backgroundImage: 'linear-gradient(90deg, #3CA0FF 0%, #1D6DFF 100%)',
-      color: '#fff',
+      color: 'var(--sub-title-foreground)',
+      backgroundImage: 'var(--sub-title-background-image)',
       p: {
         lineHeight: 'inherit',
         margin: 0,

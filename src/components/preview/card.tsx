@@ -2,7 +2,7 @@ import DOMPurify from 'dompurify'
 import parse from 'html-react-parser'
 import { forwardRef, useContext, useMemo } from 'react'
 import { ImageList } from './image-list'
-import { baseTemplate, themeColorStyles } from './styles'
+import { baseTemplate } from './styles'
 import type { ContentWithId, ImageFile } from '@/types'
 import { base64ToBlob, cn, createStyleClassMap, stripEmptyParagraphs } from '@/lib'
 import { CustomThemeContext } from '@/contexts/custom-theme-context'
@@ -27,17 +27,11 @@ const Card = forwardRef<HTMLDivElement, PreviewItemProps>(({ content, children, 
   }, [uploadFiles]) || []
 
   const templateClassNameMap = createStyleClassMap(theme.template, 'template', baseTemplate)
-  const themeClassNameMap = createStyleClassMap(themeColorStyles, 'theme')
 
   // template
   const heroTemplate = templateClassNameMap.hero
   const mainTemplate = templateClassNameMap.main
   const subTemplate = templateClassNameMap.sub
-
-  // theme color
-  const heroTheme = themeClassNameMap.hero
-  const mainTheme = themeClassNameMap.main
-  const subTheme = themeClassNameMap.sub
 
   return (
     <div
@@ -45,10 +39,10 @@ const Card = forwardRef<HTMLDivElement, PreviewItemProps>(({ content, children, 
       className={cn(
         templateClassNameMap.common.container,
         content.parentId
-          ? `${subTemplate.container} ${subTheme.container}`
+          ? `${subTemplate.container}`
           : content.type === 'theme_content'
-            ? `${heroTemplate.container} ${heroTheme.container}`
-            : `${mainTemplate.container} ${mainTheme.container}`,
+            ? `${heroTemplate.container}`
+            : `${mainTemplate.container}`,
       )}
       ref={ref}
     >
@@ -57,10 +51,10 @@ const Card = forwardRef<HTMLDivElement, PreviewItemProps>(({ content, children, 
         <div
           className={
             cn(content.parentId
-              ? `${subTemplate.title} ${subTheme.title}`
+              ? `${subTemplate.title}`
               : content.type === 'theme_content'
-                ? `${heroTemplate.title} ${heroTheme.title}`
-                : `${mainTemplate.title} ${mainTheme.title}`,
+                ? `${heroTemplate.title}`
+                : `${mainTemplate.title}`,
             )
           }
           data-index={index}
@@ -75,10 +69,10 @@ const Card = forwardRef<HTMLDivElement, PreviewItemProps>(({ content, children, 
             className={
               cn(templateClassNameMap.common.content,
                 content.parentId
-                  ? `${subTemplate.content} ${subTheme.content}`
+                  ? `${subTemplate.content}`
                   : content.type === 'theme_content'
-                    ? `${heroTemplate.content} ${heroTheme.content}`
-                    : `${mainTemplate.content} ${mainTheme.content}`,
+                    ? `${heroTemplate.content}`
+                    : `${mainTemplate.content}`,
               )
             }
           >
