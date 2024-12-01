@@ -67,6 +67,7 @@ export function ExportImageDialog({
 
     setPreviewImages([])
 
+    alert(`scale: ${scale}`)
     const generateImages = async () => {
       if (previewRef.current) {
         const images: ExportImage[] = []
@@ -77,11 +78,14 @@ export function ExportImageDialog({
           for (const content of data) {
             dataMap.set(content.id, content.title)
           }
+          alert(`dataMap.size: ${dataMap.size}`)
 
           // 导出整个 Preview
           let index = 1
+          alert(`previewRef.current.containerRef.current: ${previewRef.current.containerRef.current}`)
           if (previewRef.current.containerRef.current) {
             const fullPreviewBlobObject = await exportImage(previewRef.current.containerRef.current!, `${index}_full_preview.png`, exportOption)
+            alert(fullPreviewBlobObject.id)
 
             if (fullPreviewBlobObject && fullPreviewBlobObject.data) {
               images.push(fullPreviewBlobObject)
@@ -90,10 +94,13 @@ export function ExportImageDialog({
 
             // 导出每个顶层 PreviewItem
             const itemRefs = previewRef.current.itemRefs.current
+            alert(`itemRefs: ${itemRefs}`)
             if (itemRefs) {
               for (const [id, ref] of Object.entries(itemRefs)) {
                 if (ref) {
                   const cardPreviewBlobObject = await exportImage(ref, `${index}_${removeHtmlTags(dataMap.get(Number(id)))}.png`, exportOption)
+
+                  alert(`cardPreviewBlobObject: ${cardPreviewBlobObject.id}`)
 
                   if (cardPreviewBlobObject && cardPreviewBlobObject.data) {
                     images.push(cardPreviewBlobObject)
@@ -115,6 +122,7 @@ export function ExportImageDialog({
           alert(error)
         } finally {
           setIsExporting(false)
+          alert(`images.length ${images.length}`)
         }
       }
     }
