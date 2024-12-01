@@ -19,7 +19,7 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from '@/components/ui/carousel'
-import { cn, removeHtmlTags } from '@/lib/utils'
+import { cn /* removeHtmlTags */ } from '@/lib/utils'
 import { getContents } from '@/lib/indexed-db'
 
 interface ExportImageProps {
@@ -61,16 +61,16 @@ export function ExportImageDialog({
 
   // Listen for changes in export options and regenerate images if options are updated
   useEffect(() => {
+    console.log(124)
     const exportOption = {
       scale: Number(scale),
     } as ExportOption
 
-    setPreviewImages([])
-
-    alert(`scale: ${scale}`)
     const generateImages = async () => {
+      console.log('previewRef.current', previewRef)
       if (previewRef.current) {
         const images: ExportImage[] = []
+        console.log('previewRef.current', previewRef.current)
 
         try {
           const data = await getContents()
@@ -78,14 +78,14 @@ export function ExportImageDialog({
           for (const content of data) {
             dataMap.set(content.id, content.title)
           }
-          alert(`dataMap.size: ${dataMap.size}`)
 
           // 导出整个 Preview
           let index = 1
-          alert(`previewRef.current.containerRef.current: ${previewRef.current.containerRef.current}`)
+          console.log('previewRef.current.containerRef.current', previewRef.current.containerRef.current)
           if (previewRef.current.containerRef.current) {
             const fullPreviewBlobObject = await exportImage(previewRef.current.containerRef.current!, `${index}_full_preview.png`, exportOption)
-            alert(fullPreviewBlobObject.id)
+
+            console.log('fullPreviewBlobObject', fullPreviewBlobObject)
 
             if (fullPreviewBlobObject && fullPreviewBlobObject.data) {
               images.push(fullPreviewBlobObject)
@@ -93,37 +93,28 @@ export function ExportImageDialog({
             index = index + 1
 
             // 导出每个顶层 PreviewItem
-            const itemRefs = previewRef.current.itemRefs.current
-            alert(`itemRefs: ${itemRefs}`)
-            if (itemRefs) {
-              for (const [id, ref] of Object.entries(itemRefs)) {
-                if (ref) {
-                  const cardPreviewBlobObject = await exportImage(ref, `${index}_${removeHtmlTags(dataMap.get(Number(id)))}.png`, exportOption)
+            // const itemRefs = previewRef.current.itemRefs.current
+            // if (itemRefs) {
+            //   for (const [id, ref] of Object.entries(itemRefs)) {
+            //     if (ref) {
+            //       const cardPreviewBlobObject = await exportImage(ref, `${index}_${removeHtmlTags(dataMap.get(Number(id)))}.png`, exportOption)
+            //
+            //       if (cardPreviewBlobObject && cardPreviewBlobObject.data) {
+            //         images.push(cardPreviewBlobObject)
+            //       }
+            //
+            //       index++
+            //     }
+            //   }
 
-                  alert(`cardPreviewBlobObject: ${cardPreviewBlobObject.id}`)
-
-                  if (cardPreviewBlobObject && cardPreviewBlobObject.data) {
-                    images.push(cardPreviewBlobObject)
-                  }
-
-                  index++
-                }
-              }
-
-              setPreviewImages(images)
-
-              // eslint-disable-next-line no-alert
-              alert(`images.length ${images.length}`)
-            }
+            // }
+            setPreviewImages(images)
           }
         } catch (error) {
+          console.log('error')
           console.log(error)
-          // eslint-disable-next-line no-alert
-          alert('error')
-          alert(error)
         } finally {
           setIsExporting(false)
-          alert(`images.length ${images.length}`)
         }
       }
     }
@@ -173,7 +164,7 @@ export function ExportImageDialog({
           <div className="sm:w-[480px] px-12 border rounded-lg">
             <Carousel setApi={setApi} className="w-full py-2 px-4 h-[500px] sm:h-[300px]">
               <CarouselContent>
-                {previewImages.length > 0 && !isExporting ? previewImages.map(item => (
+                {previewImages.length > 0 ? previewImages.map(item => (
                   <CarouselItem key={item.id} className="h-[500px] sm:h-[300px]">
                     <Image
                       src={item.data ? URL.createObjectURL(item.data) : ''}
@@ -207,7 +198,7 @@ export function ExportImageDialog({
                 <Button
                   variant="ghost"
                   data-scale="1"
-                  disabled={previewImages.length === 0 || isExporting}
+                  // disabled={previewImages.length === 0 || isExporting}
                   className={cn('h-6 px-2.5 py-0.5 hover:bg-transparent hover:text-primary', scale === '1' && 'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground')}
                   onClick={onScaleChange}
                 >
@@ -216,7 +207,7 @@ export function ExportImageDialog({
                 <Button
                   variant="ghost"
                   data-scale="2"
-                  disabled={previewImages.length === 0 || isExporting}
+                  // disabled={previewImages.length === 0 || isExporting}
                   className={cn('h-6 px-2.5 py-0.5 hover:bg-transparent hover:text-primary', scale === '2' && 'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground')}
                   onClick={onScaleChange}
                 >
@@ -225,7 +216,7 @@ export function ExportImageDialog({
                 <Button
                   variant="ghost"
                   data-scale="3"
-                  disabled={previewImages.length === 0 || isExporting}
+                  // disabled={previewImages.length === 0 || isExporting}
                   className={cn('h-6 px-2.5 py-0.5 hover:bg-transparent hover:text-primary', scale === '3' && 'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground')}
                   onClick={onScaleChange}
                 >

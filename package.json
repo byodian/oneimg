@@ -54,6 +54,7 @@
     "clsx": "^2.1.1",
     "dompurify": "^3.1.6",
     "embla-carousel-react": "^8.2.0",
+    "eruda": "^3.4.1",
     "exifreader": "^4.23.3",
     "file-saver": "^2.0.5",
     "html-react-parser": "^5.1.12",

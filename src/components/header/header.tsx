@@ -81,8 +81,8 @@ export function Header(props: HeaderProps) {
   const [isOpenFile, setIsOpenFile] = useState(false)
   const [imageDialogOpen, setImageDialogOpen] = useState(false)
   const [dialogType, setDialogType] = useState<DialogType>('save_file')
-  const [isExporting, setIsExporting] = useState(true)
-  const [scale, setScale] = useState('3')
+  const [isExporting, setIsExporting] = useState(false)
+  const [scale, setScale] = useState('1')
   const platform = usePlatform()
   const { contents, setContents, previewRef, templateName, theme, setTemplateName, setTheme, setTableValue, sizeName, setSizeName, setSize } = props
   const { toast } = useToast()
@@ -266,6 +266,7 @@ export function Header(props: HeaderProps) {
     setScale('3')
     // open preview
     setTableValue && setTableValue('preview')
+    console.log('handleImageExportDialogOpen')
   }
 
   return (

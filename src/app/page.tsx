@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import { GlobalStyles } from 'tss-react'
+import Script from 'next/script'
 import {
   CACHE_KEY_TEMPLATE,
   CACHE_KEY_THEME,
@@ -22,6 +23,8 @@ import type { Content, ContentWithId, PreviewRef, ThemeContent } from '@/types'
 import { DEFAULT_TEMPLATE, DEFAULT_THEME } from '@/theme'
 import { CustomThemeContext } from '@/contexts/custom-theme-context'
 import { useThemeStore } from '@/store/use-theme-store'
+
+declare let eruda: any
 
 export default function Home() {
   const [contents, setContents] = useState<ContentWithId[]>([])
@@ -53,6 +56,7 @@ export default function Home() {
   }, [setTemplateName, setTheme])
 
   useEffect(() => {
+    console.log('contents loading')
     const fetchContents = async () => {
       try {
         const data = await getContents()
@@ -70,6 +74,7 @@ export default function Home() {
   }, [toast])
 
   useEffect(() => {
+    console.log('cssVariables', theme)
     const templateConfig = themeMap[templateName].find(item => item.label === theme)
 
     if (templateConfig) {
@@ -169,6 +174,12 @@ export default function Home() {
 
   return (
     <CustomThemeContext.Provider value={{ theme, template: templateMap[templateName] }}>
+      <Script src="https://cdn.jsdelivr.net/npm/eruda"
+        onLoad={() => {
+          if (typeof eruda !== 'undefined') {
+            eruda.init()
+          }
+        }}></Script>
       <GlobalStyles styles={{ ':root': cssVariables }} />
       <div className="flex flex-col h-full">
         <Header
