@@ -1,4 +1,4 @@
-import html2canvas from 'html2canvas-pro'
+import html2canvas from 'html2canvas'
 import { toBlob } from 'html-to-image'
 import UPNG from '@pdf-lib/upng'
 import ExifReader from 'exifreader'
