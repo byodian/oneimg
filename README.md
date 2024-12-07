@@ -18,6 +18,8 @@
 
 https://github.com/user-attachments/assets/d12a1009-a27a-4dae-a2e5-727f3b982e3b
 
+[如何自定义自己的模版和主题](./docs/how-to-custom-template.md)
+
 ## 特性
 - 快速文字转图片，大幅提高内容创作效率
 - 内置多种模版和主题色，**更多模版还在开发中**
