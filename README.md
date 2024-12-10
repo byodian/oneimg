@@ -46,6 +46,33 @@ pnpm install
 # 启动项目
 pnpm dev
 ```
+
+## Docker 快速部署
+
+你可以直接使用我已经构建好的镜像来运行
+```sh
+docker run -d -t -p 3000:3000 \
+--name=oneimg \
+--restart=always \
+swr.ap-southeast-1.myhuaweicloud.com/wenyang0/oneimg:latest
+
+```
+
+或者，如果您愿意，也可以自己手动编译。
+
+```sh
+#下载代码
+git clone https://github.com/byodian/oneimg.git
+
+#docker 编译
+cd oneimg/
+docker build -t oneimg:v1 -f Dockerfile.yaml .
+
+#启动服务
+docker run -d -t -p 3000:3000 --name oneimg --restart=always oneimg:v1
+```
+最后,打开你的浏览器访问服务的地址 http://serverIP:3000 即可
+
 ## 使用方法
 1. 打开应用后，首先创建主题
 2. 选择预设的 CSS 样式模板
