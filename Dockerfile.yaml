@@ -1,5 +1,5 @@
-# Use node as the builder image
-FROM swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/guergeiro/pnpm:18-9
+# Use node as the base image
+FROM node:alpine
 
 # Maintainer information
 MAINTAINER tanwenyang@aliyun.com
@@ -12,6 +12,9 @@ COPY . /app
 
 # Change the working directory to /app
 WORKDIR /app
+
+#Install pnpm
+RUN npm install -g pnpm --registry=https://registry.npmmirror.com/
 
 # Building the html code
 RUN pnpm install --registry=https://registry.npmmirror.com/ && pnpm run build
