@@ -14,7 +14,7 @@ COPY . /app
 WORKDIR /app
 
 # Building the html code
-RUN pnpm install --registry=https://registry.npmmirror.com/
+RUN pnpm install --registry=https://registry.npmmirror.com/ && pnpm run build
 
 #Start server
-CMD pnpm dev -H 0.0.0.0
+CMD pnpm run start  -H 0.0.0.0
