@@ -34,7 +34,7 @@ https://github.com/user-attachments/assets/d12a1009-a27a-4dae-a2e5-727f3b982e3b
 
 ## 技术栈
 - **前端**： Next.js、tiptap 编辑器、tailwindcss、shadcn/ui
-- **图片处理**：html-to-image, UPNG
+- **图片处理**：html2canvas, UPNG
 - **数据库**：IndexedDB (本地存储)
 
 ## 快速开始
@@ -54,7 +54,7 @@ pnpm dev
 docker run -d -t -p 3000:3000 \
 --name=oneimg \
 --restart=always \
-swr.ap-southeast-1.myhuaweicloud.com/wenyang0/oneimg:latest
+bydian/oneimg:latest
 
 ```
 
@@ -66,12 +66,12 @@ git clone https://github.com/byodian/oneimg.git
 
 #docker 编译
 cd oneimg/
-docker build -t oneimg:v1 -f Dockerfile.yaml .
+docker build -t oneimg:v1 .
 
 #启动服务
 docker run -d -t -p 3000:3000 --name oneimg --restart=always oneimg:v1
 ```
-最后,打开你的浏览器访问服务的地址 http://serverIP:3000 即可
+最后，打开你的浏览器访问服务的地址 http://localhost:3000 即可
 
 ## 使用方法
 1. 打开应用后，首先创建主题
