@@ -117,9 +117,11 @@ export function ExportImageDialog({
     }
 
     if (previewRef.current && previewRef.current.itemRefs.current && previewRef.current.containerRef.current) {
-      generateImages()
+      if (isExportModalOpen) {
+        generateImages()
+      }
     }
-  }, [previewRef, scale, setIsExporting, isExporting])
+  }, [previewRef, scale, setIsExporting, isExporting, isExportModalOpen])
 
   const exportImages = useCallback(async () => {
     const zip = new JSZip()

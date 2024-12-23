@@ -81,11 +81,6 @@ export function Header(props: HeaderProps) {
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    // Regenerate images when the contents are updated
-    setIsExporting(true)
-  }, [contents])
-
-  useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'o' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault()
