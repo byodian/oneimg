@@ -62,6 +62,11 @@ export const techTemplate: ArticleModuleTemplate = {
       'color': '#fff',
       'backgroundImage': 'linear-gradient(90deg, #3CA0FF 0%, #1D6DFF 100%)',
       'borderRadius': '10px',
+
+      '& p': {
+        minHeight: '22.8px',
+      },
+
       '&::after': {
         content: '"NO." attr(data-index)',
         position: 'absolute',

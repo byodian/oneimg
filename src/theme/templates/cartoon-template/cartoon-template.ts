@@ -123,6 +123,12 @@ export const cartoonTemplate: ArticleModuleTemplate = {
       'backgroundColor': 'var(--main-title-background-secondary)',
       'zIndex': 1,
 
+      '& p': {
+        minHeight: '28px',
+        minWidth: '88px',
+        textAlign: 'center',
+      },
+
       '&::before': {
         content: '""',
         position: 'absolute',

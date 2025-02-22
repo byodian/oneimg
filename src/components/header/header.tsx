@@ -306,8 +306,23 @@ export function Header(props: HeaderProps) {
                 <BookOpen className="w-4 h-4 mr-2" />
                 <span>指南</span>
               </MenubarItem>
-              <MenubarItem asChild className="">
-                <a href="https://support.qq.com/product/673291" target="_blank" rel="noreferrer">
+              <Tooltip delayDuration={0}>
+                <TooltipTrigger className="w-full px-2 py-1.5 hidden sm:block">
+                  <div className="flex items-center text-sm">
+                    <MessageSquareMore className="w-4 h-4 mr-2" />
+                    <span>反馈建议</span>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="right" sideOffset={-50}>
+                  <div className="rounded-sm px-2 py-1.5 text-white bg-black text-sm">
+                    <p>您有任何问题或改进建议，</p>
+                    <p>可以发送电子邮件至 support@oneimgai.com</p>
+                    <p>或者添加微信 <span className="font-bold">byo952</span> 与我们取得联系。</p>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+              <MenubarItem asChild className="sm:hidden">
+                <a href="mailto:support@oneimgai.com?subject=改进建议或问题反馈&body=您好，%0A%0A我想反馈以下问题或提供一些改进建议： %0A%0A[请在这里描述您的问题或建议]%0A%0A系统信息%0A操作系统：%0A浏览器：%0A应用版本：%0A%0A谢谢！" target="_blank" rel="noreferrer">
                   <MessageSquareMore className="w-4 h-4 mr-2" />
                   <span>反馈建议</span>
                 </a>
@@ -398,13 +413,20 @@ export function Header(props: HeaderProps) {
           </MenubarMenu >
         </Menubar >
         <div className="flex flex-wrap gap-2 ml-auto">
-          <Button size="sm" asChild variant="ghost" className="py-2 px-2">
+          <Button size="sm" asChild variant="ghost" className="py-2 px-2 hidden md:flex gap-2">
             <a href="https://github.com/byodian/oneimg" target="_blank" rel="noreferrer">
-              <Image src="/images/github.svg" alt="github icon" className="w-6 h-6" width={24} height={24} />
+              <Image src="/images/github.svg" alt="github icon" className="w-4 h-4" width={24} height={24} />
+              <span>Github</span>
             </a>
           </Button>
-          <Button size="sm" onClick={handleImageExportDialogOpen}>
-            <ImageDown className="w-4 h-4 mr-2" />
+          <Button size="sm" asChild variant="ghost" className="py-2 px-2 gap-2">
+            <a href="/sponsor" rel="noreferrer">
+              <Image src="/images/coffee.svg" alt="github icon" className="w-4 h-4" width={24} height={24} />
+              <span>赞助</span>
+            </a>
+          </Button>
+          <Button size="sm" onClick={handleImageExportDialogOpen} className="hidden md:flex gap-2">
+            <ImageDown className="w-4 h-4" />
             <span>导出图片</span>
           </Button>
         </div>

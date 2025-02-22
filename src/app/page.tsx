@@ -190,8 +190,8 @@ export default function Home() {
                 <Preview ref={previewRef} contents={contents} className="w-full flex flex-col m-auto" />
               </div>
             </TabsContent>
-            <TabsContent value="workspace" forceMount className="data-[state=inactive]:hidden sm:flex-grow sm:!block overflow-auto">
-              <div className="h-full flex-grow flex justify-center items-start bg-card text-card-foreground">
+            <TabsContent value="workspace" forceMount className="data-[state=inactive]:hidden flex-grow sm:!block overflow-auto">
+              <div className={cn('min-h-full flex-grow flex justify-center bg-card text-card-foreground', contents.length > 0 && 'items-start')}>
                 <Workspace
                   contents={contents}
                   setContents={setContents}

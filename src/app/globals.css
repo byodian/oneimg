@@ -255,3 +255,14 @@ html[data-platform=windows] ::-webkit-scrollbar-thumb {
 html[data-platform=windows] ::-webkit-scrollbar-thumb:hover {
   background-color: var(--scrollbar-thumb-hover)
 }
+
+
+
+@layer base {
+  * {
+    @apply border-border outline-ring;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}

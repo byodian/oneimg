@@ -81,8 +81,8 @@ export function ContentItem(props: ContainerProps) {
             <GripVertical className="w-4 h-4" />
           </div>
 
-          {/* title content */}
-          <a href={`/#${item.id}`} className="relative border-b border-b-border py-4 hidden sm:block">
+          {/* 桌面端展示 */}
+          <a href={`/#${item.id}`} className="min-h-[61px] relative border-b border-b-border py-4 hidden sm:block">
             <div className="mr-28">{parse(DOMPurify.sanitize(item.title))}</div>
             <ContentItemButtons
               item={item}
@@ -92,8 +92,8 @@ export function ContentItem(props: ContainerProps) {
             />
           </a>
 
-          {/* buttons */}
-          <div className="relative border-b border-b-border py-4 sm:hidden" onClick={e => e.preventDefault()}>
+          {/* 移动端展示 */}
+          <div className="min-h-[61px] relative border-b border-b-border py-4 sm:hidden" onClick={e => e.preventDefault()}>
             <div className="mr-28 select-none">{parse(DOMPurify.sanitize(item.title))}</div>
             <ContentItemButtons
               item={item}
