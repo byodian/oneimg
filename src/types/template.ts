@@ -55,3 +55,8 @@ export type ThemeColorItem = {
   label: string;
   theme?: ThemeConfig;
 }
+
+export type Size = {
+  width: number;
+  height: number | 'auto';
+}

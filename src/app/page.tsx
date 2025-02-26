@@ -25,7 +25,18 @@ import { useThemeStore } from '@/store/use-theme-store'
 
 export default function Home() {
   const [contents, setContents] = useState<ContentWithId[]>([])
-  const { templateName, setTemplateName, theme, setTheme, templateMap, themeMap } = useThemeStore()
+  const {
+    templateName,
+    setTemplateName,
+    theme,
+    setTheme,
+    templateMap,
+    themeMap,
+    size,
+    setSize,
+    sizeName,
+    setSizeName,
+  } = useThemeStore()
   const [cssVariables, setCssVariables] = useState({})
   const [tabValue, setTabValue] = useState('workspace')
   const { toast } = useToast()
@@ -169,6 +180,9 @@ export default function Home() {
           theme={theme}
           setTheme={setTheme}
           setTableValue={setTabValue}
+          sizeName={sizeName}
+          setSize={setSize}
+          setSizeName={setSizeName}
         />
         <main className="h-[calc(100%-58px)]">
           <Tabs
@@ -183,10 +197,8 @@ export default function Home() {
               <TabsTrigger value="preview">预览</TabsTrigger>
             </TabsList>
             <TabsContent value="preview" forceMount className="data-[state=inactive]:hidden sm:!block flex-grow sm:flex-grow-0 flex-shrink sm:flex-shrink-0 overflow-y-auto mt-0">
-              <div
-                className={
-                  cn('one scroll-smooth h-full mx-auto w-[375px]')
-                }>
+              {/* 根据实际像素比，缩小3倍，保证正常预览。导出图片时放大三倍，可还原实际像素比 */}
+              <div style={{ width: `${size.width / 3}px` }} className={cn('one scroll-smooth h-full mx-auto w-[375px]')}>
                 <Preview ref={previewRef} contents={contents} className="w-full flex flex-col m-auto" />
               </div>
             </TabsContent>

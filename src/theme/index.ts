@@ -12,7 +12,7 @@ import {
   techTemplate,
   techVibrantOrange,
 } from './templates'
-import type { ArticleModuleTemplate, ThemeColorItem } from '@/types'
+import type { ArticleModuleTemplate, Size, ThemeColorItem } from '@/types'
 
 export const DEFAULT_TEMPLATES = [
   { label: '简约科技风格', value: 'wechat-post-1', disabled: false, template: techTemplate },
@@ -56,4 +56,20 @@ export const DEFAULT_TEMPLATE = 'apple-style'
 export const DEFAULT_THEME = {
   label: 'snow_white',
   value: '#ddd',
+}
+
+export const DEFAULT_SIZE_NAME = 'default'
+export const DEFAULT_SIZE_NAMES = [
+  { label: 'Instagramt 帖子', value: 'instagram_post', disabled: false, description: '1080 × 1350 px' },
+  { label: 'Twitter 帖子', value: 'twitter_post', disabled: false, description: '1600 × 900 px' },
+  { label: '小红书帖子', value: 'redbook_post', disabled: false, description: '1242 × 1660 px' },
+  { label: '微信长图', value: 'default', disabled: false, description: '' },
+  { label: '更多尺寸尽情期待', value: 'size-more', disabled: true, description: '' },
+] as const
+
+export const DEFAULT_SIZE_MAP: Record<string, Size> = {
+  redbook_post: { width: 1242, height: 1660 },
+  instagram_post: { width: 1080, height: 1350 },
+  twitter_post: { width: 1600, height: 900 },
+  default: { width: 1125, height: 'auto' },
 }

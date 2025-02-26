@@ -18,9 +18,11 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Logo } from '@/components/logo'
-import type { Content, ContentWithId, PreviewRef } from '@/types'
+import type { Content, ContentWithId, PreviewRef, Size } from '@/types'
 import type { ExportContent, ExportJSON } from '@/components/header/types'
 import {
+  CACHE_KEY_SIZE,
+  CACHE_KEY_SIZE_NAME,
   CACHE_KEY_TEMPLATE, CACHE_KEY_THEME,
   addAllContents,
   cn,
@@ -49,6 +51,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
+  DEFAULT_SIZE_MAP,
+  DEFAULT_SIZE_NAMES,
   DEFAULT_TEMPLATE,
   DEFAULT_TEMPLATES,
   DEFAULT_THEME,
@@ -58,10 +62,14 @@ import { usePlatform } from '@/hooks/use-platform'
 
 interface HeaderProps {
   contents: Content[];
-  setContents: (contents: ContentWithId[]) => void;
   previewRef: React.RefObject<PreviewRef>;
   templateName: string;
   theme: string;
+  size?: Size;
+  sizeName: string;
+  setSize: (size: Size) => void;
+  setSizeName: (sizeName: string) => void;
+  setContents: (contents: ContentWithId[]) => void;
   setTemplateName: (template: string) => void;
   setTheme: (color: string) => void
   setTableValue?: (tab: string) => void
@@ -76,7 +84,7 @@ export function Header(props: HeaderProps) {
   const [isExporting, setIsExporting] = useState(true)
   const [scale, setScale] = useState('3')
   const platform = usePlatform()
-  const { contents, setContents, previewRef, templateName, theme, setTemplateName, setTheme, setTableValue } = props
+  const { contents, setContents, previewRef, templateName, theme, setTemplateName, setTheme, setTableValue, sizeName, setSizeName, setSize } = props
   const { toast } = useToast()
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -390,7 +398,7 @@ export function Header(props: HeaderProps) {
                     </SelectGroup>
                   </SelectContent >
                 </Select >
-              </div >
+              </div>
               <div className="px-1.5 py-2 text-sm">
                 <div className="mb-2">模版色</div>
                 <div>
@@ -412,6 +420,29 @@ export function Header(props: HeaderProps) {
             </MenubarContent >
           </MenubarMenu >
         </Menubar >
+        <Select defaultValue="default" value={sizeName} onValueChange={(value: string) => {
+          const size = DEFAULT_SIZE_MAP[value]
+          setSizeName(value)
+          setSize(size)
+          localStorage.setItem(CACHE_KEY_SIZE, JSON.stringify(size))
+          localStorage.setItem(CACHE_KEY_SIZE_NAME, sizeName)
+        }}>
+          <SelectTrigger className="h-8 w-[146px]">
+            <SelectValue className="text-muted-foreground" placeholder="调整尺寸" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              {
+                DEFAULT_SIZE_NAMES.map(size => (
+                  <SelectItem key={size.value} value={size.value} disabled={size.disabled}>
+                    {size.label}
+                    {/* <p className="text-xs">{size.description}</p> */}
+                  </SelectItem>
+                ))
+              }
+            </SelectGroup>
+          </SelectContent >
+        </Select >
         <div className="flex flex-wrap gap-2 ml-auto">
           <Button size="sm" asChild variant="ghost" className="py-2 px-2 hidden md:flex gap-2">
             <a href="https://github.com/byodian/oneimg" target="_blank" rel="noreferrer">

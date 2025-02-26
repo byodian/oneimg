@@ -26,7 +26,7 @@ export const techTemplate: ArticleModuleTemplate = {
     title: {
       position: 'relative',
       zIndex: 1,
-      marginTop: '45px',
+      // marginTop: '45px',
       marginBottom: '5px',
       fontWeight: 'bold',
       fontSize: '30px',

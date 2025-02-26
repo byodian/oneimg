@@ -6,6 +6,7 @@ import { baseTemplate } from './styles'
 import type { ContentWithId, ImageFile } from '@/types'
 import { base64ToBlob, cn, createStyleClassMap, stripEmptyParagraphs } from '@/lib'
 import { CustomThemeContext } from '@/contexts/custom-theme-context'
+import { useThemeStore } from '@/store/use-theme-store'
 
 interface PreviewItemProps {
   content: ContentWithId,
@@ -32,12 +33,14 @@ const Card = forwardRef<HTMLDivElement, PreviewItemProps>(({ content, children, 
   const heroTemplate = templateClassNameMap.hero
   const mainTemplate = templateClassNameMap.main
   const subTemplate = templateClassNameMap.sub
+  const { size } = useThemeStore()
+  const height = typeof size.height === 'number' ? `${size.height / 3}px` : size.height
 
   return (
     <div
       id={`${content.id}`}
-      className={cn(
-        templateClassNameMap.common.container,
+      style={{ height: content.parentId ? 'auto' : height }}
+      className={cn(templateClassNameMap.common.container,
         content.parentId
           ? `${subTemplate.container}`
           : content.type === 'theme_content'
