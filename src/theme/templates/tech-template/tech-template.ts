@@ -45,6 +45,8 @@ export const techTemplate: ArticleModuleTemplate = {
   },
   main: {
     container: {
+      display: 'flex',
+      flexDirection: 'column',
       paddingLeft: '12px',
       paddingRight: '12px',
       paddingTop: '13px',
@@ -84,12 +86,14 @@ export const techTemplate: ArticleModuleTemplate = {
       },
     },
     content: {
+      flexGrow: 1,
       position: 'relative',
       padding: '12px 18px',
       borderRadius: '12px',
       fontSize: '15px',
       backgroundColor: 'rgb(255 255 255 / 0.7)',
       color: 'var(--main-content-foreground)',
+      overflow: 'hidden',
     },
   },
   sub: {

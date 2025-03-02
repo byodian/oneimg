@@ -81,8 +81,9 @@ export function ContentItem(props: ContainerProps) {
             <GripVertical className="w-4 h-4" />
           </div>
 
-          {/* 桌面端展示 */}
-          <a href={`/#${item.id}`} className="min-h-[61px] relative border-b border-b-border py-4 hidden sm:block">
+          {/* 桌面端展示，只允许一级标题可点击 */}
+          {!item.parentId
+            ? <a href={`/#${item.id}`} className="min-h-[61px] relative border-b border-b-border py-4 hidden sm:block">
             <div className="mr-28">{parse(DOMPurify.sanitize(item.title))}</div>
             <ContentItemButtons
               item={item}
@@ -91,6 +92,15 @@ export function ContentItem(props: ContainerProps) {
               onSubContentAdd={handleSubContentAdd}
             />
           </a>
+            : <div className="min-h-[61px] relative border-b border-b-border py-4" onClick={e => e.preventDefault()}>
+            <div className="mr-28 select-none">{parse(DOMPurify.sanitize(item.title))}</div>
+            <ContentItemButtons
+              item={item}
+              onContentEdit={handleContentEdit}
+              onDialogOpen={handleDialogOpen}
+              onSubContentAdd={handleSubContentAdd}
+            />
+          </div>}
 
           {/* 移动端展示 */}
           <div className="min-h-[61px] relative border-b border-b-border py-4 sm:hidden" onClick={e => e.preventDefault()}>

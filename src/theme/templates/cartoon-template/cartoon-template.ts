@@ -155,6 +155,7 @@ export const cartoonTemplate: ArticleModuleTemplate = {
       },
     },
     content: {
+      flexGrow: 1,
       width: '100%',
       paddingTop: '30px',
       paddingLeft: '16px',
@@ -164,6 +165,7 @@ export const cartoonTemplate: ArticleModuleTemplate = {
       borderRadius: '8px',
       border: '1px solid',
       backgroundColor: 'var(--main-content-background)',
+      overflow: 'hidden',
     },
   },
   sub: {

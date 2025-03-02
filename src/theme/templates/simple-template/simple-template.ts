@@ -44,6 +44,8 @@ export const simpleTemplate: ArticleModuleTemplate = {
   },
   main: {
     container: {
+      'display': 'flex',
+      'flexDirection': 'column',
       'padding': '45px 36px',
 
       '&:nth-of-type(2n)': {
@@ -61,6 +63,7 @@ export const simpleTemplate: ArticleModuleTemplate = {
       color: 'var(--main-title-foreground)',
     },
     content: {
+      'flexGrow': 1,
       'color': 'var(--main-content-foreground)',
       'backgroundColor': 'var(--main-content-background)',
       'fontSize': '15px',
@@ -82,6 +85,7 @@ export const simpleTemplate: ArticleModuleTemplate = {
         backgroundColor: 'var(--main-content-secondary-background)',
         color: 'var(--sub-container-foreground)',
       },
+      'overflow': 'hidden',
     },
   },
   sub: {
