@@ -54,7 +54,7 @@ pnpm dev
 docker run -d -t -p 3000:3000 \
 --name=oneimg \
 --restart=always \
-bydian/oneimg:latest
+byodian/oneimg:latest
 
 ```
 
