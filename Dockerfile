@@ -3,7 +3,7 @@ FROM node:20-alpine AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 WORKDIR /app
-RUN npm install -g pnpm
+RUN npm install -g pnpm@8.14.0
 
 # Production dependencies stage
 FROM base AS prod-deps

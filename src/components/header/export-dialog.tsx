@@ -19,7 +19,7 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from '@/components/ui/carousel'
-import { cn /* removeHtmlTags */ } from '@/lib/utils'
+import { cn, removeHtmlTags } from '@/lib/utils'
 import { getContents } from '@/lib/indexed-db'
 
 interface ExportImageProps {
@@ -61,7 +61,6 @@ export function ExportImageDialog({
 
   // Listen for changes in export options and regenerate images if options are updated
   useEffect(() => {
-    console.log(124)
     const exportOption = {
       scale: Number(scale),
     } as ExportOption
@@ -93,21 +92,23 @@ export function ExportImageDialog({
             index = index + 1
 
             // 导出每个顶层 PreviewItem
-            // const itemRefs = previewRef.current.itemRefs.current
-            // if (itemRefs) {
-            //   for (const [id, ref] of Object.entries(itemRefs)) {
-            //     if (ref) {
-            //       const cardPreviewBlobObject = await exportImage(ref, `${index}_${removeHtmlTags(dataMap.get(Number(id)))}.png`, exportOption)
-            //
-            //       if (cardPreviewBlobObject && cardPreviewBlobObject.data) {
-            //         images.push(cardPreviewBlobObject)
-            //       }
-            //
-            //       index++
-            //     }
-            //   }
+            const itemRefs = previewRef.current.itemRefs.current
+            console.log('itemRefs', itemRefs)
 
-            // }
+            if (itemRefs) {
+              for (const [id, ref] of Object.entries(itemRefs)) {
+                if (ref) {
+                  const cardPreviewBlobObject = await exportImage(ref, `${index}_${removeHtmlTags(dataMap.get(Number(id)))}.png`, exportOption)
+                  console.log('itemBlobObject', cardPreviewBlobObject)
+
+                  if (cardPreviewBlobObject && cardPreviewBlobObject.data) {
+                    images.push(cardPreviewBlobObject)
+                  }
+
+                  index++
+                }
+              }
+            }
             setPreviewImages(images)
           }
         } catch (error) {

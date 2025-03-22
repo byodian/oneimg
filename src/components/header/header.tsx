@@ -266,7 +266,7 @@ export function Header(props: HeaderProps) {
     setScale('3')
     // open preview
     setTableValue && setTableValue('preview')
-    console.log('handleImageExportDialogOpen')
+    console.log('Starting open ExportDialog')
   }
 
   return (
