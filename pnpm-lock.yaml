@@ -140,6 +140,9 @@ dependencies:
   html2canvas:
     specifier: ^1.4.1
     version: 1.4.1
+  html2canvas-pro:
+    specifier: ^1.5.8
+    version: 1.5.8
   jszip:
     specifier: ^3.10.1
     version: 3.10.1
@@ -5179,6 +5182,14 @@ packages:
       react: 18.3.1
       react-property: 2.0.2
       style-to-js: 1.1.12
+    dev: false
+
+  /html2canvas-pro@1.5.8:
+    resolution: {integrity: sha512-bVGAU7IvhBwBlRAmX6QhekX8lsaxmYoF6zIwf/HNlHscjx+KN8jw/U4PQRYqeEVm9+m13hcS1l5ChJB9/e29Lw==}
+    engines: {node: '>=16.0.0'}
+    dependencies:
+      css-line-break: 2.1.0
+      text-segmentation: 1.0.3
     dev: false
 
   /html2canvas@1.4.1:

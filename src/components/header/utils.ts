@@ -1,4 +1,4 @@
-import html2canvas from 'html2canvas'
+import html2canvas from 'html2canvas-pro'
 import UPNG from '@pdf-lib/upng'
 import type { ExportOption } from './types'
 
