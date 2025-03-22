@@ -1,4 +1,5 @@
-import html2canvas from 'html2canvas-pro'
+import html2canvas from 'html2canvas'
+import { toBlob } from 'html-to-image'
 import UPNG from '@pdf-lib/upng'
 import type { ExportOption } from './types'
 
@@ -29,8 +30,23 @@ export async function generateImage(element: HTMLElement, option: ExportOption):
   }
 }
 
+export async function generateImageByHtml2Image(element: HTMLElement, option: ExportOption): Promise<Blob> {
+  const height = element.offsetHeight
+  const width = element.offsetWidth
+  const blob = await toBlob(element, {
+    quality: 1,
+    canvasWidth: width * option.scale,
+    canvasHeight: height * option.scale,
+  }) as Blob
+
+  return new Promise((resolve) => {
+    resolve(blob)
+  })
+}
+
 export async function exportImage(element: HTMLElement, filename: string, exportOption: ExportOption) {
-  const imageBlob = await generateImage(element, exportOption)
+  // const imageBlob = await generateImage(element, exportOption)
+  const imageBlob = await generateImageByHtml2Image(element, exportOption)
   return {
     id: filename,
     data: imageBlob,
