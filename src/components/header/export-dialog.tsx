@@ -82,6 +82,7 @@ export function ExportImageDialog({
           let index = 1
           console.log('previewRef.current.containerRef.current', previewRef.current.containerRef.current)
           if (previewRef.current.containerRef.current) {
+            console.log('Starting generateImages')
             const fullPreviewBlobObject = await exportImage(previewRef.current.containerRef.current!, `${index}_full_preview.png`, exportOption)
 
             console.log('fullPreviewBlobObject', fullPreviewBlobObject)

@@ -3,24 +3,30 @@ import UPNG from '@pdf-lib/upng'
 import type { ExportOption } from './types'
 
 export async function generateImage(element: HTMLElement, option: ExportOption): Promise<Blob> {
-  const canvas = await html2canvas(element, {
-    scale: option.scale,
-    useCORS: true,
-    allowTaint: true,
-    logging: false,
-  })
+  try {
+    const canvas = await html2canvas(element, {
+      scale: option.scale,
+      useCORS: true,
+      allowTaint: true,
+      logging: false,
+    })
 
-  return new Promise((resolve) => {
-    canvas.toBlob((blob) => {
-      resolve(blob as Blob)
+    return new Promise((resolve) => {
+      canvas.toBlob((blob) => {
+        resolve(blob as Blob)
       // if (blob && option.embedText) {
       //   const modifiedBlob = await embedMetadata(blob, options.embedText)
       //   resolve(modifiedBlob)
       // } else {
       //   resolve(blob as Blob)
       // }
-    }, option.mimeType)
-  })
+      }, option.mimeType)
+    })
+  } catch (error) {
+    return new Promise((_resolve, reject) => {
+      reject(error)
+    })
+  }
 }
 
 export async function exportImage(element: HTMLElement, filename: string, exportOption: ExportOption) {
