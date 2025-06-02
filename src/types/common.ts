@@ -34,15 +34,6 @@ export type UploadFiles = UploadFile[]
 
 export type UploadStatus = 'ready' | 'success' | 'fail' | 'uploading'
 
-// export interface UploadFile {
-//   uid: number;
-//   name: string;
-//   size?: number;
-//   status?: UploadStatus;
-//   raw?: UploadRawFile;
-//   percent?: number;
-// }
-
 export interface UploadFile {
   uid: number;
   name: string;

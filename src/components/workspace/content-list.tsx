@@ -26,7 +26,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader } 
 import type { ContentListProps, ContentWithId } from '@/types'
 import { cn } from '@/lib'
 
-export default function ContentList(props: ContentListProps) {
+export default function ContentList(props: Readonly<ContentListProps>) {
   const { contents, setContents, onSubmit, onContentDelete } = props
   const [isOpen, setIsOpen] = useState(false)
   const [curContent, setCurContent] = useState<ContentWithId>({} as ContentWithId)

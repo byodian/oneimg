@@ -10,12 +10,12 @@ import { useThemeStore } from '@/store/use-theme-store'
 
 interface PreviewItemProps {
   content: ContentWithId,
-  children?: React.ReactNode,
+  // children?: React.ReactNode,
   index: number,
   childContentsMap: Map<number, ContentWithId[]>,
 }
 
-const Card = forwardRef<HTMLDivElement, PreviewItemProps>(({ content, children, index, childContentsMap }, ref) => {
+const Card = forwardRef<HTMLDivElement, PreviewItemProps>(({ content, index, childContentsMap }, ref) => {
   const theme = useContext(CustomThemeContext)
   const uploadFiles = content.uploadFiles
   const imageFiles: ImageFile[] = useMemo(() => {
@@ -67,7 +67,7 @@ const Card = forwardRef<HTMLDivElement, PreviewItemProps>(({ content, children, 
       )}
       {/* card content */}
       {
-        ((stripEmptyParagraphs(content.content)) || (imageFiles.length > 0) || children) && (
+        ((stripEmptyParagraphs(content.content)) || (imageFiles.length > 0) || childContentsMap.get(content.id)) && (
           <div
             className={
               cn(templateClassNameMap.common.content,
@@ -97,9 +97,7 @@ const Card = forwardRef<HTMLDivElement, PreviewItemProps>(({ content, children, 
                 ))}
               </>
             )}
-          </div>
-        )
-      }
+        </div>)}
     </div>
   )
 })

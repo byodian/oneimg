@@ -45,7 +45,12 @@ export function base64ToBlob(base64String: string, contentType: string) {
   // Split the base64 string and extract the actual base64 encoded part
   const base64 = base64String.split(',')[1]
 
-  const byteArray = Buffer.from(base64, 'base64')
+  const binaryString = atob(base64)
+  const len = binaryString.length
+  const byteArray = new Uint8Array(len)
+  for (let i = 0; i < len; i++) {
+    byteArray[i] = binaryString.charCodeAt(i)
+  }
   return new Blob([byteArray], { type: contentType })
 }
 
@@ -62,7 +67,7 @@ export function arrayBufferToBase64(arrayBuffer: ArrayBuffer) {
 // }
 
 export function getMimeType(base64String: string) {
-  if (base64String.slice(0, 5) === 'data:') {
+  if (base64String.startsWith('data:')) {
     const mimeTypeEnd = base64String.indexOf(';base64,')
     if (mimeTypeEnd !== -1) {
       return base64String.slice(5, mimeTypeEnd)

@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { GlobalStyles } from 'tss-react'
 import {
   CACHE_KEY_TEMPLATE,
@@ -44,10 +44,10 @@ export default function Home() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const currentTemplate = (localStorage.getItem(CACHE_KEY_TEMPLATE) || DEFAULT_TEMPLATE)
+      const currentTemplate = (localStorage.getItem(CACHE_KEY_TEMPLATE) ?? DEFAULT_TEMPLATE)
       setTemplateName(currentTemplate)
 
-      const currentTheme = localStorage.getItem(CACHE_KEY_THEME) || DEFAULT_THEME.label
+      const currentTheme = localStorage.getItem(CACHE_KEY_THEME) ?? DEFAULT_THEME.label
       setTheme(currentTheme)
     }
   }, [setTemplateName, setTheme])
@@ -58,6 +58,7 @@ export default function Home() {
         const data = await getContents()
         setContents(data)
       } catch (error) {
+        console.log(`加载失败: ${error}`)
         toast({
           title: '加载失败',
           description: '请刷新后重试',
@@ -99,6 +100,7 @@ export default function Home() {
         window.localStorage.setItem('currentTemplate', themeContent.template)
       }
     } catch (error) {
+      console.log(`添加失败: ${error}`)
       toast({
         title: '添加失败',
         description: '请重试',
@@ -120,6 +122,7 @@ export default function Home() {
         setContents(prevContents => [...prevContents, { ...newContent, id }])
       }
     } catch (error) {
+      console.log(`添加失败: ${error}`)
       toast({
         title: '添加失败',
         description: '请重试',
@@ -129,14 +132,17 @@ export default function Home() {
 
   async function handleContentDelete(content: ContentWithId) {
     try {
+      // find all children contents
       const allDeletedContents = contents.filter(item => item.parentId === content.id)
+      // Add the content itself to the deleted contents
       allDeletedContents.push(content)
+
       const allDeletedContentIds = allDeletedContents.map(item => item.id)
       setContents(contents.filter(item => !allDeletedContentIds.includes(item.id)))
 
       // Iterate through all deleted contents and delete each one
-      for (const content of allDeletedContents) {
-        await deleteContent(content.id)
+      for (const id of allDeletedContentIds) {
+        await deleteContent(id)
       }
 
       toast({
@@ -146,6 +152,7 @@ export default function Home() {
         action: <ToastAction altText="undo" onClick={() => handeleContentsUndo(allDeletedContents)}>撤销</ToastAction>,
       })
     } catch (error) {
+      console.log(`删除失败: ${error}`)
       toast({
         title: '删除失败',
         description: '请重试',
@@ -154,12 +161,15 @@ export default function Home() {
   }
 
   async function handeleContentsUndo(deletedContents: Content[]) {
+    // Create a copy of the current contents
+    const originalContents = contents.map(item => ({ ...item }))
     try {
       for (const content of deletedContents) {
         await addContent(content)
       }
-      setContents(contents)
+      setContents(originalContents)
     } catch (error) {
+      console.log(`撤销失败${error}`)
       toast({
         title: '撤销失败',
         description: '',
@@ -167,8 +177,9 @@ export default function Home() {
     }
   }
 
+  const themeContextValue = useMemo(() => ({ theme, template: templateMap[templateName] }), [theme, templateName, templateMap])
   return (
-    <CustomThemeContext.Provider value={{ theme, template: templateMap[templateName] }}>
+    <CustomThemeContext.Provider value={themeContextValue}>
       <GlobalStyles styles={{ ':root': cssVariables }} />
       <div className="flex flex-col h-full">
         <Header

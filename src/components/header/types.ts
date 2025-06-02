@@ -4,6 +4,7 @@ export interface ExportOption {
   scale: number;
   embedText?: string;
   mimeType?: string;
+  platform?: 'mac' | 'windows' | 'linux' | 'android' | 'ios';
 }
 
 export interface ExportImage {

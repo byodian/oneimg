@@ -16,7 +16,7 @@ interface WorkspaceProps {
   onContentDelete: (content: ContentWithId) => Promise<void>;
 }
 
-export function Workspace(props: WorkspaceProps) {
+export function Workspace(props: Readonly<WorkspaceProps>) {
   const { contents, setContents, onContentSubmit, onContentDelete, onThemeContentSubmit } = props
   const { editorType, setEditorType, setEditingContentId } = useEditorStore()
   const [open, setOpen] = useState(false)

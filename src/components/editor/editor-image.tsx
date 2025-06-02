@@ -38,9 +38,9 @@ export default function EditorImage(props: EditorFooterProps) {
         {imageFiles.map(item =>
           <li key={item.uid || item.name} className="h-[120px] group flex items-center gap-2 relative">
             <Image src={item.dataUrl} alt={item.name} width={120} height={120} className="object-cover w-full h-full" />
-            <div className="flex items-center justify-center absolute right-1 top-1 w-4 h-4 bg-gray-700 rounded-full" onClick={() => handleRemove(item)}>
+            <button className="flex items-center justify-center absolute right-1 top-1 w-4 h-4 bg-gray-700 rounded-full" onClick={() => handleRemove(item)}>
               <X className="cursor-pointer text-white" width={12} height={12} />
-            </div>
+            </button>
           </li>)
         }</ul>}
     </div>
