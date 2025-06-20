@@ -3,6 +3,7 @@ import { Noto_Sans_SC, ZCOOL_KuaiLe } from 'next/font/google'
 import '@/app/globals.css'
 import { headers } from 'next/headers'
 import { NextAppDirEmotionCacheProvider } from 'tss-react/next/appDir'
+import Script from 'next/script'
 import { cn } from '@/lib/utils'
 import { Toaster } from '@/components/ui/toaster'
 
@@ -72,6 +73,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="h-full break-words overflow-hidden" data-platform={getPlatform()}>
+      <head>
+        {/* Google Adsense */}
+        <Script
+          async
+          src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-${process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT_ID}`}
+          crossOrigin="anonymous"
+          strategy="afterInteractive"
+        />
+      </head>
       <body className={cn('h-full antialiased', notoSansSc.variable, zCoolKuaiLe.variable)}>
         <NextAppDirEmotionCacheProvider options={{ key: 'tss' }}>
           {children}
