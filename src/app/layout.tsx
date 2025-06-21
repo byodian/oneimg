@@ -42,7 +42,7 @@ export const metadata: Metadata = {
 
 function getPlatform() {
   const headersList = headers()
-  const userAgent = headersList.get('user-agent') || ''
+  const userAgent = headersList.get('user-agent') ?? ''
 
   if (userAgent.includes('Win')) {
     return 'windows'
@@ -91,5 +91,3 @@ export default function RootLayout({
     </html>
   )
 }
-
-export const runtime = 'edge'
