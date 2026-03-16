@@ -589,6 +589,7 @@ export function Header(props: HeaderProps) {
           setIsExportModalOpen={setImageDialogOpen}
           isExporting={isExporting}
           setIsExporting={setIsExporting}
+          sizeName={sizeName}
         />
       </header >
     </TooltipProvider>

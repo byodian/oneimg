@@ -33,13 +33,19 @@ const Card = forwardRef<HTMLDivElement, PreviewItemProps>(({ content, index, chi
   const heroTemplate = templateClassNameMap.hero
   const mainTemplate = templateClassNameMap.main
   const subTemplate = templateClassNameMap.sub
-  const { size } = useThemeStore()
-  const height = typeof size.height === 'number' ? `${size.height / 3}px` : size.height
+  const { size, sizeName } = useThemeStore()
+  // 微信长图使用固定高度预览，其他模式使用内容自适应高度
+  // 这样可以确保导出时能捕获完整内容
+  const isWechatMode = sizeName === 'default'
+  const height = isWechatMode && typeof size.height === 'number' ? `${size.height / 3}px` : (typeof size.height === 'number' ? `${size.height}px` : size.height)
 
   return (
     <div
       id={`${content.id}`}
-      style={{ height: content.parentId ? 'auto' : height }}
+      style={{
+        height: content.parentId || !isWechatMode ? 'auto' : height,
+        overflow: content.parentId || !isWechatMode ? 'visible' : 'auto',
+      }}
       className={cn(templateClassNameMap.common.container,
         content.parentId
           ? `${subTemplate.container}`

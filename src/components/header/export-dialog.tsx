@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Image from 'next/image'
 import { Download, Loader2 } from 'lucide-react'
 import type { ExportImage, ExportOption } from './types'
-import { exportImage } from './utils'
+import { exportImage, sliceLongImage } from './utils'
 import type { PreviewRef } from '@/types/common'
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -30,6 +30,7 @@ interface ExportImageProps {
   setScale: (scale: string) => void;
   setIsExportModalOpen: (open: boolean) => void;
   setIsExporting: (isExporting: boolean) => void;
+  sizeName?: string; // 当前选择的尺寸名称
 }
 
 export function ExportImageDialog({
@@ -40,6 +41,7 @@ export function ExportImageDialog({
   isExporting,
   setIsExporting,
   setIsExportModalOpen,
+  sizeName = 'default', // 默认为微信长图
 }: ExportImageProps) {
   const [previewImages, setPreviewImages] = useState<ExportImage[]>([])
   const [api, setApi] = useState<CarouselApi>()
@@ -78,17 +80,31 @@ export function ExportImageDialog({
             dataMap.set(content.id, content.title)
           }
 
-          // 导出整个 Preview
+          // 判断是否需要切割（微信长图不切割，其他尺寸需要切割）
+          const needSlice = sizeName !== 'default'
+          console.log('当前尺寸模式:', sizeName, '是否需要切割:', needSlice)
+
+          // 获取当前尺寸的最大高度
+          const maxHeightMap: Record<string, number> = {
+            redbook_post: 1440,
+            instagram_post: 1350,
+            twitter_post: 900,
+          }
+          const maxSliceHeight = maxHeightMap[sizeName] || 1440
+          console.log('最大切割高度:', maxSliceHeight)
+
+          // 导出整个 Preview（全览图）
           let index = 1
           if (previewRef.current.containerRef.current) {
             const fullPreviewBlobObject = await exportImage(previewRef.current.containerRef.current!, `${index}_full_preview.png`, exportOption)
 
             if (fullPreviewBlobObject && fullPreviewBlobObject.data) {
+              // 全览图始终添加
               images.push(fullPreviewBlobObject)
             }
             index = index + 1
 
-            // 导出每个顶层 PreviewItem
+            // 导出每个顶层 PreviewItem（封面图和正文图）
             const itemRefs = previewRef.current.itemRefs.current
             if (itemRefs) {
               for (const [id, ref] of Object.entries(itemRefs)) {
@@ -96,7 +112,19 @@ export function ExportImageDialog({
                   const cardPreviewBlobObject = await exportImage(ref, `${index}_${removeHtmlTags(dataMap.get(Number(id)))}.png`, exportOption)
 
                   if (cardPreviewBlobObject && cardPreviewBlobObject.data) {
-                    images.push(cardPreviewBlobObject)
+                    if (needSlice) {
+                      // 切割模式：将每个卡片按平台尺寸切割
+                      const slicedImages = await sliceLongImage(cardPreviewBlobObject.data, maxSliceHeight)
+                      slicedImages.forEach((sliceBlob, i) => {
+                        images.push({
+                          id: `${index}_${removeHtmlTags(dataMap.get(Number(id)))}_part_${i + 1}.png`,
+                          data: sliceBlob,
+                        })
+                      })
+                    } else {
+                      // 不切割模式：直接添加
+                      images.push(cardPreviewBlobObject)
+                    }
                   }
 
                   index++
@@ -121,7 +149,7 @@ export function ExportImageDialog({
         generateImages()
       }
     }
-  }, [previewRef, scale, setIsExporting, isExporting, isExportModalOpen])
+  }, [previewRef, scale, setIsExporting, isExporting, isExportModalOpen, sizeName])
 
   const exportImages = useCallback(async () => {
     const zip = new JSZip()
