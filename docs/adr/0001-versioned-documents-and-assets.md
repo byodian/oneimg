@@ -1,0 +1,3 @@
+# Use versioned Documents with separate Assets
+
+OneIMG will use a versioned Document model containing Pages, semantic Blocks, and structured Rich Text as the canonical representation, and will reference media through separate locally owned Assets rather than treating rendered HTML, embedded Base64 images, or remote hotlinks as the source of truth. Pasted remote media is copied into the Asset repository when available; otherwise an Unresolved Asset preserves its place and recovery information. This enables explicit migrations, reusable assets, bounded history, content-aware transformations, offline projects, and cached exports while legacy OneIMG and longpic files remain importable through adapters.

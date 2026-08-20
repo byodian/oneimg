@@ -1,0 +1,3 @@
+# Enforce WYSIWYG through one Canonical Renderer
+
+Editing, Clean Preview, Local Export, and High-Fidelity Export will use the same versioned Canonical Renderer, root-scoped Style Pack, Resource bytes, and fixed Reference Viewport, with editor interaction and Display Zoom forbidden from changing layout. A Rasterizer Adapter is eligible only after preview-versus-artifact certification, and an uncertified exceptional route may show the actual final bytes as a Proof Preview; OneIMG accepts a narrower Local CSS profile and blocked best-effort exports in exchange for treating every user-visible mismatch as a product defect.

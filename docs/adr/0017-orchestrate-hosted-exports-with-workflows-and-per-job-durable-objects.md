@@ -1,0 +1,3 @@
+# Orchestrate hosted exports with Workflows and per-Job Durable Objects
+
+Each managed High-Fidelity Export will use one durable Workflow for idempotent multi-step execution and rollback plus one `ExportJob` Durable Object for strongly coordinated product state, cancellation, browser-session ownership, and expiry alarms; private R2 holds the bytes. OneIMG will not add a Queue in the first version because it would duplicate Workflow scheduling and introduce another at-least-once delivery boundary, accepting Cloudflare orchestration primitives behind the Export Service in exchange for reliable cancellation and cleanup without leaking them into the Export Engine Interface.

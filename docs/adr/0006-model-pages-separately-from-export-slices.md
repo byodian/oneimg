@@ -1,0 +1,3 @@
+# Model Pages separately from export slices
+
+Documents will support ordered Pages from the first version of the new model, defaulting to one Continuous Page while allowing multiple Bounded or Continuous Pages when a use case requires them; every Page still uses Guided Layout. Page Format determines composition while Output Scale determines raster dimensions, and a Semantic Slice remains an output-only partition rather than editable Page data. Modeling these distinctions early avoids disruptive package migrations and prevents resolution and export constraints from leaking into authoring structure.

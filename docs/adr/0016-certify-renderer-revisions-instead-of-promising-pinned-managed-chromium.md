@@ -1,0 +1,3 @@
+# Certify Renderer Revisions instead of promising pinned managed Chromium
+
+Because a managed browser provider can update Chromium and evict sessions during releases, OneIMG will identify and golden-test a Renderer Revision composed of engine, Template, font, CSS profile, Adapter, and observed browser versions rather than claim that Browser Run is permanently pinned. Provider changes are quarantined until conformance passes, while a pinned-container Adapter remains the path for strict long-term reproduction; this trades bit-for-bit cross-provider identity for faster managed operation without weakening structural fidelity promises.

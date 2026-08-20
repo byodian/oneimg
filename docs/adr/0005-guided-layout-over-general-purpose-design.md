@@ -1,0 +1,3 @@
+# Prefer Guided Layout over a general-purpose design platform
+
+OneIMG will use Guided Layout in which semantic Blocks, Page Formats, Templates, and Themes turn content into a designed result. It will not pursue a Canva-style general-purpose design platform built around blank artboards, arbitrary coordinates, and unrestricted layers; Smart Collage and bounded social graphics remain constrained automatic compositions. This product boundary does not prohibit a visual editing surface or browser Canvas and OffscreenCanvas as internal export and image-processing mechanisms. The trade-off favors consistently good results, a low learning cost, predictable exports, and people without design expertise, superseding ADR-0002.

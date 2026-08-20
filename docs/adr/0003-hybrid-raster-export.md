@@ -1,0 +1,3 @@
+# Provide local and high-fidelity raster export
+
+OneIMG will provide a privacy-preserving Local Export and an explicitly authorized High-Fidelity Export backed by a controlled browser renderer, with a single export action selecting the appropriate path from content capabilities and the user's privacy preference. The split accepts that a browser-only DOM reconstruction path cannot simultaneously guarantee unrestricted modern CSS fidelity, deterministic output, offline operation, and strict local processing; Platform HTML Export remains a separate compatibility product with documented visual degradation.

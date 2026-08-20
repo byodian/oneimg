@@ -1,0 +1,3 @@
+# Release through risk-ordered vertical slices
+
+Implementation will progress from Renderer and export spikes to an anonymous General Long Image vertical slice, then Asset Pipeline and Social Smart Collage, portability and legacy import, Internal Notice, Travel Guide, Resume and Faithful PDF, followed by managed High-Fidelity Export Beta. Default activation requires verified migration and recovery, WYSIWYG conformance, supported-device performance, accessibility, privacy, security, and target-user usability. This accepts a staged feature order in exchange for proving the hardest contracts early without making cloud service or Project creation an MVP dependency.

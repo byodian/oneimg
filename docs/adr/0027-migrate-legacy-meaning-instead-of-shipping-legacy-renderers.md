@@ -1,0 +1,3 @@
+# Migrate legacy meaning instead of shipping legacy renderers
+
+Legacy OneIMG and longpic inputs will create isolated Imported Drafts through format-specific Adapters that preserve semantic content, source order, media, recovery bytes, and an Import Report while mapping presentation to the nearest supported choices. The applications remain read-only behavior and fixture references during a strangler migration, not source architectures or permanent renderers. OneIMG accepts disclosed visual approximations instead of pixel parity with obsolete applications in exchange for removing destructive imports and avoiding permanent legacy HTML state, free layout, and Base64 models in the new Canonical Renderer.

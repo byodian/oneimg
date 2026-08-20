@@ -1,0 +1,3 @@
+# Restrict User Templates to declarative rules
+
+User Templates will be declarative and limited to supported structure, typography, color, spacing, backgrounds, and decorative Assets; they cannot run arbitrary JavaScript or inject unrestricted CSS. Every Template declares its supported Page Formats, Block kinds, and output features and must provide a safe visible fallback for other valid Blocks. Trusted Templates shipped and versioned with OneIMG may use advanced rendering rules but pass the same readability and export checks. This preserves customization while keeping Guided Layout predictable, exports reproducible, imported projects safe, and the interface approachable for non-designers.
