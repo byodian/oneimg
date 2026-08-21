@@ -1,6 +1,80 @@
 import { readFile } from 'node:fs/promises'
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
+import JSZip from 'jszip'
+
+function readPngDimensions(buffer: Buffer) {
+  expect(buffer.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+  return {
+    height: buffer.readUInt32BE(20),
+    width: buffer.readUInt32BE(16),
+  }
+}
+
+function percentile(values: readonly number[], ratio: number) {
+  const sorted = [...values].sort((left, right) => left - right)
+  return sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * ratio) - 1)] ?? 0
+}
+
+async function compareSegmentEdgesInBrowser(
+  page: Page,
+  preview: Buffer,
+  segments: readonly Buffer[],
+  plan: readonly { height: number; y: number }[],
+) {
+  return page.evaluate(async ({ plan, previewBase64, segmentBase64 }) => {
+    const decode = async (base64: string) => {
+      const response = await fetch(`data:image/png;base64,${base64}`)
+      return createImageBitmap(await response.blob())
+    }
+    const previewImage = await decode(previewBase64)
+    const segmentImages = await Promise.all(segmentBase64.map(decode))
+    const canvas = document.createElement('canvas')
+    const context = canvas.getContext('2d', { willReadFrequently: true })!
+    let maxChannelDelta = 0
+    let totalChannelDelta = 0
+    let sampleCount = 0
+
+    const readRow = (image: ImageBitmap, y: number) => {
+      canvas.width = image.width
+      canvas.height = 1
+      context.clearRect(0, 0, image.width, 1)
+      context.drawImage(image, 0, y, image.width, 1, 0, 0, image.width, 1)
+      return context.getImageData(0, 0, image.width, 1).data
+    }
+    const compareRows = (actual: Uint8ClampedArray, expected: Uint8ClampedArray) => {
+      for (let offset = 0; offset < actual.length; offset += 4) {
+        for (let channel = 0; channel < 4; channel += 1) {
+          const delta = Math.abs(actual[offset + channel] - expected[offset + channel])
+          maxChannelDelta = Math.max(maxChannelDelta, delta)
+          totalChannelDelta += delta
+        }
+        sampleCount += 1
+      }
+    }
+
+    for (let index = 0; index < plan.length; index += 1) {
+      const segment = segmentImages[index]
+      const descriptor = plan[index]
+      if (!segment || !descriptor) {
+        throw new Error(`Missing segment ${index}`)
+      }
+      compareRows(readRow(segment, 0), readRow(previewImage, descriptor.y))
+      compareRows(
+        readRow(segment, segment.height - 1),
+        readRow(previewImage, descriptor.y + descriptor.height - 1),
+      )
+    }
+
+    previewImage.close()
+    segmentImages.forEach(image => image.close())
+    return { maxChannelDelta, meanChannelDelta: totalChannelDelta / (sampleCount * 4) }
+  }, {
+    plan,
+    previewBase64: preview.toString('base64'),
+    segmentBase64: segments.map(segment => segment.toString('base64')),
+  })
+}
 
 async function comparePngsInBrowser(page: Page, preview: Buffer, exported: Buffer) {
   return page.evaluate(async ({ previewBase64, exportedBase64 }) => {
@@ -259,4 +333,296 @@ test.describe('Canonical Renderer local export contract', () => {
       && repeated.svgDataUrlBytes <= 512 * 1024
     ))).toBe(true)
   })
+})
+
+test.describe('Long-page Resource Resolver lifecycle contract', () => {
+  test('renders twenty aspect-ratio images as bounded segments and audits cleanup', async ({ page }, testInfo) => {
+    await page.goto('/scenario/canonical-long-export')
+
+    const preview = page.getByTestId('canonical-preview')
+    const root = preview.locator('[data-oneimg-render-root]')
+    await expect(root).toHaveAttribute('data-render-ready', 'true')
+    await expect(root.locator('img')).toHaveCount(20)
+
+    const dimensions = await root.locator('img').evaluateAll(images => images.map(image => ({
+      height: (image as HTMLImageElement).naturalHeight,
+      width: (image as HTMLImageElement).naturalWidth,
+    })))
+    expect(new Set(dimensions.map(({ width, height }) => `${width}x${height}`)).size).toBe(20)
+
+    const downloadPromise = page.waitForEvent('download')
+    await page.getByRole('button', { name: '导出本地 PNG' }).click()
+    const download = await downloadPromise
+    const downloadPath = await download.path()
+    if (!downloadPath) {
+      throw new Error('Playwright did not expose the segmented export path')
+    }
+    const exportedZip = await JSZip.loadAsync(await readFile(downloadPath))
+    expect(download.suggestedFilename()).toBe('oneimg-canonical-long-resource-fixture-v1.zip')
+    expect((await readFile(downloadPath)).subarray(0, 2)).toEqual(Buffer.from([80, 75]))
+    await expect(page.getByTestId('export-diagnostics')).toBeVisible({ timeout: 15_000 })
+    await expect.poll(async () => {
+      const audit = JSON.parse(await page.getByTestId('resource-audit').textContent() ?? '{}') as {
+        activeObjectUrls: number
+        activeSessions: number
+        createdObjectUrls: number
+        revokedObjectUrls: number
+      }
+      return [audit.activeSessions, audit.activeObjectUrls, audit.createdObjectUrls, audit.revokedObjectUrls]
+    }).toEqual([1, 23, 46, 23])
+
+    const diagnostics = JSON.parse(await page.getByTestId('export-diagnostics').textContent() ?? '{}') as {
+      cleanupAudit: {
+        arrayBuffersReceived: number
+        arrayBuffersReleased: number
+        cancelLatencyMs: number | null
+        canvasCreated: number
+        canvasDisposed: number
+        imageBitmapsCreated: number
+        imageBitmapsClosed: number
+        requested: number
+        temporaryCacheEntriesCreated: number
+        temporaryCacheEntriesReleased: number
+        temporaryObjectUrlsRevoked: number
+        workerObjectUrlRevoked: boolean
+        workerTerminated: boolean
+      }
+      embeddedImageCount: number
+      format: string
+      longTaskCount: number
+      longTaskMs: number
+      memorySource: 'performance.memory' | 'unavailable'
+      peakMemoryBytes: number | null
+      peakEstimatedRasterBytes: number
+      resourceCount: number
+      segmentBleed: number
+      segmentCount: number
+      segmentPlan: Array<{
+        captureHeight: number
+        captureY: number
+        height: number
+        index: number
+        trimTop: number
+        y: number
+      }>
+      segmented: boolean
+      totalMs: number
+      workerAvailable: boolean
+      workerFallbackCount: number
+      workerUsed: boolean
+    }
+
+    expect(diagnostics).toMatchObject({
+      embeddedImageCount: 20,
+      format: 'zip',
+      resourceCount: 23,
+      segmented: true,
+      workerAvailable: true,
+    })
+    expect(diagnostics.segmentCount).toBeGreaterThan(1)
+    expect(diagnostics.cleanupAudit.requested).toBeGreaterThan(0)
+    expect(diagnostics.segmentBleed).toBe(80)
+    expect(diagnostics.segmentPlan).toHaveLength(diagnostics.segmentCount)
+    expect(diagnostics.segmentPlan[0]).toMatchObject({ index: 0, y: 0 })
+    for (let index = 1; index < diagnostics.segmentPlan.length; index += 1) {
+      const previous = diagnostics.segmentPlan[index - 1]
+      const current = diagnostics.segmentPlan[index]
+      expect(current.index).toBe(index)
+      expect(current.y).toBe(previous.y + previous.height)
+    }
+    const rootHeight = await root.evaluate(element => element.getBoundingClientRect().height)
+    const lastSegment = diagnostics.segmentPlan.at(-1)
+    expect(lastSegment).toBeDefined()
+    expect(lastSegment!.y + lastSegment!.height).toBe(Math.ceil(rootHeight))
+    for (const segment of diagnostics.segmentPlan) {
+      expect(segment.captureY).toBe(Math.max(0, segment.y - diagnostics.segmentBleed))
+      expect(segment.captureY + segment.captureHeight).toBe(Math.min(
+        Math.ceil(rootHeight),
+        segment.y + segment.height + diagnostics.segmentBleed,
+      ))
+      expect(segment.trimTop).toBe(segment.y - segment.captureY)
+    }
+    const zipEntries = Object.keys(exportedZip.files).filter(name => name.endsWith('.png')).sort()
+    expect(zipEntries).toHaveLength(diagnostics.segmentCount)
+    const segmentBuffers = await Promise.all(zipEntries.map(async (name) => {
+      const entry = exportedZip.file(name)
+      if (!entry) {
+        throw new Error(`Missing ZIP entry ${name}`)
+      }
+      return Buffer.from(await entry.async('nodebuffer'))
+    }))
+    const segmentDimensions = segmentBuffers.map(readPngDimensions)
+    expect(segmentDimensions).toEqual(diagnostics.segmentPlan.map(segment => ({
+      height: segment.height,
+      width: 640,
+    })))
+    const edgeComparison = await compareSegmentEdgesInBrowser(
+      page,
+      await root.screenshot({ animations: 'disabled' }),
+      segmentBuffers,
+      diagnostics.segmentPlan,
+    )
+    expect(edgeComparison.meanChannelDelta).toBeLessThanOrEqual(12)
+    expect(diagnostics.cleanupAudit).toMatchObject({
+      workerObjectUrlRevoked: true,
+      workerTerminated: true,
+    })
+    expect(diagnostics.cleanupAudit.canvasDisposed).toBe(diagnostics.cleanupAudit.canvasCreated)
+    expect(diagnostics.cleanupAudit.imageBitmapsClosed).toBe(diagnostics.cleanupAudit.imageBitmapsCreated)
+    expect(diagnostics.cleanupAudit.arrayBuffersReleased).toBe(diagnostics.cleanupAudit.arrayBuffersReceived)
+    expect(diagnostics.cleanupAudit.temporaryCacheEntriesReleased).toBe(diagnostics.cleanupAudit.temporaryCacheEntriesCreated)
+    await expect(page.locator('[data-oneimg-inert-render-session]')).toHaveCount(0)
+
+    const timingSamples = [diagnostics]
+    const exportButton = page.getByRole('button', { name: '导出本地 PNG' })
+    for (let repeat = 0; repeat < 4; repeat += 1) {
+      const previous = await page.getByTestId('export-diagnostics').textContent()
+      const repeatedDownloadPromise = page.waitForEvent('download')
+      await exportButton.click()
+      const repeatedDownload = await repeatedDownloadPromise
+      await repeatedDownload.path()
+      await expect.poll(async () => page.getByTestId('export-diagnostics').textContent()).not.toBe(previous)
+      timingSamples.push(JSON.parse(await page.getByTestId('export-diagnostics').textContent() ?? '{}') as typeof diagnostics)
+    }
+    const sortedTotalMs = timingSamples.map(sample => sample.totalMs).sort((left, right) => left - right)
+    await testInfo.attach('oneimg-long-resource-baseline.json', {
+      body: Buffer.from(JSON.stringify({
+        fixture: { imageCount: 20, resourceCount: diagnostics.resourceCount, segmentCount: diagnostics.segmentCount },
+        cleanup: diagnostics.cleanupAudit,
+        longTask: timingSamples.map(sample => ({ count: sample.longTaskCount, totalMs: sample.longTaskMs })),
+        memory: timingSamples.map(sample => ({
+          estimatedRasterBytes: sample.peakEstimatedRasterBytes,
+          heapBytes: sample.peakMemoryBytes,
+          source: sample.memorySource,
+        })),
+        timingMs: {
+          p50: percentile(sortedTotalMs, 0.5),
+          p95: percentile(sortedTotalMs, 0.95),
+          samples: sortedTotalMs,
+        },
+      }, null, 2)),
+      contentType: 'application/json',
+    })
+
+    await page.getByRole('button', { name: '释放预览资源' }).click()
+    await expect(root).toHaveCount(0)
+    const resolverAudit = JSON.parse(await page.getByTestId('resource-audit').textContent() ?? '{}') as {
+      activeObjectUrls: number
+      activeSessions: number
+      createdObjectUrls: number
+      revokedObjectUrls: number
+    }
+    expect(resolverAudit.activeSessions).toBe(0)
+    expect(resolverAudit.activeObjectUrls).toBe(0)
+    expect(resolverAudit.revokedObjectUrls).toBe(resolverAudit.createdObjectUrls)
+  })
+
+  test('cancels a segmented export before a late completion can publish it', async ({ page }, testInfo) => {
+    await page.goto('/scenario/canonical-long-export')
+
+    const cancelAudits: Array<{
+      cancelLatencyMs: number
+      cleanupAudit: {
+        arrayBuffersReceived: number
+        arrayBuffersReleased: number
+        canvasCreated: number
+        canvasDisposed: number
+        imageBitmapsCreated: number
+        imageBitmapsClosed: number
+        temporaryCacheEntriesCreated: number
+        temporaryCacheEntriesReleased: number
+        workerObjectUrlRevoked: boolean
+        workerTerminated: boolean
+      }
+    }> = []
+    for (let repeat = 0; repeat < 3; repeat += 1) {
+      const exportButton = page.getByRole('button', { name: '导出本地 PNG' })
+      await expect(exportButton).toBeEnabled()
+      await exportButton.click()
+      const cancelButton = page.getByRole('button', { name: '取消导出' })
+      await expect(cancelButton).toBeVisible()
+      await cancelButton.click()
+
+      await expect(page.getByTestId('export-status')).toHaveText('已取消')
+      await expect(page.getByTestId('export-diagnostics')).toHaveCount(0)
+      await expect.poll(async () => {
+        const text = await page.getByTestId('export-audit').textContent()
+        return JSON.parse(text ?? '{}').stage
+      }).toBe('cleanup')
+
+      const audit = JSON.parse(await page.getByTestId('export-audit').textContent() ?? '{}') as {
+        cleanupAudit: {
+          arrayBuffersReceived: number
+          arrayBuffersReleased: number
+          cancelLatencyMs: number | null
+          canvasCreated: number
+          canvasDisposed: number
+          imageBitmapsCreated: number
+          imageBitmapsClosed: number
+          temporaryCacheEntriesCreated: number
+          temporaryCacheEntriesReleased: number
+          workerObjectUrlRevoked: boolean
+          workerTerminated: boolean
+        }
+        stage: string
+      }
+      expect(audit.stage).toBe('cleanup')
+      expect(audit.cleanupAudit.workerTerminated).toBe(true)
+      expect(audit.cleanupAudit.workerObjectUrlRevoked).toBe(true)
+      expect(audit.cleanupAudit.canvasDisposed).toBe(audit.cleanupAudit.canvasCreated)
+      expect(audit.cleanupAudit.imageBitmapsClosed).toBe(audit.cleanupAudit.imageBitmapsCreated)
+      expect(audit.cleanupAudit.arrayBuffersReleased).toBe(audit.cleanupAudit.arrayBuffersReceived)
+      expect(audit.cleanupAudit.temporaryCacheEntriesReleased).toBe(audit.cleanupAudit.temporaryCacheEntriesCreated)
+      await expect(page.locator('[data-oneimg-inert-render-session]')).toHaveCount(0)
+      expect(audit.cleanupAudit.cancelLatencyMs).not.toBeNull()
+      expect(audit.cleanupAudit.cancelLatencyMs!).toBeLessThan(500)
+      cancelAudits.push({
+        cancelLatencyMs: audit.cleanupAudit.cancelLatencyMs!,
+        cleanupAudit: audit.cleanupAudit,
+      })
+    }
+
+    const cancelLatencySamples = cancelAudits.map(audit => audit.cancelLatencyMs)
+    await testInfo.attach('oneimg-cancel-baseline.json', {
+      body: Buffer.from(JSON.stringify({
+        cleanup: cancelAudits.map(audit => audit.cleanupAudit),
+        cancelLatencyMs: {
+          p50: percentile(cancelLatencySamples, 0.5),
+          p95: percentile(cancelLatencySamples, 0.95),
+          samples: cancelLatencySamples,
+        },
+      }, null, 2)),
+      contentType: 'application/json',
+    })
+
+    await page.getByRole('button', { name: '释放预览资源' }).click()
+    await expect(page.getByTestId('resource-audit')).toContainText('"activeSessions":0')
+  })
+})
+
+test('cancels Resource Resolver work and revokes every late Blob URL', async ({ page }) => {
+  await page.route('**/scenario/slow-resource.svg', async (route) => {
+    await new Promise(resolve => setTimeout(resolve, 1_000))
+    await route.fulfill({
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="904" height="680"><rect width="904" height="680" fill="#263b6b"/></svg>',
+      contentType: 'image/svg+xml',
+      status: 200,
+    })
+  })
+  await page.goto('/scenario/resource-resolver-lifecycle')
+
+  await expect(page.getByRole('button', { name: '取消资源解析' })).toBeEnabled()
+  await page.getByRole('button', { name: '取消资源解析' }).click()
+  await expect(page.getByTestId('resolver-status')).toHaveText('已取消')
+  await expect.poll(async () => page.getByTestId('resource-audit').textContent()).toContain('"activeSessions":0')
+
+  const audit = JSON.parse(await page.getByTestId('resource-audit').textContent() ?? '{}') as {
+    activeObjectUrls: number
+    activeSessions: number
+    createdObjectUrls: number
+    revokedObjectUrls: number
+  }
+  expect(audit.activeSessions).toBe(0)
+  expect(audit.activeObjectUrls).toBe(0)
+  expect(audit.revokedObjectUrls).toBe(audit.createdObjectUrls)
 })

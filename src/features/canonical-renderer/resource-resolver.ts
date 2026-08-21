@@ -3,6 +3,10 @@ import {
   type CanonicalResourceId,
   collectSnapshotResourceIds,
 } from './model'
+import {
+  abortableRenderPromise,
+  throwIfRenderAborted,
+} from '@/features/rendering/cancellation'
 
 export type RenderTarget = 'preview' | 'local-export'
 
@@ -52,8 +56,25 @@ export interface ResolvedResourceSet {
   release(): void
 }
 
+export interface ResourceResolveOptions {
+  readonly signal?: AbortSignal
+}
+
+export interface ResourceResolverDiagnostics {
+  readonly activeObjectUrls: number
+  readonly activeSessions: number
+  readonly createdObjectUrls: number
+  readonly releasedSessions: number
+  readonly revokedObjectUrls: number
+}
+
 export interface ResourceResolver {
-  resolve(snapshot: CanonicalRenderSnapshot, target: RenderTarget): Promise<ResolvedResourceSet>
+  resolve(
+    snapshot: CanonicalRenderSnapshot,
+    target: RenderTarget,
+    options?: ResourceResolveOptions,
+  ): Promise<ResolvedResourceSet>
+  getDiagnostics(): ResourceResolverDiagnostics
 }
 
 function bytesToHex(bytes: ArrayBuffer) {
@@ -64,17 +85,23 @@ async function sha256(blob: Blob) {
   return bytesToHex(await crypto.subtle.digest('SHA-256', await blob.arrayBuffer()))
 }
 
-async function loadBlob(definition: BrowserResourceDefinition) {
+async function loadBlob(definition: BrowserResourceDefinition, signal?: AbortSignal) {
+  throwIfRenderAborted(signal)
+
   if (definition.source.type === 'blob') {
-    return definition.source.create()
+    const blob = definition.source.create()
+    throwIfRenderAborted(signal)
+    return blob
   }
 
-  const response = await fetch(definition.source.href, { cache: 'force-cache' })
+  const response = await fetch(definition.source.href, { cache: 'force-cache', signal })
   if (!response.ok) {
     throw new Error(`Unable to resolve ${definition.id}: HTTP ${response.status}`)
   }
 
-  return new Blob([await response.arrayBuffer()], { type: definition.mimeType })
+  const bytes = await response.arrayBuffer()
+  throwIfRenderAborted(signal)
+  return new Blob([bytes], { type: definition.mimeType })
 }
 
 function quoteCss(value: string) {
@@ -84,41 +111,103 @@ function quoteCss(value: string) {
 class BrowserResourceResolver implements ResourceResolver {
   private readonly definitions: ReadonlyMap<CanonicalResourceId, BrowserResourceDefinition>
   private generation = 0
+  private activeObjectUrls = 0
+  private activeSessions = 0
+  private createdObjectUrls = 0
+  private releasedSessions = 0
+  private revokedObjectUrls = 0
 
   constructor(definitions: readonly BrowserResourceDefinition[]) {
     this.definitions = new Map(definitions.map(definition => [definition.id, definition]))
   }
 
-  async resolve(snapshot: CanonicalRenderSnapshot, target: RenderTarget): Promise<ResolvedResourceSet> {
+  async resolve(
+    snapshot: CanonicalRenderSnapshot,
+    target: RenderTarget,
+    options: ResourceResolveOptions = {},
+  ): Promise<ResolvedResourceSet> {
     const sessionId = `${snapshot.snapshotId}:${target}:${++this.generation}`
     const requestedIds = collectSnapshotResourceIds(snapshot)
-    const objectUrls: string[] = []
-    const fontFaces: FontFace[] = []
+    const objectUrls = new Set<string>()
+    const fontFaces = new Set<FontFace>()
+    let released = false
+    let sessionRegistered = true
+    this.activeSessions += 1
+
+    const revokeObjectUrl = (objectUrl: string) => {
+      if (!objectUrls.delete(objectUrl)) {
+        return
+      }
+      URL.revokeObjectURL(objectUrl)
+      this.activeObjectUrls -= 1
+      this.revokedObjectUrls += 1
+    }
+
+    const release = () => {
+      if (released) {
+        return
+      }
+      released = true
+      for (const fontFace of Array.from(fontFaces)) {
+        document.fonts.delete(fontFace)
+      }
+      fontFaces.clear()
+      for (const objectUrl of Array.from(objectUrls)) {
+        revokeObjectUrl(objectUrl)
+      }
+      if (sessionRegistered) {
+        sessionRegistered = false
+        this.activeSessions -= 1
+        this.releasedSessions += 1
+      }
+    }
+
+    const createObjectUrl = (blob: Blob) => {
+      throwIfRenderAborted(options.signal)
+      const objectUrl = URL.createObjectURL(blob)
+      this.createdObjectUrls += 1
+      if (released) {
+        URL.revokeObjectURL(objectUrl)
+        this.revokedObjectUrls += 1
+        throw new DOMException(`Resource session ${sessionId} was released`, 'AbortError')
+      }
+      objectUrls.add(objectUrl)
+      this.activeObjectUrls += 1
+      return objectUrl
+    }
 
     try {
       const resources = await Promise.all(requestedIds.map(async (resourceId) => {
+        throwIfRenderAborted(options.signal)
         const definition = this.definitions.get(resourceId)
         if (!definition) {
           throw new Error(`No resource definition for ${resourceId}`)
         }
 
-        const blob = await loadBlob(definition)
-        const objectUrl = URL.createObjectURL(blob)
-        objectUrls.push(objectUrl)
+        const blob = await loadBlob(definition, options.signal)
+        const objectUrl = createObjectUrl(blob)
 
-        return {
-          blob,
-          id: definition.id,
-          kind: definition.kind,
-          mimeType: definition.mimeType,
-          objectUrl,
-          byteLength: blob.size,
-          sha256: await sha256(blob),
-          font: definition.font,
-        } satisfies ResolvedResource
+        try {
+          const hash = await sha256(blob)
+          throwIfRenderAborted(options.signal)
+          return {
+            blob,
+            id: definition.id,
+            kind: definition.kind,
+            mimeType: definition.mimeType,
+            objectUrl,
+            byteLength: blob.size,
+            sha256: hash,
+            font: definition.font,
+          } satisfies ResolvedResource
+        } catch (error) {
+          revokeObjectUrl(objectUrl)
+          throw error
+        }
       }))
 
       for (const resource of resources) {
+        throwIfRenderAborted(options.signal)
         if (!resource.font) {
           continue
         }
@@ -131,9 +220,10 @@ class BrowserResourceResolver implements ResourceResolver {
             weight: resource.font.weight,
           },
         )
-        await fontFace.load()
+        await abortableRenderPromise(fontFace.load(), options.signal)
+        throwIfRenderAborted(options.signal)
         document.fonts.add(fontFace)
-        fontFaces.push(fontFace)
+        fontFaces.add(fontFace)
       }
 
       const resourceMap = new Map(resources.map(resource => [resource.id, resource]))
@@ -158,8 +248,6 @@ class BrowserResourceResolver implements ResourceResolver {
         .sort()
         .join('|')
 
-      let released = false
-
       return {
         sessionId,
         target,
@@ -174,27 +262,21 @@ class BrowserResourceResolver implements ResourceResolver {
           }
           return resource
         },
-        release() {
-          if (released) {
-            return
-          }
-          released = true
-          for (const fontFace of fontFaces) {
-            document.fonts.delete(fontFace)
-          }
-          for (const objectUrl of objectUrls) {
-            URL.revokeObjectURL(objectUrl)
-          }
-        },
+        release,
       }
     } catch (error) {
-      for (const fontFace of fontFaces) {
-        document.fonts.delete(fontFace)
-      }
-      for (const objectUrl of objectUrls) {
-        URL.revokeObjectURL(objectUrl)
-      }
+      release()
       throw error
+    }
+  }
+
+  getDiagnostics(): ResourceResolverDiagnostics {
+    return {
+      activeObjectUrls: this.activeObjectUrls,
+      activeSessions: this.activeSessions,
+      createdObjectUrls: this.createdObjectUrls,
+      releasedSessions: this.releasedSessions,
+      revokedObjectUrls: this.revokedObjectUrls,
     }
   }
 }

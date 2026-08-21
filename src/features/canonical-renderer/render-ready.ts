@@ -1,5 +1,10 @@
 import type { CanonicalRenderSnapshot } from './model'
 import type { ResolvedResourceSet } from './resource-resolver'
+import {
+  abortableRenderPromise,
+  createRenderAbortError,
+  throwIfRenderAborted,
+} from '@/features/rendering/cancellation'
 
 function nextAnimationFrame() {
   return new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
@@ -15,9 +20,11 @@ export interface CanonicalGeometry {
 
 export interface CanonicalRenderReadyOptions {
   readonly isCurrent?: () => boolean
+  readonly signal?: AbortSignal
 }
 
 function assertCurrent(options: CanonicalRenderReadyOptions) {
+  throwIfRenderAborted(options.signal)
   if (options.isCurrent && !options.isCurrent()) {
     throw new Error('Canonical Render Root readiness became stale')
   }
@@ -56,8 +63,32 @@ async function waitForImages(root: HTMLElement, options: CanonicalRenderReadyOpt
     assertCurrent(options)
     if (!image.complete) {
       await new Promise<void>((resolve, reject) => {
-        image.addEventListener('load', () => resolve(), { once: true })
-        image.addEventListener('error', () => reject(new Error(`Unable to load ${image.dataset.resourceId ?? image.alt}`)), { once: true })
+        function cleanup() {
+          image.removeEventListener('load', onLoad)
+          image.removeEventListener('error', onError)
+          options.signal?.removeEventListener('abort', onAbort)
+        }
+
+        function onLoad() {
+          cleanup()
+          resolve()
+        }
+
+        function onError() {
+          cleanup()
+          reject(new Error(`Unable to load ${image.dataset.resourceId ?? image.alt}`))
+        }
+
+        function onAbort() {
+          cleanup()
+          reject(createRenderAbortError())
+        }
+        image.addEventListener('load', onLoad, { once: true })
+        image.addEventListener('error', onError, { once: true })
+        options.signal?.addEventListener('abort', onAbort, { once: true })
+        if (options.signal?.aborted) {
+          onAbort()
+        }
       })
     }
 
@@ -65,7 +96,7 @@ async function waitForImages(root: HTMLElement, options: CanonicalRenderReadyOpt
       throw new Error(`Unable to decode ${image.dataset.resourceId ?? image.alt}`)
     }
 
-    await image.decode()
+    await abortableRenderPromise(image.decode(), options.signal)
     assertCurrent(options)
   }))
 }
@@ -81,8 +112,9 @@ export async function waitForCanonicalRenderReady(
   options: CanonicalRenderReadyOptions = {},
 ) {
   assertCurrent(options)
-  await Promise.all(snapshot.fontPack.supportedWeights.map(weight => (
-    document.fonts.load(`${weight} 16px ${resources.fontFamily}`, '所见即所得 Canonical')
+  await Promise.all(snapshot.fontPack.supportedWeights.map(weight => abortableRenderPromise(
+    document.fonts.load(`${weight} 16px ${resources.fontFamily}`, '所见即所得 Canonical'),
+    options.signal,
   )))
   assertCurrent(options)
   await waitForImages(root, options)
