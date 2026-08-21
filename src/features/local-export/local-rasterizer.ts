@@ -5,6 +5,7 @@ import type { CanonicalGeometry } from '@/features/canonical-renderer/render-rea
 import type { ResolvedResourceSet } from '@/features/canonical-renderer/resource-resolver'
 
 export interface LocalExportRequest {
+  readonly beforeStage?: LocalExportStageHook
   readonly snapshot: CanonicalRenderSnapshot
   readonly resources: ResolvedResourceSet
   readonly onProgress?: (progress: LocalExportProgress) => void
@@ -12,6 +13,12 @@ export interface LocalExportRequest {
 }
 
 export type LocalExportStage = 'cleanup' | 'encoding' | 'packaging' | 'render-ready' | 'serializing'
+
+/**
+ * A cancellable checkpoint hook used by scenario verification and diagnostics.
+ * Production callers can omit it; the export signal remains the source of truth.
+ */
+export type LocalExportStageHook = (stage: LocalExportStage, signal?: AbortSignal) => Promise<void>
 
 export interface LocalExportProgress {
   readonly cleanupAudit?: LocalExportCleanupAudit

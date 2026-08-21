@@ -525,6 +525,7 @@ test.describe('Long-page Resource Resolver lifecycle contract', () => {
       cleanupAudit: {
         arrayBuffersReceived: number
         arrayBuffersReleased: number
+        cancelLatencyMs: number | null
         canvasCreated: number
         canvasDisposed: number
         imageBitmapsCreated: number
@@ -591,6 +592,107 @@ test.describe('Long-page Resource Resolver lifecycle contract', () => {
           p95: percentile(cancelLatencySamples, 0.95),
           samples: cancelLatencySamples,
         },
+      }, null, 2)),
+      contentType: 'application/json',
+    })
+
+    await page.getByRole('button', { name: '释放预览资源' }).click()
+    await expect(page.getByTestId('resource-audit')).toContainText('"activeSessions":0')
+  })
+
+  test('cancels at every export stage checkpoint and balances each session', async ({ page }, testInfo) => {
+    const stages = ['render-ready', 'serializing', 'encoding', 'packaging'] as const
+    const stageAudits: Array<{
+      cancelLatencyMs: number | null
+      cleanupAudit: {
+        arrayBuffersReceived: number
+        arrayBuffersReleased: number
+        canvasCreated: number
+        canvasDisposed: number
+        imageBitmapsCreated: number
+        imageBitmapsClosed: number
+        temporaryCacheEntriesCreated: number
+        temporaryCacheEntriesReleased: number
+        workerObjectUrlRevoked: boolean
+        workerTerminated: boolean
+      }
+      stage: string
+    }> = []
+
+    for (const stage of stages) {
+      await page.goto(`/scenario/canonical-long-export?cancelStage=${stage}`)
+      await expect(page.getByTestId('canonical-preview').locator('[data-oneimg-render-root]'))
+        .toHaveAttribute('data-render-ready', 'true')
+
+      await page.getByRole('button', { name: '导出本地 PNG' }).click()
+      await expect.poll(async () => {
+        const audit = JSON.parse(await page.getByTestId('export-audit').textContent() ?? '{}') as { stage?: string }
+        return audit.stage
+      }, { timeout: 15_000 }).toBe(stage)
+
+      await page.getByRole('button', { name: '取消导出' }).click()
+      await expect(page.getByTestId('export-status')).toHaveText('已取消')
+      await expect(page.getByTestId('export-diagnostics')).toHaveCount(0)
+      await expect.poll(async () => {
+        const audit = JSON.parse(await page.getByTestId('export-audit').textContent() ?? '{}') as { stage?: string }
+        return audit.stage
+      }).toBe('cleanup')
+
+      const audit = JSON.parse(await page.getByTestId('export-audit').textContent() ?? '{}') as {
+        cleanupAudit: {
+          arrayBuffersReceived: number
+          arrayBuffersReleased: number
+          cancelLatencyMs: number | null
+          canvasCreated: number
+          canvasDisposed: number
+          imageBitmapsCreated: number
+          imageBitmapsClosed: number
+          temporaryCacheEntriesCreated: number
+          temporaryCacheEntriesReleased: number
+          workerObjectUrlRevoked: boolean
+          workerTerminated: boolean
+        }
+        stage: string
+      }
+      expect(audit.stage).toBe('cleanup')
+      expect(audit.cleanupAudit.workerObjectUrlRevoked).toBe(true)
+      expect(audit.cleanupAudit.workerTerminated).toBe(true)
+      expect(audit.cleanupAudit.canvasDisposed).toBe(audit.cleanupAudit.canvasCreated)
+      expect(audit.cleanupAudit.imageBitmapsClosed).toBe(audit.cleanupAudit.imageBitmapsCreated)
+      expect(audit.cleanupAudit.arrayBuffersReleased).toBe(audit.cleanupAudit.arrayBuffersReceived)
+      expect(audit.cleanupAudit.temporaryCacheEntriesReleased)
+        .toBe(audit.cleanupAudit.temporaryCacheEntriesCreated)
+      expect(audit.cleanupAudit.cancelLatencyMs).not.toBeNull()
+      expect(audit.cleanupAudit.cancelLatencyMs!).toBeLessThan(500)
+      await expect.poll(async () => {
+        const resourceAudit = JSON.parse(await page.getByTestId('resource-audit').textContent() ?? '{}') as {
+          activeObjectUrls: number
+          activeSessions: number
+          createdObjectUrls: number
+          revokedObjectUrls: number
+        }
+        return [
+          resourceAudit.activeSessions,
+          resourceAudit.activeObjectUrls,
+          resourceAudit.createdObjectUrls,
+          resourceAudit.revokedObjectUrls,
+        ]
+      }).toEqual([1, 23, 46, 23])
+
+      stageAudits.push({
+        cancelLatencyMs: audit.cleanupAudit.cancelLatencyMs,
+        cleanupAudit: audit.cleanupAudit,
+        stage,
+      })
+    }
+
+    await testInfo.attach('oneimg-stage-cancel-baseline.json', {
+      body: Buffer.from(JSON.stringify({
+        stages: stageAudits,
+        cancelLatencyMs: stageAudits.map(audit => ({
+          stage: audit.stage,
+          value: audit.cancelLatencyMs,
+        })),
       }, null, 2)),
       contentType: 'application/json',
     })

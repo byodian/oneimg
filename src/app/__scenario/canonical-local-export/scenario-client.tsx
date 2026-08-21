@@ -21,11 +21,13 @@ import {
   EMPTY_LOCAL_EXPORT_CLEANUP_AUDIT,
   type LocalExportDiagnostics,
   type LocalExportProgress,
+  type LocalExportStageHook,
   type LocalRasterizerAdapter,
 } from '@/features/local-export/local-rasterizer'
 import { createLocalSvgAdapter } from '@/features/local-export/local-svg-adapter'
 
 export interface CanonicalExportScenarioProps {
+  readonly beforeExportStage?: LocalExportStageHook
   readonly resourceDefinitions: readonly BrowserResourceDefinition[]
   readonly scenarioLabel: string
   readonly snapshot: CanonicalRenderSnapshot
@@ -43,6 +45,7 @@ export function CanonicalLocalExportScenario() {
 
 export function CanonicalLocalExportHarness({
   adapter,
+  beforeExportStage,
   resourceDefinitions,
   scenarioLabel,
   snapshot,
@@ -178,6 +181,7 @@ export function CanonicalLocalExportHarness({
     try {
       exportResources = await resolver.resolve(snapshot, 'local-export', { signal: controller.signal })
       const artifact = await resolvedAdapter.exportPng({
+        beforeStage: beforeExportStage,
         onProgress: setProgress,
         resources: exportResources,
         signal: controller.signal,

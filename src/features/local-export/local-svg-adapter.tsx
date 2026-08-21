@@ -49,6 +49,15 @@ function emitProgress(
   onProgress?.(progress)
 }
 
+async function waitBeforeStage(
+  beforeStage: LocalExportRequest['beforeStage'],
+  stage: LocalExportProgress['stage'],
+  signal?: AbortSignal,
+) {
+  await beforeStage?.(stage, signal)
+  throwIfRenderAborted(signal)
+}
+
 function blobToDataUrl(blob: Blob, signal?: AbortSignal) {
   throwIfRenderAborted(signal)
   return new Promise<string>((resolve, reject) => {
@@ -322,7 +331,7 @@ async function packageSegments(
   })
 }
 
-async function exportPng({ onProgress, signal, snapshot, resources }: LocalExportRequest): Promise<LocalPngArtifact> {
+async function exportPng({ beforeStage, onProgress, signal, snapshot, resources }: LocalExportRequest): Promise<LocalPngArtifact> {
   const startedAt = performance.now()
   let peakMemoryBytes = readUsedHeapBytes()
   const sampleMemory = () => {
@@ -426,6 +435,7 @@ async function exportPng({ onProgress, signal, snapshot, resources }: LocalExpor
     }
 
     emitProgress(onProgress, { completed: 0, segmentCount: 0, stage: 'render-ready', total: 1 })
+    await waitBeforeStage(beforeStage, 'render-ready', signal)
     await waitForCanonicalRenderReady(canonicalRoot, snapshot, resources, {
       isCurrent: () => !signal?.aborted,
       signal,
@@ -441,15 +451,15 @@ async function exportPng({ onProgress, signal, snapshot, resources }: LocalExpor
     let maxSvgDataUrlBytes = 0
     let embeddedImageCount = 0
 
-    emitProgress(onProgress, {
-      completed: 0,
-      segmentCount: plan.segments.length,
-      stage: 'serializing',
-      total: plan.segments.length,
-    })
-
     for (const segment of plan.segments) {
       throwIfRenderAborted(signal)
+      emitProgress(onProgress, {
+        completed: segment.index,
+        segmentCount: plan.segments.length,
+        stage: 'serializing',
+        total: plan.segments.length,
+      })
+      await waitBeforeStage(beforeStage, 'serializing', signal)
       const serialized = await serializeToSvg(
         canonicalRoot,
         resources,
@@ -467,6 +477,13 @@ async function exportPng({ onProgress, signal, snapshot, resources }: LocalExpor
       maxSvgDataUrlBytes = Math.max(maxSvgDataUrlBytes, decodedSvg.sourceBytes)
       let blob: Blob
       try {
+        emitProgress(onProgress, {
+          completed: segment.index,
+          segmentCount: plan.segments.length,
+          stage: 'encoding',
+          total: plan.segments.length,
+        })
+        await waitBeforeStage(beforeStage, 'encoding', signal)
         blob = await rasterizeSegment(
           decodedSvg.image,
           segment,
@@ -516,6 +533,7 @@ async function exportPng({ onProgress, signal, snapshot, resources }: LocalExpor
         stage: 'packaging',
         total: 100,
       })
+      await waitBeforeStage(beforeStage, 'packaging', signal)
       const zipBlob = await packageSegments(svgSegments, signal, onProgress)
       exportResult = { blob: zipBlob, format: 'zip' }
     } else {
