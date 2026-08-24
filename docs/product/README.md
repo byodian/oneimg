@@ -18,6 +18,7 @@ OneIMG helps people without design expertise turn text and images into polished 
 - [Block Editing and Media Groups](./block-editing-and-media-groups.md)
 - [Editing Transactions and Accessibility](./editing-transactions-and-accessibility.md)
 - [Document Core and Local Persistence](./document-core-and-local-persistence.md)
+- [Document Core and Local Repository implementation slice](./document-core-persistence-spike.md)
 - [Asset Pipeline](./asset-pipeline.md)
 - [Offline and Local Data Boundaries](./offline-and-local-data-boundaries.md)
 - [OneIMG Package](./oneimg-package.md)
