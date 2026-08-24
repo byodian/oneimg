@@ -26,6 +26,7 @@ export default defineConfig({
     command: `pnpm dev --port ${port}`,
     env: {
       NEXT_TELEMETRY_DISABLED: '1',
+      ONEIMG_ENABLE_STUDIO: '1',
       ONEIMG_ENABLE_SCENARIOS: '1',
     },
     reuseExistingServer: !process.env.CI,

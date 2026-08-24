@@ -202,6 +202,130 @@ export const canonicalStylePack = {
     padding: 8px 12px;
     text-align: center;
   }
+
+  [data-oneimg-render-root] .oneimg-rich-text-section {
+    background: var(--oneimg-surface);
+    border-bottom: 1px solid color-mix(in srgb, var(--oneimg-foreground) 8%, transparent);
+    padding: 42px 48px;
+  }
+
+  [data-oneimg-render-root] .oneimg-rich-text {
+    color: var(--oneimg-foreground);
+    margin: 0 auto;
+    max-width: 544px;
+    outline: none;
+  }
+
+  [data-oneimg-render-root] .oneimg-rich-text:focus,
+  [data-oneimg-render-root] .oneimg-empty-editor:focus {
+    outline: 2px solid color-mix(in srgb, var(--oneimg-accent) 64%, transparent);
+    outline-offset: 8px;
+  }
+
+  [data-oneimg-render-root] .oneimg-rich-text :where(h1, h2, h3) {
+    color: var(--oneimg-foreground);
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    line-height: 1.18;
+    text-wrap: balance;
+  }
+
+  [data-oneimg-render-root] .oneimg-rich-text h1 {
+    font-size: 38px;
+  }
+
+  [data-oneimg-render-root] .oneimg-rich-text h2 {
+    font-size: 28px;
+    margin-top: 28px;
+  }
+
+  [data-oneimg-render-root] .oneimg-rich-text h3 {
+    font-size: 21px;
+    margin-top: 22px;
+  }
+
+  [data-oneimg-render-root] .oneimg-rich-text :where(p, li) {
+    color: var(--oneimg-ink-soft);
+    font-size: 17px;
+    line-height: 1.75;
+  }
+
+  [data-oneimg-render-root] .oneimg-rich-text :where(p + p, ul + p, ol + p, blockquote + p) {
+    margin-top: 16px;
+  }
+
+  [data-oneimg-render-root] .oneimg-rich-text :where(ul, ol) {
+    display: grid;
+    gap: 8px;
+    margin: 18px 0 0;
+    padding-left: 28px;
+  }
+
+  [data-oneimg-render-root] .oneimg-rich-text ul {
+    list-style: disc;
+  }
+
+  [data-oneimg-render-root] .oneimg-rich-text ol {
+    list-style: decimal;
+  }
+
+  [data-oneimg-render-root] .oneimg-rich-text blockquote {
+    background: var(--oneimg-accent-soft);
+    border-left: 4px solid var(--oneimg-accent);
+    border-radius: 0 12px 12px 0;
+    color: var(--oneimg-ink-soft);
+    margin: 22px 0 0;
+    padding: 14px 18px;
+  }
+
+  [data-oneimg-render-root] .oneimg-rich-text :where(code) {
+    background: var(--oneimg-accent-soft);
+    border-radius: 6px;
+    color: var(--oneimg-foreground);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.88em;
+    padding: 2px 5px;
+  }
+
+  [data-oneimg-render-root] .oneimg-rich-text a {
+    color: var(--oneimg-accent);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+  }
+
+  [data-oneimg-render-root] .oneimg-empty-editor {
+    min-height: 420px;
+    padding: 42px 48px;
+  }
+
+  [data-oneimg-render-root] .oneimg-empty-editor p {
+    color: var(--oneimg-ink-soft);
+    font-size: 20px;
+    line-height: 1.7;
+    margin: 0 auto;
+    max-width: 544px;
+  }
+
+  [data-oneimg-render-root] .oneimg-empty-editor p:empty::before {
+    color: color-mix(in srgb, var(--oneimg-foreground) 45%, transparent);
+    content: '粘贴文字，或开始输入';
+  }
+
+  [data-oneimg-render-root] .oneimg-unknown-block {
+    background: var(--oneimg-muted);
+    padding: 30px 48px;
+  }
+
+  [data-oneimg-render-root] .oneimg-unknown-block h2 {
+    font-size: 24px;
+    margin-top: 8px;
+  }
+
+  [data-oneimg-render-root] .oneimg-unknown-block p:last-child {
+    color: var(--oneimg-ink-soft);
+    margin-top: 8px;
+  }
   }
 
   /*

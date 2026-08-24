@@ -1,3 +1,5 @@
+import type { RichTextDocument } from '@/features/document-core'
+
 export type CanonicalResourceId = string
 
 export interface ReferenceViewport {
@@ -57,11 +59,26 @@ export interface SummarySection {
   readonly facts: readonly string[]
 }
 
+export interface RichTextSection {
+  readonly content: RichTextDocument
+  readonly id: string
+  readonly kind: 'rich-text'
+}
+
+export interface UnknownBlockSection {
+  readonly id: string
+  readonly kind: 'unknown-block'
+  readonly originalKind: string
+  readonly originalVersion?: string
+}
+
 export type CanonicalSection =
   | HeroSection
   | FeatureGridSection
   | MediaSection
+  | RichTextSection
   | SummarySection
+  | UnknownBlockSection
 
 export interface CanonicalDocument {
   readonly id: string

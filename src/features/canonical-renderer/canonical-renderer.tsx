@@ -1,17 +1,148 @@
-import type { CSSProperties } from 'react'
+import type { CSSProperties, FormEvent, KeyboardEvent, ReactNode } from 'react'
 import type { CanonicalRenderSnapshot, CanonicalSection } from './model'
 import type { ResolvedResourceSet } from './resource-resolver'
 import { canonicalStylePack } from './style-pack'
+import type { RichTextNode } from '@/features/document-core'
 
 type CanonicalCssProperties = CSSProperties & Record<`--oneimg-${string}`, string>
 
 export interface CanonicalRendererProps {
+  readonly onRichTextBlur?: (blockId: string | undefined, text: string) => void
+  readonly onRichTextInput?: (blockId: string | undefined, text: string) => void
   readonly snapshot: CanonicalRenderSnapshot
   readonly resources: ResolvedResourceSet
-  readonly mode: 'preview' | 'export'
+  readonly mode: 'edit' | 'preview' | 'export'
 }
 
-function renderSection(section: CanonicalSection, resources: ResolvedResourceSet) {
+type RichTextEditingHandlers = Pick<CanonicalRendererProps, 'onRichTextBlur' | 'onRichTextInput'>
+
+function readEditableText(event: FormEvent<HTMLElement>) {
+  return event.currentTarget.innerText.replaceAll('\r\n', '\n')
+}
+
+function handleEditableKeyDown(event: KeyboardEvent<HTMLElement>) {
+  if (event.key !== 'Escape') {
+    return
+  }
+  event.preventDefault()
+  event.currentTarget.blur()
+}
+
+function safeHref(href: string) {
+  return /^(https?:|mailto:|tel:)/i.test(href) ? href : '#'
+}
+
+function renderMarkedText(node: RichTextNode, key: string): ReactNode {
+  let content: ReactNode = node.text ?? ''
+  for (const mark of node.marks ?? []) {
+    switch (mark.type) {
+      case 'bold':
+        content = <strong key={`${key}-bold`}>{content}</strong>
+        break
+      case 'code':
+        content = <code key={`${key}-code`}>{content}</code>
+        break
+      case 'italic':
+        content = <em key={`${key}-italic`}>{content}</em>
+        break
+      case 'link':
+        content = <a href={safeHref(mark.href)} key={`${key}-link`} rel="noreferrer" target="_blank">{content}</a>
+        break
+      case 'underline':
+        content = <u key={`${key}-underline`}>{content}</u>
+        break
+    }
+  }
+  return content
+}
+
+function renderRichTextNode(node: RichTextNode, key: string): ReactNode {
+  const children = node.children?.map((child, index) => renderRichTextNode(child, `${key}-${index}`))
+  const inline = node.children === undefined ? renderMarkedText(node, key) : children
+  switch (node.type) {
+    case 'blockquote':
+      return <blockquote data-node-type={node.type} key={key}>{children}</blockquote>
+    case 'bullet-list':
+      return <ul data-node-type={node.type} key={key}>{children}</ul>
+    case 'heading':
+      if (node.level === 1) {
+        return <h1 data-node-type={node.type} key={key}>{inline}</h1>
+      }
+      if (node.level === 2) {
+        return <h2 data-node-type={node.type} key={key}>{inline}</h2>
+      }
+      return <h3 data-node-type={node.type} key={key}>{inline}</h3>
+    case 'list-item':
+      return <li data-node-type={node.type} key={key}>{children}</li>
+    case 'ordered-list':
+      return <ol data-node-type={node.type} key={key}>{children}</ol>
+    case 'paragraph':
+      return <p data-node-type={node.type} key={key}>{inline}</p>
+  }
+}
+
+function editableProps(
+  mode: CanonicalRendererProps['mode'],
+  blockId: string | undefined,
+  handlers: RichTextEditingHandlers,
+) {
+  const editable = mode === 'edit'
+  const props = {
+    contentEditable: editable,
+    onBlur: editable
+      ? (event: FormEvent<HTMLElement>) => handlers.onRichTextBlur?.(blockId, readEditableText(event))
+      : undefined,
+    onInput: editable
+      ? (event: FormEvent<HTMLElement>) => handlers.onRichTextInput?.(blockId, readEditableText(event))
+      : undefined,
+    onKeyDown: editable ? handleEditableKeyDown : undefined,
+    suppressContentEditableWarning: true,
+  } as const
+  if (!editable) {
+    return props
+  }
+  return {
+    ...props,
+    'aria-label': '正文编辑区',
+    'aria-multiline': true,
+    'role': 'textbox',
+  } as const
+}
+
+function renderRichTextSection(
+  section: Extract<CanonicalSection, { kind: 'rich-text' }>,
+  mode: CanonicalRendererProps['mode'],
+  handlers: RichTextEditingHandlers,
+) {
+  return (
+    <section className="oneimg-section oneimg-rich-text-section" data-block-id={section.id} key={section.id}>
+      <div className="oneimg-rich-text" {...editableProps(mode, section.id, handlers)}>
+        {section.content.children.map((node, index) => renderRichTextNode(node, `${section.id}-${index}`))}
+      </div>
+    </section>
+  )
+}
+
+function renderEmptyEditor(
+  mode: CanonicalRendererProps['mode'],
+  handlers: RichTextEditingHandlers,
+) {
+  if (mode !== 'edit') {
+    return null
+  }
+  return (
+    <div className="oneimg-empty-editor" data-studio-empty-editor="true" {...editableProps(mode, undefined, handlers)}>
+      <p />
+    </div>
+  )
+}
+
+function renderSection(
+  section: CanonicalSection,
+  resources: ResolvedResourceSet,
+  mode: CanonicalRendererProps['mode'],
+  handlers: RichTextEditingHandlers,
+) {
   switch (section.kind) {
     case 'hero':
       return (
@@ -61,6 +192,8 @@ function renderSection(section: CanonicalSection, resources: ResolvedResourceSet
         </section>
       )
     }
+    case 'rich-text':
+      return renderRichTextSection(section, mode, handlers)
     case 'summary':
       return (
         <section className="oneimg-section oneimg-summary" data-block-id={section.id} key={section.id}>
@@ -73,6 +206,14 @@ function renderSection(section: CanonicalSection, resources: ResolvedResourceSet
           </ul>
         </section>
       )
+    case 'unknown-block':
+      return (
+        <section className="oneimg-section oneimg-unknown-block" data-block-id={section.id} key={section.id}>
+          <p className="oneimg-eyebrow">保留内容</p>
+          <h2>暂不支持的内容</h2>
+          <p>类型 {section.originalKind}{section.originalVersion ? ` · ${section.originalVersion}` : ''} 将保留在文档中。</p>
+        </section>
+      )
   }
 }
 
@@ -80,7 +221,13 @@ export function getCanonicalOwnedCss(resources: ResolvedResourceSet) {
   return `${resources.fontFaceCss}\n${canonicalStylePack.cssText}`
 }
 
-export function CanonicalRenderer({ snapshot, resources, mode }: CanonicalRendererProps) {
+export function CanonicalRenderer({
+  onRichTextBlur,
+  onRichTextInput,
+  snapshot,
+  resources,
+  mode,
+}: CanonicalRendererProps) {
   if (snapshot.stylePackId !== canonicalStylePack.id) {
     throw new Error(`Unsupported Style Pack: ${snapshot.stylePackId}`)
   }
@@ -109,7 +256,13 @@ export function CanonicalRenderer({ snapshot, resources, mode }: CanonicalRender
       lang={snapshot.locale}
       style={style}
     >
-      {snapshot.document.sections.map(section => renderSection(section, resources))}
+      {snapshot.document.sections.map(section => renderSection(
+        section,
+        resources,
+        mode,
+        { onRichTextBlur, onRichTextInput },
+      ))}
+      {snapshot.document.sections.length === 0 && renderEmptyEditor(mode, { onRichTextBlur, onRichTextInput })}
     </article>
   )
 }
