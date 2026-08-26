@@ -6,7 +6,7 @@ This note records Slice 05 for Issue #31. The new Studio is available at `/studi
 
 - A first visit opens an unnamed, local-only General Long Image Draft without a Project, login, template gate, permission prompt, or setup wizard.
 - The empty Starter is an editable surface in the production Canonical Render Root. Its prompt is editor chrome and does not create a meaningful Recent item or an export Block.
-- Typing or pasting plain text into the empty surface creates one semantic Rich Text Block on blur or `Escape`. The completed intention goes through Document Core and is persisted through the IndexedDB Local Repository.
+- Typing or pasting plain text into the empty surface creates one semantic Rich Text Block after a 400 ms input-idle debounce. Leaving the body or pressing `Escape` flushes the pending edit immediately. The completed intention goes through Document Core and is persisted through the IndexedDB Local Repository.
 - The same Canonical Renderer and versioned Style Pack render the editable surface, Clean Preview, and the inert local PNG export path. Clean Preview hides the surrounding chrome and does not replace the Render Root.
 - A successful commit records only the active Document identifier as a disposable local boot hint. Return visits restore the newest Meaningful Draft from the Repository; the Untouched Draft is never persisted as a Recent.
 - The Studio exposes an accessible local export entry, while planning and the complete output matrix remain owned by the later Export Engine slices. The entry uses the adapter's actual extension, including a segmented ZIP for an oversized Continuous Page.

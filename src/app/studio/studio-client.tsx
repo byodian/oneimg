@@ -36,6 +36,7 @@ import {
 
 const ACTIVE_DOCUMENT_HINT_KEY = 'oneimg:studio:active-document'
 const STUDIO_DATABASE_NAME = 'OneImgStudio'
+const TEXT_COMMIT_DEBOUNCE_MS = 400
 
 type StudioPhase = 'conflict' | 'editing' | 'error' | 'exporting' | 'ready' | 'restored' | 'saved' | 'saving' | 'unsaved'
 
@@ -96,6 +97,19 @@ function findBlock(revision: DocumentRevision, blockId: string | undefined) {
   return revision.pages.flatMap(page => page.blocks).find(block => block.id === blockId)
 }
 
+function focusEditableAtEnd(element: HTMLElement) {
+  element.focus()
+  const selection = window.getSelection()
+  if (selection === null) {
+    return
+  }
+  const range = document.createRange()
+  range.selectNodeContents(element)
+  range.collapse(false)
+  selection.removeAllRanges()
+  selection.addRange(range)
+}
+
 function isCommitted(result: DocumentCommitResult): result is Extract<DocumentCommitResult, { status: 'committed' }> {
   return result.status === 'committed'
 }
@@ -105,6 +119,10 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
   const durableRevisionNumber = useRef(0)
   const durableRevisionSnapshot = useRef<DocumentRevision>()
   const pendingCommit = useRef<PendingStudioCommit>()
+  const pendingInputCommit = useRef<{ blockId: string | undefined; text: string }>()
+  const inputCommitTimer = useRef<number>()
+  const resourcesRef = useRef<ResolvedResourceSet>()
+  const focusAfterCommit = useRef(false)
   const session = useRef<DocumentSession>()
   const repository = useRef<LocalRepository>()
   const saveTail = useRef(Promise.resolve())
@@ -194,9 +212,15 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
     return () => {
       active = false
       mounted.current = false
+      if (inputCommitTimer.current !== undefined) {
+        window.clearTimeout(inputCommitTimer.current)
+      }
+      inputCommitTimer.current = undefined
+      pendingInputCommit.current = undefined
       exportController.current?.abort()
+      resourcesRef.current?.release()
+      resourcesRef.current = undefined
       repository.current?.close()
-      resources?.release()
     }
     // The Repository and resource resolver are intentionally created once per Studio session.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -204,6 +228,8 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
 
   useEffect(() => {
     if (snapshot === undefined) {
+      resourcesRef.current?.release()
+      resourcesRef.current = undefined
       setResources(undefined)
       setPreviewReady(false)
       return
@@ -212,7 +238,6 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
     let active = true
     let resolved: ResolvedResourceSet | undefined
     const controller = new AbortController()
-    setResources(undefined)
     setPreviewReady(false)
 
     resolver.resolve(snapshot, 'preview', { signal: controller.signal })
@@ -222,7 +247,12 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
           resourceSet.release()
           return
         }
+        const previous = resourcesRef.current
+        resourcesRef.current = resourceSet
         setResources(resourceSet)
+        if (previous !== undefined && previous !== resourceSet) {
+          previous.release()
+        }
       })
       .catch((reason: unknown) => {
         if (active && !isRenderAbortError(reason)) {
@@ -234,7 +264,9 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
     return () => {
       active = false
       controller.abort()
-      resolved?.release()
+      if (resolved !== undefined && resourcesRef.current !== resolved) {
+        resolved.release()
+      }
     }
   }, [resolver, snapshot])
 
@@ -263,6 +295,13 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
         }
         root.dataset.renderReady = 'true'
         setPreviewReady(true)
+        if (focusAfterCommit.current && !cleanPreview && conflictPreviewRevision === undefined) {
+          const editor = root.querySelector<HTMLElement>('[contenteditable="true"]')
+          if (editor !== null) {
+            focusEditableAtEnd(editor)
+            focusAfterCommit.current = false
+          }
+        }
         if (!meaningful && !cleanPreview) {
           document.querySelector<HTMLElement>('[data-testid="studio-editor"] [data-studio-empty-editor]')?.focus()
         }
@@ -277,7 +316,15 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
     return () => {
       active = false
     }
-  }, [cleanPreview, meaningful, resources, snapshot])
+  }, [cleanPreview, conflictPreviewRevision, meaningful, resources, snapshot])
+
+  function clearPendingInputCommit() {
+    if (inputCommitTimer.current !== undefined) {
+      window.clearTimeout(inputCommitTimer.current)
+    }
+    inputCommitTimer.current = undefined
+    pendingInputCommit.current = undefined
+  }
 
   function persistCommit(nextRevision: DocumentRevision, transaction: Extract<DocumentCommitResult, { status: 'committed' }>['transaction']) {
     const localRepository = repository.current
@@ -437,10 +484,39 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
       setPhase('unsaved')
       return
     }
+    if (document.activeElement instanceof HTMLElement && document.activeElement.isContentEditable) {
+      focusAfterCommit.current = true
+    }
     setError(undefined)
     setRevision(result.revision)
     setPhase('saving')
     persistCommit(result.revision, result.transaction)
+  }
+
+  function scheduleTextCommit(blockId: string | undefined, text: string) {
+    if (conflictDraft !== undefined || conflictPreviewRevision !== undefined) {
+      return
+    }
+    if (inputCommitTimer.current !== undefined) {
+      window.clearTimeout(inputCommitTimer.current)
+    }
+    pendingInputCommit.current = { blockId, text }
+    inputCommitTimer.current = window.setTimeout(() => {
+      const pending = pendingInputCommit.current
+      inputCommitTimer.current = undefined
+      pendingInputCommit.current = undefined
+      if (pending !== undefined) {
+        commitText(pending.blockId, pending.text)
+      }
+    }, TEXT_COMMIT_DEBOUNCE_MS)
+    if (phase !== 'saving' && phase !== 'exporting') {
+      setPhase('editing')
+    }
+  }
+
+  function flushTextCommit(blockId: string | undefined, text: string) {
+    clearPendingInputCommit()
+    commitText(blockId, text)
   }
 
   async function exportPng() {
@@ -621,17 +697,13 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
         >
           <CanonicalRenderSurface
             mode={conflictPreviewRevision ? 'preview' : cleanPreview ? 'preview' : 'edit'}
-            onRichTextBlur={(blockId, text) => commitText(blockId, text)}
-            onRichTextInput={() => {
-              if (conflictDraft === undefined && phase !== 'saving' && phase !== 'exporting') {
-                setPhase('editing')
-              }
-            }}
+            onRichTextBlur={(blockId, text) => flushTextCommit(blockId, text)}
+            onRichTextInput={(blockId, text) => scheduleTextCommit(blockId, text)}
             resources={resources}
             snapshot={snapshot}
           />
         </div>
-        {!cleanPreview && <p className="m-0 text-center text-xs text-slate-500">内容默认保存在此设备。编辑会在离开正文后自动保存。</p>}
+        {!cleanPreview && <p className="m-0 text-center text-xs text-slate-500">内容默认保存在此设备。停止输入后会自动保存，离开正文或按 Escape 会立即保存。</p>}
         <output data-testid="studio-document-state" hidden>{JSON.stringify(state)}</output>
       </div>
     </main>
