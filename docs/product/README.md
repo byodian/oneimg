@@ -20,6 +20,7 @@ OneIMG helps people without design expertise turn text and images into polished 
 - [Document Core and Local Persistence](./document-core-and-local-persistence.md)
 - [Document Core and Local Repository implementation slice](./document-core-persistence-spike.md)
 - [General Long Image Studio implementation slice](./general-long-image-studio-slice.md)
+- [Studio durable commit, restart recovery, and conflict protection](./studio-durable-recovery-conflict-slice.md)
 - [Asset Pipeline](./asset-pipeline.md)
 - [Offline and Local Data Boundaries](./offline-and-local-data-boundaries.md)
 - [OneIMG Package](./oneimg-package.md)

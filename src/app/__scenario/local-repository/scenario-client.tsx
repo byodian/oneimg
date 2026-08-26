@@ -14,6 +14,9 @@ import {
 } from '@/features/local-repository'
 
 interface RepositoryCheck {
+  readonly conflictDraftCount: number
+  readonly conflictDraftRevision: number
+  readonly conflictDraftSourceDocumentId: string
   readonly duplicateStatus: string
   readonly recentIds: readonly string[]
   readonly restoredRevision: number
@@ -84,6 +87,37 @@ async function checkRepository(repository: LocalRepository): Promise<RepositoryC
     revision: revisionTwo,
     transaction: firstCommit.transaction,
   })
+  const branchSession = createDocumentSession(revisionTwo, {
+    createId: (kind, hint) => `transaction:branch:${kind}:${hint}`,
+  })
+  const branchCommit = branchSession.commit({
+    block: createRichTextBlock('block:repository-text', {
+      type: 'doc',
+      children: [{ type: 'paragraph', text: '竞争分支的内容。' }],
+    }),
+    blockId: 'block:repository-text',
+    type: 'replace-block',
+  })
+  if (branchCommit.status !== 'committed') {
+    throw new Error(`Conflict fixture commit failed: ${branchCommit.message}`)
+  }
+  try {
+    await repository.persistCommit({ revision: branchCommit.revision, transaction: branchCommit.transaction })
+    throw new Error('Conflict fixture was silently accepted')
+  } catch (error) {
+    if (!(error instanceof Error) || !('code' in error) || error.code !== 'conflict') {
+      throw error
+    }
+  }
+  const conflictDrafts = await repository.listConflictDrafts()
+  const conflictDraft = conflictDrafts[0]
+  if (conflictDraft === undefined) {
+    throw new Error('Conflict Draft was not retained')
+  }
+  const restoredConflict = await repository.restore(conflictDraft.documentId)
+  if (restoredConflict === null || restoredConflict.revision !== branchCommit.revision.revision) {
+    throw new Error('Conflict Draft could not be restored')
+  }
   const restored = await repository.restore(initial.id)
   if (!restored) {
     throw new Error('Repository did not restore the fixture')
@@ -91,6 +125,9 @@ async function checkRepository(repository: LocalRepository): Promise<RepositoryC
   const recents = await repository.listRecents()
   repository.close()
   return {
+    conflictDraftCount: conflictDrafts.length,
+    conflictDraftRevision: conflictDraft.revision,
+    conflictDraftSourceDocumentId: conflictDraft.sourceDocumentId,
     duplicateStatus: duplicate.status,
     recentIds: recents.map(item => item.documentId),
     restoredRevision: restored.revision,

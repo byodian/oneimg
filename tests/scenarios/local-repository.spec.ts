@@ -1,6 +1,9 @@
 import { expect, test } from '@playwright/test'
 
 interface RepositoryCheck {
+  readonly conflictDraftCount: number
+  readonly conflictDraftSourceDocumentId: string
+  readonly conflictDraftRevision: number
   readonly duplicateStatus: string
   readonly recentIds: readonly string[]
   readonly restoredRevision: number
@@ -25,6 +28,9 @@ test.describe('Local Repository contract', () => {
     expect(result.status).toBe('ready')
     for (const adapter of [result.memory, result.indexedDb]) {
       expect(adapter).toEqual({
+        conflictDraftCount: 1,
+        conflictDraftRevision: 3,
+        conflictDraftSourceDocumentId: 'document:repository-fixture',
         duplicateStatus: 'already-saved',
         recentIds: ['document:repository-fixture'],
         restoredRevision: 3,

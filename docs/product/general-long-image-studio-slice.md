@@ -13,7 +13,7 @@ This note records Slice 05 for Issue #31. The new Studio is available at `/studi
 
 ## Deliberate scope
 
-This slice is text-first. Semantic Markdown/HTML paste, richer Block admission, Asset Originals, Smart Paste, presentation selection, conflict leases, and export preflight remain later slices. Plain-text editing currently preserves an existing heading's level when a user edits that Rich Text Block; richer structural paste is intentionally deferred to Slice 07.
+This slice is text-first. Semantic Markdown/HTML paste, richer Block admission, Asset Originals, Smart Paste, presentation selection, persistent writer leases, and export preflight remain later slices. Plain-text editing currently preserves an existing heading's level when a user edits that Rich Text Block; richer structural paste is intentionally deferred to Slice 07.
 
 ## Verification
 

@@ -88,4 +88,39 @@ test.describe('General Long Image Studio slice', () => {
     await expect(root).toHaveAttribute('data-document-id', /document:studio:/)
     await expect(page.getByRole('button', { name: '返回编辑' })).toBeVisible()
   })
+
+  test('preserves a competing writer as a Conflict Draft', async ({ context, page }) => {
+    await page.goto('/studio')
+
+    const editor = page.getByTestId('studio-editor').locator('[contenteditable="true"]')
+    await editor.fill('主分支的第一版内容。')
+    await editor.press('Escape')
+    await expect(page.getByTestId('studio-status')).toHaveText('已保存')
+
+    const competingPage = await context.newPage()
+    await competingPage.goto('/studio')
+    const competingEditor = competingPage.getByTestId('studio-editor').locator('[contenteditable="true"]')
+    await expect(competingEditor).toContainText('主分支的第一版内容。')
+
+    await editor.fill('主分支的第二版内容。')
+    await editor.press('Escape')
+    await expect(page.getByTestId('studio-status')).toHaveText('已保存')
+
+    await competingEditor.fill('竞争分支的内容。')
+    await competingEditor.press('Escape')
+
+    await expect(competingPage.getByTestId('studio-conflict-notice')).toBeVisible()
+    await expect(competingPage.getByTestId('studio-conflict-notice')).toContainText('冲突草稿')
+    await expect(page.getByText('主分支的第二版内容。')).toBeVisible()
+
+    await competingPage.getByRole('button', { name: '查看冲突草稿' }).click()
+    await expect(competingPage.getByTestId('studio-conflict-preview')).toBeVisible()
+    await expect(competingPage.getByText('竞争分支的内容。')).toBeVisible()
+    await expect(competingPage.getByTestId('studio-editor').locator('[contenteditable="true"]')).toHaveCount(0)
+    await competingPage.getByRole('button', { name: '返回当前 Draft' }).click()
+
+    await competingPage.getByRole('button', { name: '恢复已提交版本' }).click()
+    await expect(competingPage.getByText('主分支的第二版内容。')).toBeVisible()
+    await competingPage.close()
+  })
 })

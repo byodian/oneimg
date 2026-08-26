@@ -28,16 +28,19 @@ import {
   isRenderAbortError,
 } from '@/features/rendering/cancellation'
 import {
+  type ConflictDraft,
   type LocalRepository,
+  LocalRepositoryError,
   createIndexedDbLocalRepository,
 } from '@/features/local-repository'
 
 const ACTIVE_DOCUMENT_HINT_KEY = 'oneimg:studio:active-document'
 const STUDIO_DATABASE_NAME = 'OneImgStudio'
 
-type StudioPhase = 'editing' | 'error' | 'exporting' | 'ready' | 'restored' | 'saved' | 'saving' | 'unsaved'
+type StudioPhase = 'conflict' | 'editing' | 'error' | 'exporting' | 'ready' | 'restored' | 'saved' | 'saving' | 'unsaved'
 
 interface StudioDocumentState {
+  readonly conflictDraftCount: number
   readonly documentId: string
   readonly durableRevision: number
   readonly meaningful: boolean
@@ -45,6 +48,15 @@ interface StudioDocumentState {
   readonly restored: boolean
   readonly revision: number
   readonly status: string
+}
+
+export interface StudioClientProps {
+  readonly createRepository?: () => LocalRepository
+}
+
+type PendingStudioCommit = {
+  readonly revision: DocumentRevision
+  readonly transaction: Extract<DocumentCommitResult, { status: 'committed' }>['transaction']
 }
 
 function createStudioDocumentId() {
@@ -56,6 +68,8 @@ function createStudioDocumentId() {
 
 function phaseLabel(phase: StudioPhase) {
   switch (phase) {
+    case 'conflict':
+      return '已保留冲突草稿'
     case 'editing':
       return '编辑中'
     case 'error':
@@ -86,8 +100,11 @@ function isCommitted(result: DocumentCommitResult): result is Extract<DocumentCo
   return result.status === 'committed'
 }
 
-export function StudioClient() {
+export function StudioClient({ createRepository }: StudioClientProps = {}) {
   const mounted = useRef(true)
+  const durableRevisionNumber = useRef(0)
+  const durableRevisionSnapshot = useRef<DocumentRevision>()
+  const pendingCommit = useRef<PendingStudioCommit>()
   const session = useRef<DocumentSession>()
   const repository = useRef<LocalRepository>()
   const saveTail = useRef(Promise.resolve())
@@ -100,7 +117,11 @@ export function StudioClient() {
   const adapter = useMemo(() => createLocalSvgAdapter(), [])
   const [revision, setRevision] = useState<DocumentRevision>()
   const [durableRevision, setDurableRevision] = useState(0)
+  const [pendingCommitRevision, setPendingCommitRevision] = useState<number>()
   const [recentCount, setRecentCount] = useState(0)
+  const [conflictDraft, setConflictDraft] = useState<ConflictDraft>()
+  const [conflictDraftCount, setConflictDraftCount] = useState(0)
+  const [conflictPreviewRevision, setConflictPreviewRevision] = useState<DocumentRevision>()
   const [restored, setRestored] = useState(false)
   const [phase, setPhase] = useState<StudioPhase>('ready')
   const [cleanPreview, setCleanPreview] = useState(false)
@@ -108,9 +129,10 @@ export function StudioClient() {
   const [resources, setResources] = useState<ResolvedResourceSet>()
   const [error, setError] = useState<string>()
 
+  const displayedRevision = conflictPreviewRevision ?? revision
   const snapshot = useMemo(
-    () => revision === undefined ? undefined : createGeneralLongImageSnapshot(revision),
-    [revision],
+    () => displayedRevision === undefined ? undefined : createGeneralLongImageSnapshot(displayedRevision),
+    [displayedRevision],
   )
   const meaningful = revision === undefined ? false : isMeaningfulDocumentRevision(revision)
 
@@ -120,9 +142,10 @@ export function StudioClient() {
 
     async function start() {
       try {
-        const localRepository = createIndexedDbLocalRepository({ dbName: STUDIO_DATABASE_NAME })
+        const localRepository = createRepository?.() ?? createIndexedDbLocalRepository({ dbName: STUDIO_DATABASE_NAME })
         repository.current = localRepository
         const recents = await localRepository.listRecents()
+        const conflictDrafts = await localRepository.listConflictDrafts()
         const hintedDocumentId = window.localStorage.getItem(ACTIVE_DOCUMENT_HINT_KEY)
         let restoredRevision: DocumentRevision | null = null
 
@@ -150,9 +173,12 @@ export function StudioClient() {
           ? restoredRevision!
           : createUntouchedDocumentRevision({ documentId: createStudioDocumentId() })
         session.current = createDocumentSession(usableRevision)
+        durableRevisionSnapshot.current = usableRevision
+        durableRevisionNumber.current = hasRestoredRevision ? usableRevision.revision : 0
         setRevision(usableRevision)
-        setDurableRevision(hasRestoredRevision ? usableRevision.revision : 0)
+        setDurableRevision(durableRevisionNumber.current)
         setRecentCount(recents.length)
+        setConflictDraftCount(conflictDrafts.length)
         setRestored(hasRestoredRevision)
         setPhase(hasRestoredRevision ? 'restored' : 'ready')
       } catch (reason) {
@@ -255,6 +281,9 @@ export function StudioClient() {
 
   function persistCommit(nextRevision: DocumentRevision, transaction: Extract<DocumentCommitResult, { status: 'committed' }>['transaction']) {
     const localRepository = repository.current
+    const pending: PendingStudioCommit = { revision: nextRevision, transaction }
+    pendingCommit.current = pending
+    setPendingCommitRevision(nextRevision.revision)
     if (!localRepository) {
       setPhase('unsaved')
       return
@@ -267,13 +296,39 @@ export function StudioClient() {
         if (!mounted.current) {
           return
         }
-        setDurableRevision(current => Math.max(current, receipt.revision))
+        if (receipt.status === 'stale') {
+          setError('这次保存基于较早版本，当前内容没有覆盖已提交版本。')
+          setPhase('unsaved')
+          return
+        }
+        durableRevisionNumber.current = Math.max(durableRevisionNumber.current, receipt.revision)
+        durableRevisionSnapshot.current = nextRevision
+        setDurableRevision(durableRevisionNumber.current)
         setRecentCount((await localRepository.listRecents()).length)
+        setConflictDraftCount((await localRepository.listConflictDrafts()).length)
         window.localStorage.setItem(ACTIVE_DOCUMENT_HINT_KEY, nextRevision.id)
-        setPhase('saved')
+        if (pendingCommit.current?.transaction.id === pending.transaction.id) {
+          pendingCommit.current = undefined
+          setPendingCommitRevision(undefined)
+          setError(undefined)
+          setPhase('saved')
+        } else {
+          setPhase('saving')
+        }
       })
       .catch((reason: unknown) => {
         if (!mounted.current) {
+          return
+        }
+        if (reason instanceof LocalRepositoryError && reason.code === 'conflict') {
+          pendingCommit.current = undefined
+          setPendingCommitRevision(undefined)
+          if (reason.conflictDraft !== undefined) {
+            setConflictDraft(reason.conflictDraft)
+            setConflictDraftCount(current => current + 1)
+          }
+          setError(reason.message)
+          setPhase('conflict')
           return
         }
         setError(reason instanceof Error ? reason.message : String(reason))
@@ -282,10 +337,73 @@ export function StudioClient() {
     saveTail.current = task.then(() => undefined, () => undefined)
   }
 
+  function retryPendingCommit() {
+    const pending = pendingCommit.current
+    if (pending === undefined || phase === 'conflict') {
+      return
+    }
+    setError(undefined)
+    setPhase('saving')
+    persistCommit(pending.revision, pending.transaction)
+  }
+
+  async function openConflictDraft() {
+    const draft = conflictDraft
+    const localRepository = repository.current
+    if (draft === undefined || localRepository === undefined) {
+      return
+    }
+    try {
+      const restored = await localRepository.restore(draft.documentId)
+      if (restored === null) {
+        throw new Error('冲突草稿无法恢复')
+      }
+      setConflictPreviewRevision(restored)
+      setError(undefined)
+      setPhase('conflict')
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason))
+      setPhase('error')
+    }
+  }
+
+  async function restoreDurableRevision() {
+    const knownDurable = durableRevisionSnapshot.current
+    if (knownDurable === undefined) {
+      return
+    }
+    let durable = knownDurable
+    const localRepository = repository.current
+    if (localRepository !== undefined) {
+      try {
+        durable = await localRepository.restore(knownDurable.id) ?? knownDurable
+      } catch {
+        durable = knownDurable
+      }
+    }
+    durableRevisionSnapshot.current = durable
+    if (durableRevisionNumber.current > 0 || durable.revision > 1) {
+      durableRevisionNumber.current = durable.revision
+    }
+    session.current = createDocumentSession(durable)
+    pendingCommit.current = undefined
+    setPendingCommitRevision(undefined)
+    setRevision(durable)
+    setConflictPreviewRevision(undefined)
+    setConflictDraft(undefined)
+    setError(undefined)
+    if (localRepository !== undefined) {
+      setRecentCount((await localRepository.listRecents()).length)
+      setConflictDraftCount((await localRepository.listConflictDrafts()).length)
+    }
+    setDurableRevision(durableRevisionNumber.current)
+    setPhase(durableRevisionNumber.current > 0 ? 'saved' : 'ready')
+  }
+
   function commitText(blockId: string | undefined, text: string) {
     const currentSession = session.current
     const currentRevision = revision
-    if (!currentSession || currentRevision === undefined) {
+    if (!currentSession || currentRevision === undefined || conflictDraft !== undefined || conflictPreviewRevision !== undefined) {
       return
     }
 
@@ -326,7 +444,7 @@ export function StudioClient() {
   }
 
   async function exportPng() {
-    if (!snapshot || !meaningful || !previewReady || exportController.current) {
+    if (!snapshot || !meaningful || conflictPreviewRevision !== undefined || !previewReady || exportController.current) {
       return
     }
     const controller = new AbortController()
@@ -350,7 +468,13 @@ export function StudioClient() {
       anchor.href = url
       anchor.click()
       setTimeout(() => URL.revokeObjectURL(url), 0)
-      setPhase('saved')
+      if (conflictDraft !== undefined) {
+        setPhase('conflict')
+      } else if (pendingCommit.current !== undefined) {
+        setPhase('unsaved')
+      } else {
+        setPhase('saved')
+      }
     } catch (reason) {
       if (!isRenderAbortError(reason) && !controller.signal.aborted && mounted.current) {
         setError(reason instanceof Error ? reason.message : String(reason))
@@ -365,6 +489,7 @@ export function StudioClient() {
   }
 
   const state: StudioDocumentState = {
+    conflictDraftCount,
     documentId: revision?.id ?? '',
     durableRevision,
     meaningful,
@@ -417,7 +542,7 @@ export function StudioClient() {
               </button>
               <button
                 className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
-                disabled={!meaningful || !previewReady || phase === 'exporting'}
+                disabled={conflictPreviewRevision !== undefined || !meaningful || !previewReady || phase === 'exporting'}
                 onClick={() => {
                   exportPng().catch(() => undefined)
                 }}
@@ -435,16 +560,70 @@ export function StudioClient() {
         </div>
 
         {error && <p data-testid="studio-error" className="m-0 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+        {pendingCommitRevision !== undefined && phase === 'unsaved' && (
+          <div className="flex items-center justify-between gap-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-950" data-testid="studio-save-recovery">
+            <p className="m-0">第 {pendingCommitRevision} 个版本还没有保存到本地。</p>
+            <div className="flex shrink-0 gap-2">
+              <button
+                className="rounded-full border border-amber-300 bg-white px-3 py-1.5 font-medium"
+                onClick={retryPendingCommit}
+                type="button"
+              >
+                重试保存
+              </button>
+              <button
+                className="rounded-full border border-amber-300 px-3 py-1.5 font-medium"
+                onClick={restoreDurableRevision}
+                type="button"
+              >
+                恢复已提交版本
+              </button>
+            </div>
+          </div>
+        )}
+        {conflictDraft && (
+          <div className="flex items-center justify-between gap-4 rounded-xl bg-violet-50 px-4 py-3 text-sm text-violet-950" data-testid="studio-conflict-notice">
+            <p className="m-0">检测到另一个写入分支，已保留“{conflictDraft.documentName}”。当前已提交内容没有被覆盖。</p>
+            <div className="flex shrink-0 gap-2">
+              <button
+                className="rounded-full border border-violet-300 bg-white px-3 py-1.5 font-medium"
+                onClick={() => openConflictDraft().catch(() => undefined)}
+                type="button"
+              >
+                查看冲突草稿
+              </button>
+              <button
+                className="rounded-full border border-violet-300 bg-white px-3 py-1.5 font-medium"
+                onClick={() => restoreDurableRevision().catch(() => undefined)}
+                type="button"
+              >
+                恢复已提交版本
+              </button>
+            </div>
+          </div>
+        )}
+        {conflictPreviewRevision && (
+          <div className="flex items-center justify-between gap-4 rounded-xl bg-violet-100 px-4 py-3 text-sm text-violet-950" data-testid="studio-conflict-preview">
+            <p className="m-0">正在查看冲突草稿；这是独立的只读预览。</p>
+            <button
+              className="shrink-0 rounded-full border border-violet-300 bg-white px-3 py-1.5 font-medium"
+              onClick={() => setConflictPreviewRevision(undefined)}
+              type="button"
+            >
+              返回当前 Draft
+            </button>
+          </div>
+        )}
         <div
           aria-busy={!previewReady}
           className="overflow-x-auto rounded-2xl shadow-[0_20px_60px_rgba(24,32,57,0.14)]"
           data-testid="studio-editor"
         >
           <CanonicalRenderSurface
-            mode={cleanPreview ? 'preview' : 'edit'}
+            mode={conflictPreviewRevision ? 'preview' : cleanPreview ? 'preview' : 'edit'}
             onRichTextBlur={(blockId, text) => commitText(blockId, text)}
             onRichTextInput={() => {
-              if (phase !== 'saving' && phase !== 'exporting') {
+              if (conflictDraft === undefined && phase !== 'saving' && phase !== 'exporting') {
                 setPhase('editing')
               }
             }}

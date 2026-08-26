@@ -32,8 +32,17 @@ export interface RecentDocument {
   readonly updatedAt: string
 }
 
+export interface ConflictDraft {
+  readonly createdAt: string
+  readonly documentId: string
+  readonly documentName: string
+  readonly revision: number
+  readonly sourceDocumentId: string
+}
+
 export interface LocalRepository {
   readonly close: () => void
+  readonly listConflictDrafts: () => Promise<readonly ConflictDraft[]>
   readonly listRecents: () => Promise<readonly RecentDocument[]>
   readonly persistCommit: (input: PersistCommitInput) => Promise<DurableReceipt>
   readonly restore: (documentId: string) => Promise<DocumentRevision | null>
@@ -48,15 +57,22 @@ export type LocalRepositoryErrorCode =
 
 export class LocalRepositoryError extends Error {
   readonly code: LocalRepositoryErrorCode
+  readonly conflictDraft?: ConflictDraft
 
-  constructor(code: LocalRepositoryErrorCode, message: string) {
+  constructor(
+    code: LocalRepositoryErrorCode,
+    message: string,
+    options: { readonly conflictDraft?: ConflictDraft } = {},
+  ) {
     super(message)
     this.name = 'LocalRepositoryError'
     this.code = code
+    this.conflictDraft = options.conflictDraft
   }
 }
 
 export interface LocalRepositoryOptions {
+  readonly beforePersistCommit?: (input: PersistCommitInput) => Promise<void> | void
   readonly clock?: () => string
 }
 
@@ -66,8 +82,10 @@ export interface IndexedDbLocalRepositoryOptions extends LocalRepositoryOptions 
 }
 
 interface StoredDocumentRecord {
+  readonly conflictOfDocumentId?: string
   readonly documentId: string
   readonly documentName: string
+  readonly kind?: 'conflict' | 'draft'
   readonly meaningful: boolean
   readonly revision: number
   readonly serializedRevision: string
@@ -85,14 +103,17 @@ export function createInMemoryLocalRepository(
   options: LocalRepositoryOptions = {},
 ): LocalRepository {
   const clock = options.clock ?? (() => new Date().toISOString())
+  const beforePersistCommit = options.beforePersistCommit
   const documents = new Map<string, StoredDocumentRecord>()
   const transactions = new Map<string, StoredTransactionRecord>()
   const enqueue = createDocumentQueue()
 
   return {
     close: () => undefined,
+    listConflictDrafts: async () => listConflictRecords(documents.values()),
     listRecents: async () => listRecentRecords(documents.values()),
     persistCommit: input => enqueue(input.revision.id, async () => {
+      await runBeforePersistCommit(beforePersistCommit, input)
       const prepared = prepareCommit(input, clock())
       return saveInMemoryCommit(prepared, documents, transactions)
     }),
@@ -112,6 +133,7 @@ export function createIndexedDbLocalRepository(
   }
   const dbName = options.dbName ?? DEFAULT_DATABASE_NAME
   const clock = options.clock ?? (() => new Date().toISOString())
+  const beforePersistCommit = options.beforePersistCommit
   const database = openDatabase(indexedDb, dbName)
   const enqueue = createDocumentQueue()
 
@@ -121,12 +143,18 @@ export function createIndexedDbLocalRepository(
         db.close()
       }).catch(() => undefined)
     },
+    listConflictDrafts: async () => {
+      const db = await database
+      const records = await readAllDocuments(db)
+      return listConflictRecords(records)
+    },
     listRecents: async () => {
       const db = await database
       const records = await readAllDocuments(db)
       return listRecentRecords(records)
     },
     persistCommit: input => enqueue(input.revision.id, async () => {
+      await runBeforePersistCommit(beforePersistCommit, input)
       const db = await database
       const prepared = prepareCommit(input, clock())
       return saveIndexedDbCommit(db, prepared)
@@ -139,8 +167,29 @@ export function createIndexedDbLocalRepository(
   }
 }
 
+async function runBeforePersistCommit(
+  hook: LocalRepositoryOptions['beforePersistCommit'],
+  input: PersistCommitInput,
+) {
+  if (hook === undefined) {
+    return
+  }
+  try {
+    await hook(input)
+  } catch (error) {
+    if (error instanceof LocalRepositoryError) {
+      throw error
+    }
+    throw new LocalRepositoryError(
+      'write-failed',
+      error instanceof Error ? error.message : String(error),
+    )
+  }
+}
+
 interface PreparedCommit {
   readonly record: StoredDocumentRecord
+  readonly revision: DocumentRevision
   readonly transaction: StoredTransactionRecord
 }
 
@@ -163,11 +212,13 @@ function prepareCommit(input: PersistCommitInput, updatedAt: string): PreparedCo
     record: {
       documentId: input.revision.id,
       documentName: input.revision.documentName,
+      kind: 'draft',
       meaningful,
       revision: input.revision.revision,
       serializedRevision,
       updatedAt,
     },
+    revision: input.revision,
     transaction: {
       documentId: input.revision.id,
       id: input.transaction.id,
@@ -187,7 +238,16 @@ function saveInMemoryCommit(
     existingTransaction.documentId !== prepared.transaction.documentId
     || existingTransaction.revision !== prepared.transaction.revision
   )) {
-    throw new LocalRepositoryError('conflict', `Transaction ${prepared.transaction.id} is already used`)
+    throwConflict(prepared, existingTransaction.revision, documents)
+  }
+  const conflictDraft = findConflictDraft(prepared, documents.get(prepared.record.documentId), existingTransaction)
+  if (conflictDraft !== undefined) {
+    documents.set(conflictDraft.record.documentId, conflictDraft.record)
+    throw new LocalRepositoryError(
+      'conflict',
+      `Document ${prepared.record.documentId} has a competing revision ${prepared.record.revision}`,
+      { conflictDraft: conflictDraft.descriptor },
+    )
   }
   return resolveCommitAgainstCurrent(
     prepared,
@@ -240,7 +300,7 @@ function resolveCommitAgainstCurrent(
 
 function listRecentRecords(records: Iterable<StoredDocumentRecord>): readonly RecentDocument[] {
   return Array.from(records)
-    .filter(record => record.meaningful)
+    .filter(record => (record.kind ?? 'draft') === 'draft' && record.meaningful)
     .sort((left, right) => {
       const byUpdatedAt = right.updatedAt.localeCompare(left.updatedAt)
       return byUpdatedAt === 0 ? left.documentId.localeCompare(right.documentId) : byUpdatedAt
@@ -251,6 +311,111 @@ function listRecentRecords(records: Iterable<StoredDocumentRecord>): readonly Re
       revision: record.revision,
       updatedAt: record.updatedAt,
     }))
+}
+
+function listConflictRecords(records: Iterable<StoredDocumentRecord>): readonly ConflictDraft[] {
+  return Array.from(records)
+    .filter(record => record.kind === 'conflict')
+    .sort((left, right) => {
+      const byCreatedAt = right.updatedAt.localeCompare(left.updatedAt)
+      return byCreatedAt === 0
+        ? left.documentId.localeCompare(right.documentId)
+        : byCreatedAt
+    })
+    .flatMap(record => record.conflictOfDocumentId === undefined
+      ? []
+      : [{
+          createdAt: record.updatedAt,
+          documentId: record.documentId,
+          documentName: record.documentName,
+          revision: record.revision,
+          sourceDocumentId: record.conflictOfDocumentId,
+        }])
+}
+
+interface PreparedConflictDraft {
+  readonly descriptor: ConflictDraft
+  readonly record: StoredDocumentRecord
+}
+
+function findConflictDraft(
+  prepared: PreparedCommit,
+  existing: StoredDocumentRecord | undefined,
+  existingTransaction: StoredTransactionRecord | undefined,
+): PreparedConflictDraft | undefined {
+  if (existing === undefined) {
+    return undefined
+  }
+  const isSameTransaction = existingTransaction?.documentId === prepared.transaction.documentId
+    && existingTransaction.revision === prepared.transaction.revision
+  if (isSameTransaction) {
+    const isSameRevision = existing.revision === prepared.record.revision
+    if (!isSameRevision || existing.serializedRevision === prepared.record.serializedRevision) {
+      return undefined
+    }
+  }
+  const isOlderRevision = prepared.record.revision < existing.revision
+  const isDifferentSameRevision = prepared.record.revision === existing.revision
+    && prepared.record.serializedRevision !== existing.serializedRevision
+  const isBasedOnOlderRevision = prepared.transaction.transaction.sourceRevision < existing.revision
+  if (!isOlderRevision && !isDifferentSameRevision && !isBasedOnOlderRevision) {
+    return undefined
+  }
+  return prepareConflictDraft(prepared)
+}
+
+function prepareConflictDraft(prepared: PreparedCommit): PreparedConflictDraft {
+  const documentId = createConflictDocumentId(prepared.record.documentId)
+  const documentName = prepared.revision.documentName.length === 0
+    ? '冲突草稿'
+    : `${prepared.revision.documentName}（冲突草稿）`
+  const revision = deserializeDocumentRevision(serializeDocumentRevision({
+    ...prepared.revision,
+    documentName,
+    id: documentId,
+  }))
+  const descriptor: ConflictDraft = {
+    createdAt: prepared.record.updatedAt,
+    documentId,
+    documentName,
+    revision: revision.revision,
+    sourceDocumentId: prepared.record.documentId,
+  }
+  return {
+    descriptor,
+    record: {
+      conflictOfDocumentId: descriptor.sourceDocumentId,
+      documentId,
+      documentName,
+      kind: 'conflict',
+      meaningful: isMeaningfulDocumentRevision(revision),
+      revision: revision.revision,
+      serializedRevision: serializeDocumentRevision(revision),
+      updatedAt: descriptor.createdAt,
+    },
+  }
+}
+
+function throwConflict(
+  prepared: PreparedCommit,
+  currentRevision: number,
+  documents: Map<string, StoredDocumentRecord>,
+): never {
+  const conflictDraft = prepareConflictDraft(prepared)
+  documents.set(conflictDraft.record.documentId, conflictDraft.record)
+  throw new LocalRepositoryError(
+    'conflict',
+    `Transaction ${prepared.transaction.id} conflicts with revision ${currentRevision}`,
+    { conflictDraft: conflictDraft.descriptor },
+  )
+}
+
+let conflictSequence = 0
+
+function createConflictDocumentId(documentId: string) {
+  conflictSequence += 1
+  const random = Math.random().toString(36).slice(2, 8)
+  return `${documentId}:conflict:${Date.now().toString(36)}-${conflictSequence}-${random}`
 }
 
 function deserializeStoredRevision(record: StoredDocumentRecord): DocumentRevision {
@@ -308,6 +473,7 @@ function openDatabase(indexedDb: IDBFactory, dbName: string): Promise<IDBDatabas
 function saveIndexedDbCommit(db: IDBDatabase, prepared: PreparedCommit): Promise<DurableReceipt> {
   return new Promise((resolve, reject) => {
     let outcome: DurableReceipt | undefined
+    let conflictDraft: PreparedConflictDraft | undefined
     let failure: Error | undefined
     const transaction = db.transaction([DOCUMENT_STORE, TRANSACTION_STORE], 'readwrite')
     const documents = transaction.objectStore(DOCUMENT_STORE)
@@ -336,7 +502,21 @@ function saveIndexedDbCommit(db: IDBDatabase, prepared: PreparedCommit): Promise
         existingTransaction.documentId !== prepared.transaction.documentId
         || existingTransaction.revision !== prepared.transaction.revision
       )) {
-        fail(new LocalRepositoryError('conflict', `Transaction ${prepared.transaction.id} is already used`))
+        conflictDraft = prepareConflictDraft(prepared)
+        try {
+          documents.put(conflictDraft.record)
+        } catch (error) {
+          fail(error instanceof Error ? error : new Error(String(error)))
+        }
+        return
+      }
+      conflictDraft = findConflictDraft(prepared, current, existingTransaction)
+      if (conflictDraft !== undefined) {
+        try {
+          documents.put(conflictDraft.record)
+        } catch (error) {
+          fail(error instanceof Error ? error : new Error(String(error)))
+        }
         return
       }
       try {
@@ -366,12 +546,12 @@ function saveIndexedDbCommit(db: IDBDatabase, prepared: PreparedCommit): Promise
       continueWhenReady()
     }
     transaction.onerror = () => {
-      if (failure === undefined && outcome?.status === 'saved') {
+      if (failure === undefined) {
         failure = transaction.error ?? new Error('IndexedDB write failed')
       }
     }
     transaction.onabort = () => {
-      if (outcome !== undefined && outcome.status !== 'saved') {
+      if (conflictDraft === undefined && outcome !== undefined && outcome.status !== 'saved') {
         resolve(outcome)
         return
       }
@@ -381,6 +561,14 @@ function saveIndexedDbCommit(db: IDBDatabase, prepared: PreparedCommit): Promise
       ))
     }
     transaction.oncomplete = () => {
+      if (conflictDraft !== undefined) {
+        reject(new LocalRepositoryError(
+          'conflict',
+          `Document ${prepared.record.documentId} has a competing revision ${prepared.record.revision}`,
+          { conflictDraft: conflictDraft.descriptor },
+        ))
+        return
+      }
       if (outcome?.status === 'saved') {
         resolve(outcome)
         return
