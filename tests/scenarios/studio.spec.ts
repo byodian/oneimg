@@ -73,22 +73,6 @@ test.describe('General Long Image Studio slice', () => {
     })
   })
 
-  test('persists after typing pauses without leaving the canonical editor', async ({ page }) => {
-    await page.goto('/studio')
-
-    const editor = page.getByTestId('studio-editor').locator('[contenteditable="true"]')
-    await editor.fill('停止输入后会自动保存的内容。')
-
-    await expect.poll(() => readStudioState(page)).toMatchObject({
-      durableRevision: 2,
-      meaningful: true,
-      revision: 2,
-      status: '已保存',
-    })
-    await expect(editor).toBeFocused()
-    await expect(page.getByText('停止输入后会自动保存的内容。')).toBeVisible()
-  })
-
   test('clean preview hides editor chrome without changing the canonical root', async ({ page }) => {
     await page.goto('/studio')
 

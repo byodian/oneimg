@@ -5,7 +5,6 @@ This note records Slice 06 for Issue #32. It extends the feature-flagged General
 ## Delivered contract
 
 - The Local Repository acknowledges a Document Revision only through a durable receipt. Studio keeps the newest acknowledged Revision separately from an in-memory but unacknowledged edit.
-- Studio schedules a durable commit after plain-text input settles for 400 ms, while leaving the body or pressing `Escape` flushes the pending commit immediately.
 - A failed local write keeps the current content usable and exposes both `重试保存` and `恢复已提交版本`. Retrying the same Edit Transaction remains idempotent if the browser committed the write before the failure was reported.
 - Restart recovery reads the newest valid Meaningful Draft and preserves its Document identity, Page identity, Block identity, presentation, and committed revision.
 - Concurrent branches based on an older committed Revision never replace the current Document. The non-winning branch is stored as a Conflict Draft with its own Document identity and can be restored independently.
