@@ -52,6 +52,13 @@ async function readWheelScroll(page: Page, scroller: ReturnType<Page['locator']>
   })
 }
 
+async function readStudioEditorWidths(page: Page) {
+  return page.getByTestId('studio-editor').evaluate(element => ({
+    editorWidth: element.getBoundingClientRect().width,
+    rootWidth: element.querySelector<HTMLElement>('[data-oneimg-render-root]')?.getBoundingClientRect().width ?? 0,
+  }))
+}
+
 test.describe('General Long Image Studio slice', () => {
   test('opens an editable starter, commits meaningful content, and restores it', async ({ page }) => {
     await page.goto('/studio')
@@ -125,6 +132,21 @@ test.describe('General Long Image Studio slice', () => {
     await expect(root).toHaveAttribute('data-render-mode', 'preview')
     await expect(root).toHaveAttribute('data-document-id', /document:studio:/)
     await expect(page.getByRole('button', { name: '返回编辑' })).toBeVisible()
+  })
+
+  test('fills the Studio editor width in edit and clean preview modes', async ({ page }) => {
+    await page.goto('/studio')
+
+    const editWidths = await readStudioEditorWidths(page)
+    expect(editWidths.rootWidth).toBeGreaterThan(0)
+    expect(Math.abs(editWidths.editorWidth - editWidths.rootWidth)).toBeLessThanOrEqual(1)
+
+    await page.getByRole('button', { name: '清爽预览' }).click()
+    await expect(page.getByTestId('studio-editor').locator('[data-oneimg-render-root]')).toHaveAttribute('data-render-mode', 'preview')
+
+    const previewWidths = await readStudioEditorWidths(page)
+    expect(previewWidths.rootWidth).toBeGreaterThan(0)
+    expect(Math.abs(previewWidths.editorWidth - previewWidths.rootWidth)).toBeLessThanOrEqual(1)
   })
 
   test('scrolls long content in edit and clean preview modes', async ({ page }) => {
@@ -293,6 +315,7 @@ const pasted = true
     const firstBlockEditor = root.locator('[data-block-kind="rich-text"] [contenteditable="true"]').first()
     await dispatchPaste(firstBlockEditor, { text: '第二段粘贴内容' })
     await expect.poll(() => readStudioState(page)).toMatchObject({ revision: 3, status: '已保存' })
+    await expect(root.locator('[data-block-kind]')).toHaveCount(2)
 
     const blockKinds = await root.locator('[data-block-kind]').evaluateAll(elements => (
       elements.map(element => element.getAttribute('data-block-kind'))

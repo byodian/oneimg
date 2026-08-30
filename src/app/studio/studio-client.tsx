@@ -724,8 +724,9 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
         )}
         <div
           aria-busy={!previewReady}
-          className="overflow-x-auto rounded-2xl shadow-[0_20px_60px_rgba(24,32,57,0.14)]"
+          className="mx-auto w-full overflow-x-auto rounded-2xl shadow-[0_20px_60px_rgba(24,32,57,0.14)]"
           data-testid="studio-editor"
+          style={{ maxWidth: snapshot.referenceViewport.width }}
         >
           <CanonicalRenderSurface
             mode={conflictPreviewRevision ? 'preview' : cleanPreview ? 'preview' : 'edit'}
