@@ -1,5 +1,5 @@
 export const canonicalStylePack = {
-  id: 'oneimg-foundation@1',
+  id: 'oneimg-foundation@2',
   cssText: String.raw`
   @layer oneimg-foundation;
   @layer oneimg-foundation {

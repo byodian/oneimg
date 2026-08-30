@@ -176,7 +176,7 @@ test.describe('Canonical Renderer local export contract', () => {
     await expect(root).toBeVisible()
     await expect(root).toHaveAttribute('data-render-ready', 'true')
     await expect(root).toHaveAttribute('data-snapshot-id', 'canonical-wysiwyg-fixture-v1')
-    await expect(root).toHaveAttribute('data-style-pack', 'oneimg-foundation@1')
+    await expect(root).toHaveAttribute('data-style-pack', 'oneimg-foundation@2')
     await expect(root.getByRole('heading', { name: '所见即所得' })).toBeVisible()
     await expect(root.getByText('Canonical preview, local PNG.')).toBeVisible()
     await expect(root.locator('section')).toHaveCount(4)

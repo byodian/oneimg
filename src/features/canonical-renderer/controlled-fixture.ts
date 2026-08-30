@@ -4,8 +4,8 @@ import type { BrowserResourceDefinition } from './resource-resolver'
 export const controlledCanonicalSnapshot = {
   schemaVersion: 1,
   snapshotId: 'canonical-wysiwyg-fixture-v1',
-  rendererRevision: 'canonical-renderer@0.1.0-spike',
-  stylePackId: 'oneimg-foundation@1',
+  rendererRevision: 'canonical-renderer@2',
+  stylePackId: 'oneimg-foundation@2',
   locale: 'zh-CN',
   direction: 'ltr',
   referenceViewport: { width: 640 },

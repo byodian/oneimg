@@ -99,8 +99,10 @@ export interface UnknownBlock {
 
 export type Block = ChecklistBlock | DataTableBlock | RichTextBlock | UnknownBlock
 
+export type BlockCatalogVersion = 'block-catalog@1' | 'block-catalog@2'
+
 export interface DocumentRevision {
-  readonly blockVersion: 'block-catalog@1'
+  readonly blockVersion: BlockCatalogVersion
   readonly documentName: string
   readonly id: string
   readonly modelVersion: 'document@1'

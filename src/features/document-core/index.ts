@@ -1,5 +1,6 @@
 import type {
   Block,
+  BlockCatalogVersion,
   ChecklistBlock,
   ChecklistItem,
   DataTableBlock,
@@ -21,7 +22,9 @@ export * from './model'
 
 const DOCUMENT_SCHEMA = 'oneimg-document@1' as const
 const DOCUMENT_MODEL_VERSION = 'document@1' as const
-const BLOCK_CATALOG_VERSION = 'block-catalog@1' as const
+const LEGACY_BLOCK_CATALOG_VERSION = 'block-catalog@1' as const
+const BLOCK_CATALOG_VERSION = 'block-catalog@2' as const
+const CURRENT_RENDERER_REVISION = 'canonical-renderer@2' as const
 
 export const DEFAULT_DOCUMENT_PRESENTATION: DocumentPresentation = {
   density: 'standard',
@@ -31,7 +34,7 @@ export const DEFAULT_DOCUMENT_PRESENTATION: DocumentPresentation = {
     preset: 'long-image',
     width: 640,
   },
-  rendererRevision: 'canonical-renderer@1',
+  rendererRevision: CURRENT_RENDERER_REVISION,
   sceneId: 'general-long-image',
   sceneVersion: 'general-long-image@1',
   templateId: 'clear-paper',
@@ -271,7 +274,7 @@ export function validateDocumentRevision(value: unknown): DocumentRevision {
   if (value.schema !== DOCUMENT_SCHEMA || value.modelVersion !== DOCUMENT_MODEL_VERSION) {
     throw new DocumentCoreError('invalid-document', 'Document revision uses an unsupported schema')
   }
-  if (value.blockVersion !== BLOCK_CATALOG_VERSION) {
+  if (value.blockVersion !== BLOCK_CATALOG_VERSION && value.blockVersion !== LEGACY_BLOCK_CATALOG_VERSION) {
     throw new DocumentCoreError('invalid-document', 'Document revision uses an unsupported Block Catalog')
   }
   assertNonEmptyString(value.id, 'Document id')
@@ -295,7 +298,7 @@ export function validateDocumentRevision(value: unknown): DocumentRevision {
     }
     pageIds.add(page.id)
     for (const block of page.blocks) {
-      validateBlock(block)
+      validateBlock(block, value.blockVersion)
       if (blockIds.has(block.id)) {
         throw new DocumentCoreError('duplicate-id', `Block id ${block.id} is repeated`)
       }
@@ -307,7 +310,9 @@ export function validateDocumentRevision(value: unknown): DocumentRevision {
 
 export function serializeDocumentRevision(revision: DocumentRevision): string {
   validateDocumentRevision(revision)
-  return stableStringify(revision)
+  const normalized = upgradeDocumentRevision(revision)
+  validateDocumentRevision(normalized)
+  return stableStringify(normalized)
 }
 
 export function isMeaningfulDocumentRevision(revision: DocumentRevision): boolean {
@@ -688,11 +693,17 @@ function validatePageFormat(value: unknown): asserts value is PageFormat {
   }
 }
 
-function validateBlock(value: unknown): asserts value is Block {
+function validateBlock(
+  value: unknown,
+  blockVersion: BlockCatalogVersion = BLOCK_CATALOG_VERSION,
+): asserts value is Block {
   if (!isRecord(value)) {
     throw new DocumentCoreError('invalid-block', 'Block must be an object')
   }
   assertNonEmptyString(value.id, 'Block id')
+  if (blockVersion === LEGACY_BLOCK_CATALOG_VERSION && (value.kind === 'checklist' || value.kind === 'data-table')) {
+    throw new DocumentCoreError('invalid-block', `${String(value.kind)} Block is unsupported by ${blockVersion}`)
+  }
   if (value.kind === 'rich-text') {
     if (value.version !== 1) {
       throw new DocumentCoreError('invalid-block', 'Rich Text Block version is unsupported')
@@ -903,6 +914,20 @@ function isJsonValue(value: unknown): value is JsonValue {
   return isJsonObject(value)
 }
 
+function upgradeDocumentRevision(revision: DocumentRevision): DocumentRevision {
+  if (revision.blockVersion !== LEGACY_BLOCK_CATALOG_VERSION) {
+    return revision
+  }
+  return {
+    ...revision,
+    blockVersion: BLOCK_CATALOG_VERSION,
+    presentation: {
+      ...revision.presentation,
+      rendererRevision: CURRENT_RENDERER_REVISION,
+    },
+  }
+}
+
 function cloneValue<T>(value: T): T {
   if (Array.isArray(value)) {
     return value.map(child => cloneValue(child)) as T
@@ -926,7 +951,8 @@ function freezeDeep<T>(value: T): T {
 }
 
 function freezeRevision(revision: DocumentRevision): DocumentRevision {
-  const cloned = cloneValue(revision)
+  validateDocumentRevision(revision)
+  const cloned = cloneValue(upgradeDocumentRevision(revision))
   validateDocumentRevision(cloned)
   return freezeDeep(cloned)
 }

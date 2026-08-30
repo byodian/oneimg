@@ -134,6 +134,10 @@ test.describe('General Long Image Studio slice', () => {
     await expect(root.locator('[data-block-kind="rich-text"]')).toHaveCount(1)
     await expect(root.locator('[data-block-kind="data-table"]')).toHaveCount(1)
     await expect(root.locator('[data-block-kind="checklist"]')).toHaveCount(1)
+    const semanticBlockKinds = await root.locator('[data-block-kind]').evaluateAll(elements => (
+      elements.map(element => element.getAttribute('data-block-kind'))
+    ))
+    expect(semanticBlockKinds).toEqual(['rich-text', 'data-table', 'checklist'])
     await expect(root.locator('[data-node-type="heading"]')).toHaveText('粘贴标题')
     await expect(root.locator('[data-node-type="bullet-list"]')).toContainText('普通列表')
     await expect(root.locator('[data-node-type="blockquote"]')).toContainText('引用内容')
@@ -141,6 +145,7 @@ test.describe('General Long Image Studio slice', () => {
     await expect(root.locator('a[href="https://example.com"]')).toHaveText('安全链接')
     await expect(root.locator('[data-block-kind="checklist"]')).toContainText('已完成')
     await expect(root.locator('[data-block-kind="checklist"]')).toContainText('待处理')
+    await expect(root.locator('[data-block-kind="checklist"] input').first()).toBeDisabled()
 
     const renderedMarkup = await root.innerHTML()
     expect(renderedMarkup).not.toContain('EvilFont')
@@ -176,7 +181,11 @@ test.describe('General Long Image Studio slice', () => {
     await dispatchPaste(editor, {
       text: `# Markdown 标题
 
+Setext 标题
+===
+
 含有 **加粗**、\`内联代码\` 和 [安全链接](https://example.com)。
+    const indented = true
 - 普通列表一
 - 普通列表二
 1. 有序列表一
@@ -196,9 +205,13 @@ const pasted = true
     await expect(root.locator('[data-block-kind="rich-text"]')).toHaveCount(1)
     await expect(root.locator('[data-block-kind="data-table"]')).toHaveCount(1)
     await expect(root.locator('[data-block-kind="checklist"]')).toHaveCount(1)
-    await expect(root.locator('[data-node-type="heading"]')).toHaveText('Markdown 标题')
+    await expect(root.locator('[data-node-type="heading"]')).toHaveCount(2)
+    await expect(root.locator('[data-node-type="heading"]').first()).toHaveText('Markdown 标题')
+    await expect(root.locator('[data-node-type="heading"]').nth(1)).toHaveText('Setext 标题')
     await expect(root.locator('[data-node-type="ordered-list"]')).toContainText('有序列表二')
-    await expect(root.locator('[data-node-type="code-block"]')).toContainText('const pasted = true')
+    await expect(root.locator('[data-node-type="code-block"]')).toHaveCount(2)
+    await expect(root.locator('[data-node-type="code-block"]').first()).toContainText('const indented = true')
+    await expect(root.locator('[data-node-type="code-block"]').last()).toContainText('const pasted = true')
     await expect(root.locator('strong')).toHaveText('加粗')
     await expect(root.locator('code').filter({ hasText: '内联代码' })).toHaveText('内联代码')
     await expect(root.locator('a[href="https://example.com"]')).toHaveText('安全链接')

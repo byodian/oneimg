@@ -13,6 +13,7 @@ interface DocumentCoreScenarioResult {
   readonly revisionAfterUndo: number
   readonly revisionAfterRedo: number
   readonly serializedEqual: boolean
+  readonly legacyVersionMigrated: boolean
   readonly unknownBlockRoundTrip: boolean
 }
 
@@ -36,6 +37,7 @@ test.describe('Document Core contract', () => {
     expect(result.revisionAfterUndo).toBe(3)
     expect(result.revisionAfterRedo).toBe(4)
     expect(result.serializedEqual).toBe(true)
+    expect(result.legacyVersionMigrated).toBe(true)
     expect(result.unknownBlockRoundTrip).toBe(true)
   })
 })

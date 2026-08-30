@@ -19,6 +19,7 @@ interface DocumentCoreScenarioResult {
   readonly revisionAfterRedo: number
   readonly revisionAfterUndo: number
   readonly serializedEqual: boolean
+  readonly legacyVersionMigrated: boolean
   readonly staleCommit: {
     readonly code: DocumentCoreErrorCode
     readonly status: 'rejected'
@@ -75,6 +76,14 @@ function runScenario(): DocumentCoreScenarioResult {
   const roundTrip = deserializeDocumentRevision(serialized)
   const serializedAgain = serializeDocumentRevision(roundTrip)
   const unknownRoundTrip = roundTrip.pages[0]!.blocks[1]!
+  const legacyRoundTrip = deserializeDocumentRevision(JSON.stringify({
+    ...revisionAfterInsert,
+    blockVersion: 'block-catalog@1',
+    presentation: {
+      ...revisionAfterInsert.presentation,
+      rendererRevision: 'canonical-renderer@1',
+    },
+  }))
   const undo = session.undo()
   if (undo.status !== 'committed') {
     throw new Error('Document Core fixture undo was not committed')
@@ -86,6 +95,9 @@ function runScenario(): DocumentCoreScenarioResult {
   return {
     initialRevision: initialRevision.revision,
     insertedBlockKinds: revisionAfterInsert.pages[0]!.blocks.map(block => block.kind),
+    legacyVersionMigrated: legacyRoundTrip.blockVersion === 'block-catalog@2'
+      && legacyRoundTrip.presentation.rendererRevision === 'canonical-renderer@2'
+      && legacyRoundTrip.pages[0]!.blocks.length === revisionAfterInsert.pages[0]!.blocks.length,
     originalBlockCount: initialRevision.pages[0]!.blocks.length,
     revisionAfterInsert: revisionAfterInsert.revision,
     revisionAfterRedo: redo.revision.revision,

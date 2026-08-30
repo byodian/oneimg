@@ -8,7 +8,7 @@ import type {
 import type { BrowserResourceDefinition } from '@/features/canonical-renderer/resource-resolver'
 import type { CanonicalRenderSnapshot, CanonicalTheme } from '@/features/canonical-renderer/model'
 
-export const GENERAL_LONG_IMAGE_STYLE_PACK_ID = 'oneimg-foundation@1'
+export const GENERAL_LONG_IMAGE_STYLE_PACK_ID = 'oneimg-foundation@2'
 export const GENERAL_LONG_IMAGE_FONT_PACK = {
   id: 'noto-sans-sc-variable@5.3.0-subset-117-119',
   resourceIds: [

@@ -10,10 +10,11 @@ This note records Slice 07 for Issue #33. It extends the feature-flagged General
 - Scripts, event handlers, classes, inline styles, fixed dimensions, external fonts, unsafe links, and unsupported executable or decorative elements never enter the Document. Unknown structure falls back to visible RichText text.
 - The first paste into an Untouched Draft inserts the parsed batch as one semantic transaction. Later pastes insert one batch after the active Block. Undo and redo restore the whole paste as one history step and durable commit.
 - No clipboard path invokes AI, fetches a network resource, or retains source HTML; the Canonical Renderer renders only the validated semantic Document model.
+- The new Checklist and DataTable kinds use `block-catalog@2`; persisted `block-catalog@1` revisions are upgraded before the current renderer reads them, and the new renderer/style pack are versioned independently.
 
 ## Deliberate scope
 
-This slice does not add media ingestion, Scene Suggestions, automatic Section conversion, or a general rich-text editing adapter. Pasted media remains for the later Asset Pipeline slice, while headings and other rich nodes remain editable through the existing text surface. DataTable and Checklist editing controls are also deferred to the shared repeating-entry work.
+This slice does not add media ingestion, Scene Suggestions, automatic Section conversion, or a general rich-text editing adapter. Pasted media remains for the later Asset Pipeline slice, while headings and other rich nodes remain editable through the existing text surface. DataTable and Checklist editing controls are also deferred to the shared repeating-entry work; the current Studio treats the active semantic position as the boundary after the focused Block, while character-level caret splitting and reloadable history remain part of the later Editing Module work.
 
 ## Verification
 

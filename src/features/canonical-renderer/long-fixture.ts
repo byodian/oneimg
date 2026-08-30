@@ -53,8 +53,8 @@ const longImageResources = imageDimensions.map(([width, height], index): Browser
 export const longCanonicalSnapshot = {
   schemaVersion: 1,
   snapshotId: 'canonical-long-resource-fixture-v1',
-  rendererRevision: 'canonical-renderer@0.1.0-spike',
-  stylePackId: 'oneimg-foundation@1',
+  rendererRevision: 'canonical-renderer@2',
+  stylePackId: 'oneimg-foundation@2',
   locale: 'zh-CN',
   direction: 'ltr',
   referenceViewport: { width: 640 },

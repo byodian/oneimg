@@ -275,6 +275,27 @@ function parseMarkdownSegments(text: string): readonly Segment[] {
       continue
     }
 
+    const setextHeading = parseSetextHeading(lines, index)
+    if (setextHeading !== undefined) {
+      const inline = parseInlineMarkdown(setextHeading.text)
+      const node = createInlineBlock('heading', inline, setextHeading.level)
+      if (node !== undefined) {
+        segments.push({ kind: 'rich', node })
+      }
+      index = setextHeading.nextIndex
+      continue
+    }
+
+    const indentedCode = parseIndentedCode(lines, index)
+    if (indentedCode !== undefined) {
+      segments.push({
+        kind: 'rich',
+        node: { text: indentedCode.text, type: 'code-block' },
+      })
+      index = indentedCode.nextIndex
+      continue
+    }
+
     const heading = line.match(/^\s{0,3}(#{1,6})\s+(.+?)\s*#*\s*$/)
     if (heading !== null) {
       const inline = parseInlineMarkdown(heading[2]!.trim())
@@ -371,6 +392,46 @@ function parseMarkdownTable(lines: readonly string[], index: number) {
       rows: rows.map(row => padCells(row, width)),
     },
   }
+}
+
+function parseSetextHeading(lines: readonly string[], index: number) {
+  if (!isSetextHeadingStart(lines, index)) {
+    return undefined
+  }
+  const text = lines[index]!.trim()
+  const underline = lines[index + 1]!.trim()
+  return {
+    level: underline.startsWith('=') ? 1 as const : 2 as const,
+    nextIndex: index + 2,
+    text,
+  }
+}
+
+function parseIndentedCode(lines: readonly string[], index: number) {
+  if (!isIndentedCodeLine(lines[index] ?? '')) {
+    return undefined
+  }
+  const codeLines: string[] = []
+  let nextIndex = index
+  while (nextIndex < lines.length) {
+    const line = lines[nextIndex] ?? ''
+    if (isIndentedCodeLine(line)) {
+      codeLines.push(line.startsWith('\t') ? line.slice(1) : line.slice(4))
+      nextIndex += 1
+      continue
+    }
+    if (line.trim().length === 0 && codeLines.length > 0) {
+      codeLines.push('')
+      nextIndex += 1
+      continue
+    }
+    break
+  }
+  while (codeLines.at(-1) === '') {
+    codeLines.pop()
+  }
+  const text = codeLines.join('\n')
+  return text.trim().length === 0 ? undefined : { nextIndex, text }
 }
 
 function parseTabSeparatedTable(lines: readonly string[], index: number) {
@@ -980,7 +1041,9 @@ function looksLikeMarkdown(text: string) {
     || /^\s{0,3}(?:[-+*]|\d+[.)])\s+/.test(line)
     || /^\s{0,3}>/.test(line)
     || /^\s{0,3}(?:`{3,}|~{3,})/.test(line)
+    || isIndentedCodeLine(line)
     || isHorizontalRule(line)
+    || isSetextHeadingStart(lines, index)
     || (isTableRow(line) && lines[index + 1] !== undefined && isTableSeparator(lines[index + 1]!))
     || /\[[^\]]+\]\([^)]*\)/.test(line)
     || /(?:\*\*|__|`)[^\n]+(?:\*\*|__|`)/.test(line)
@@ -990,8 +1053,26 @@ function looksLikeMarkdown(text: string) {
 function isMarkdownBlockStart(lines: readonly string[], index: number) {
   const line = lines[index] ?? ''
   return /^\s{0,3}(?:#{1,6}\s+|>|[-+*]\s+|\d+[.)]\s+|`{3,}|~{3,})/.test(line)
+    || isIndentedCodeLine(line)
     || isHorizontalRule(line)
+    || isSetextHeadingStart(lines, index)
     || (isTableRow(line) && lines[index + 1] !== undefined && isTableSeparator(lines[index + 1]!))
+}
+
+function isSetextHeadingStart(lines: readonly string[], index: number) {
+  const line = lines[index] ?? ''
+  const underline = lines[index + 1] ?? ''
+  if (line.trim().length === 0 || isIndentedCodeLine(line)) {
+    return false
+  }
+  if (/^\s{0,3}(?:#{1,6}\s+|>|[-+*]\s+|\d+[.)]\s+|`{3,}|~{3,})/.test(line) || isHorizontalRule(line)) {
+    return false
+  }
+  return /^\s{0,3}(?:=+|-+)\s*$/.test(underline)
+}
+
+function isIndentedCodeLine(value: string) {
+  return /^(?: {4}|\t)/.test(value)
 }
 
 function isTableRow(value: string) {

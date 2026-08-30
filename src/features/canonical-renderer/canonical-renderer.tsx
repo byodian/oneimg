@@ -148,7 +148,7 @@ function renderChecklistSection(section: Extract<CanonicalSection, { kind: 'chec
       <ul className="oneimg-checklist">
         {section.items.map(item => (
           <li data-item-id={item.id} key={item.id}>
-            <input aria-label={item.text} checked={item.checked} readOnly type="checkbox" />
+            <input aria-label={item.text} checked={item.checked} disabled readOnly type="checkbox" />
             <span>{item.text}</span>
           </li>
         ))}
