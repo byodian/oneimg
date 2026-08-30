@@ -7,11 +7,11 @@ Template Families provide structurally distinct approaches rather than multiplyi
 | Theme | Palette | Intended character |
 | --- | --- | --- |
 | Clear Paper | `#F6F8FB`, `#17202A`, `#2F64D6`, `#E7EEFC` | Neutral reading with a restrained cobalt accent |
-| Tide | `#F1F7F6`, `#153A3D`, `#147D78`, `#CBE4E0` | Calm travel and everyday material |
-| Pomelo Gold | `#FFF8E8`, `#30261A`, `#C77912`, `#F1D59C` | Warm guides and events without ornamental nostalgia |
-| Pine Shade | `#F3F7F2`, `#1F3A2C`, `#3D7B55`, `#C8DECE` | Knowledge, nature, and internal communication |
-| Graphite | `#F5F6F7`, `#1B1D21`, `#5D6876`, `#DDE1E6` | Formal, restrained personal and professional material |
-| Night Voyage | `#111923`, `#EEF3F7`, `#4BA7B6`, `#243544` | Dark photo-first sharing graphics |
+| Tide | `#F1F7F6`, `#153A3D`, `#147D78`, `#EEF9F7` | Calm travel and everyday material |
+| Pomelo Gold | `#FFF8E8`, `#30261A`, `#8A5600`, `#F7E6B8` | Warm guides and events without ornamental nostalgia |
+| Pine Shade | `#F3F7F2`, `#1F3A2C`, `#3D7B55`, `#EFF8F0` | Knowledge, nature, and internal communication |
+| Graphite | `#F5F6F7`, `#1B1D21`, `#5D6876`, `#E9EDF1` | Formal, restrained personal and professional material |
+| Night Voyage | `#111923`, `#EEF3F7`, `#4BA7B6`, `#20303D` | Dark photo-first sharing graphics |
 
 Themes do not impose an OneIMG watermark or decorative signature on exports. Template identity belongs to content structure and the user's material.
 

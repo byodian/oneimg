@@ -81,7 +81,12 @@ function runScenario(): DocumentCoreScenarioResult {
     blockVersion: 'block-catalog@1',
     presentation: {
       ...revisionAfterInsert.presentation,
+      fontPackId: 'noto-sans-sc@1',
       rendererRevision: 'canonical-renderer@1',
+      templateId: 'clear-paper',
+      templateVersion: 'clear-paper@1',
+      themeId: 'cobalt',
+      themeVersion: 'cobalt@1',
     },
   }))
   const undo = session.undo()
@@ -96,7 +101,10 @@ function runScenario(): DocumentCoreScenarioResult {
     initialRevision: initialRevision.revision,
     insertedBlockKinds: revisionAfterInsert.pages[0]!.blocks.map(block => block.kind),
     legacyVersionMigrated: legacyRoundTrip.blockVersion === 'block-catalog@2'
-      && legacyRoundTrip.presentation.rendererRevision === 'canonical-renderer@2'
+      && legacyRoundTrip.presentation.rendererRevision === 'canonical-renderer@3'
+      && legacyRoundTrip.presentation.fontPackId === 'noto-sans-sc-variable@5.3.0-subset-117-119'
+      && legacyRoundTrip.presentation.templateId === 'clear-reading'
+      && legacyRoundTrip.presentation.themeId === 'clear-paper'
       && legacyRoundTrip.pages[0]!.blocks.length === revisionAfterInsert.pages[0]!.blocks.length,
     originalBlockCount: initialRevision.pages[0]!.blocks.length,
     revisionAfterInsert: revisionAfterInsert.revision,

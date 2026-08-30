@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CanonicalRenderSurface } from '@/features/canonical-renderer/canonical-renderer'
+import { collectSnapshotResourceIds } from '@/features/canonical-renderer/model'
 import {
   type ResolvedResourceSet,
   createBrowserResourceResolver,
@@ -23,8 +24,10 @@ import {
   generalLongImageResourceDefinitions,
   richTextDocumentHasMeaningfulText,
   richTextDocumentToEditableText,
+  updateGeneralLongImagePresentation,
   updateRichTextDocumentText,
 } from '@/features/general-long-image'
+import { GeneralLongImagePresentationPanel } from '@/features/general-long-image/presentation-panel'
 import { parseSmartPaste } from '@/features/smart-paste'
 import { createLocalSvgAdapter } from '@/features/local-export/local-svg-adapter'
 import {
@@ -119,6 +122,24 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
   const saveTail = useRef(Promise.resolve())
   const exportController = useRef<AbortController>()
   const readinessGeneration = useRef(0)
+  // Keep the native contenteditable node stable during input while exposing the latest Studio state to events.
+  const richTextBlurHandler = useRef<(blockId: string | undefined, text: string) => void>(() => undefined)
+  const richTextInputHandler = useRef<() => void>(() => undefined)
+  const richTextPasteHandler = useRef<(blockId: string | undefined, payload: { readonly html: string; readonly text: string }) => boolean>(() => false)
+  const stableRichTextBlurHandler = useCallback(
+    (blockId: string | undefined, text: string) => richTextBlurHandler.current(blockId, text),
+    [],
+  )
+  const stableRichTextInputHandler = useCallback(
+    () => richTextInputHandler.current(),
+    [],
+  )
+  const stableRichTextPasteHandler = useCallback(
+    (blockId: string | undefined, payload: { readonly html: string; readonly text: string }) => (
+      richTextPasteHandler.current(blockId, payload)
+    ),
+    [],
+  )
   const resolver = useMemo(
     () => createBrowserResourceResolver(generalLongImageResourceDefinitions),
     [],
@@ -143,6 +164,12 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
     () => displayedRevision === undefined ? undefined : createGeneralLongImageSnapshot(displayedRevision),
     [displayedRevision],
   )
+  const resourceSnapshot = useRef(snapshot)
+  resourceSnapshot.current = snapshot
+  const resourceKey = useMemo(
+    () => snapshot === undefined ? '' : collectSnapshotResourceIds(snapshot).join('|'),
+    [snapshot],
+  )
   const meaningful = revision === undefined ? false : isMeaningfulDocumentRevision(revision)
 
   useEffect(() => {
@@ -165,7 +192,8 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
         for (const candidateDocumentId of candidateDocumentIds) {
           try {
             const candidate = await localRepository.restore(candidateDocumentId)
-            if (candidate !== null && isMeaningfulDocumentRevision(candidate)) {
+            const isActiveHint = candidateDocumentId === hintedDocumentId
+            if (candidate !== null && (isMeaningfulDocumentRevision(candidate) || isActiveHint)) {
               restoredRevision = candidate
               break
             }
@@ -205,28 +233,25 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
       mounted.current = false
       exportController.current?.abort()
       repository.current?.close()
-      resources?.release()
     }
     // The Repository and resource resolver are intentionally created once per Studio session.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
-    if (snapshot === undefined) {
+    const snapshotForResources = resourceSnapshot.current
+    if (snapshotForResources === undefined || resourceKey === '') {
       setResources(undefined)
       setPreviewReady(false)
       return
     }
 
     let active = true
-    let resolved: ResolvedResourceSet | undefined
     const controller = new AbortController()
-    setResources(undefined)
     setPreviewReady(false)
 
-    resolver.resolve(snapshot, 'preview', { signal: controller.signal })
+    resolver.resolve(snapshotForResources, 'preview', { signal: controller.signal })
       .then((resourceSet) => {
-        resolved = resourceSet
         if (!active) {
           resourceSet.release()
           return
@@ -243,9 +268,12 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
     return () => {
       active = false
       controller.abort()
-      resolved?.release()
     }
-  }, [resolver, snapshot])
+  }, [resolver, resourceKey])
+
+  useEffect(() => () => {
+    resources?.release()
+  }, [resources])
 
   useEffect(() => {
     if (!resources || snapshot === undefined) {
@@ -455,6 +483,43 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
     persistCommit(result.revision, result.transaction)
   }
 
+  function commitPresentation(change: Parameters<typeof updateGeneralLongImagePresentation>[1]) {
+    const currentSession = session.current
+    const currentRevision = revision
+    if (!currentSession || currentRevision === undefined || conflictDraft !== undefined || conflictPreviewRevision !== undefined) {
+      return
+    }
+
+    const presentation = updateGeneralLongImagePresentation(currentRevision.presentation, change)
+    const currentPageFormat = currentRevision.presentation.pageFormat
+    const nextPageFormat = presentation.pageFormat
+    const unchanged = currentRevision.presentation.density === presentation.density
+      && currentRevision.presentation.templateId === presentation.templateId
+      && currentRevision.presentation.templateVersion === presentation.templateVersion
+      && currentRevision.presentation.themeId === presentation.themeId
+      && currentRevision.presentation.themeVersion === presentation.themeVersion
+      && currentPageFormat.kind === nextPageFormat.kind
+      && currentPageFormat.preset === nextPageFormat.preset
+      && currentPageFormat.width === nextPageFormat.width
+      && currentPageFormat.height === nextPageFormat.height
+    if (unchanged) {
+      return
+    }
+
+    const result = currentSession.commit({ presentation, type: 'set-presentation' }, {
+      expectedRevision: currentRevision.revision,
+    })
+    if (!isCommitted(result)) {
+      setError(result.message)
+      setPhase('unsaved')
+      return
+    }
+    setError(undefined)
+    setRevision(result.revision)
+    setPhase('saving')
+    persistCommit(result.revision, result.transaction)
+  }
+
   function commitPaste(
     blockId: string | undefined,
     payload: { readonly html: string; readonly text: string },
@@ -508,6 +573,14 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
     return true
   }
 
+  richTextBlurHandler.current = commitText
+  richTextInputHandler.current = () => {
+    if (conflictDraft === undefined && phase !== 'saving' && phase !== 'exporting') {
+      setPhase('editing')
+    }
+  }
+  richTextPasteHandler.current = commitPaste
+
   function moveHistory(direction: 'redo' | 'undo') {
     const currentSession = session.current
     const currentRevision = revision
@@ -531,7 +604,7 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
   }
 
   async function exportPng() {
-    if (!snapshot || !meaningful || conflictPreviewRevision !== undefined || !previewReady || exportController.current) {
+    if (!snapshot || snapshot.localCapability !== 'certified' || !meaningful || conflictPreviewRevision !== undefined || !previewReady || exportController.current) {
       return
     }
     const controller = new AbortController()
@@ -650,7 +723,7 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
               </button>
               <button
                 className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
-                disabled={conflictPreviewRevision !== undefined || !meaningful || !previewReady || phase === 'exporting'}
+                disabled={conflictPreviewRevision !== undefined || snapshot.localCapability !== 'certified' || !meaningful || !previewReady || phase === 'exporting'}
                 onClick={() => {
                   exportPng().catch(() => undefined)
                 }}
@@ -722,6 +795,14 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
             </button>
           </div>
         )}
+        {!cleanPreview && (
+          <GeneralLongImagePresentationPanel
+            disabled={phase === 'exporting' || conflictDraft !== undefined || conflictPreviewRevision !== undefined}
+            onChange={commitPresentation}
+            resources={resources}
+            snapshot={snapshot}
+          />
+        )}
         <div
           aria-busy={!previewReady}
           className="mx-auto w-full overflow-x-auto rounded-2xl shadow-[0_20px_60px_rgba(24,32,57,0.14)]"
@@ -730,13 +811,9 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
         >
           <CanonicalRenderSurface
             mode={conflictPreviewRevision ? 'preview' : cleanPreview ? 'preview' : 'edit'}
-            onRichTextBlur={(blockId, text) => commitText(blockId, text)}
-            onRichTextInput={() => {
-              if (conflictDraft === undefined && phase !== 'saving' && phase !== 'exporting') {
-                setPhase('editing')
-              }
-            }}
-            onRichTextPaste={(blockId, payload) => commitPaste(blockId, payload)}
+            onRichTextBlur={stableRichTextBlurHandler}
+            onRichTextInput={stableRichTextInputHandler}
+            onRichTextPaste={stableRichTextPasteHandler}
             resources={resources}
             snapshot={snapshot}
           />

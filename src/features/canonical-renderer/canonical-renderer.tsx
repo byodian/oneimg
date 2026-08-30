@@ -1,4 +1,5 @@
-import type { CSSProperties, ClipboardEvent, FormEvent, KeyboardEvent, ReactNode } from 'react'
+import type { CSSProperties, ClipboardEvent, FormEvent, KeyboardEvent } from 'react'
+import { memo } from 'react'
 import type { CanonicalRenderSnapshot, CanonicalSection } from './model'
 import type { ResolvedResourceSet } from './resource-resolver'
 import { canonicalStylePack } from './style-pack'
@@ -33,54 +34,64 @@ function safeHref(href: string) {
   return /^(https?:|mailto:|tel:)/i.test(href) ? href : '#'
 }
 
-function renderMarkedText(node: RichTextNode, key: string): ReactNode {
-  let content: ReactNode = node.text ?? ''
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, character => ({
+    '&': '&amp;',
+    '\'': '&#39;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+  })[character]!)
+}
+
+function renderMarkedTextHtml(node: RichTextNode): string {
+  let content = escapeHtml(node.text ?? '')
   for (const mark of node.marks ?? []) {
     switch (mark.type) {
       case 'bold':
-        content = <strong key={`${key}-bold`}>{content}</strong>
+        content = `<strong>${content}</strong>`
         break
       case 'code':
-        content = <code key={`${key}-code`}>{content}</code>
+        content = `<code>${content}</code>`
         break
       case 'italic':
-        content = <em key={`${key}-italic`}>{content}</em>
+        content = `<em>${content}</em>`
         break
       case 'link':
-        content = <a href={safeHref(mark.href)} key={`${key}-link`} rel="noreferrer" target="_blank">{content}</a>
+        content = `<a href="${escapeHtml(safeHref(mark.href))}" rel="noreferrer" target="_blank">${content}</a>`
         break
       case 'underline':
-        content = <u key={`${key}-underline`}>{content}</u>
+        content = `<u>${content}</u>`
         break
     }
   }
   return content
 }
 
-function renderRichTextNode(node: RichTextNode, key: string): ReactNode {
-  const children = node.children?.map((child, index) => renderRichTextNode(child, `${key}-${index}`))
-  const inline = node.children === undefined ? renderMarkedText(node, key) : children
+function renderRichTextNodeHtml(node: RichTextNode): string {
+  const children = node.children?.map(renderRichTextNodeHtml).join('') ?? ''
+  const inline = node.children === undefined ? renderMarkedTextHtml(node) : children
   switch (node.type) {
     case 'blockquote':
-      return <blockquote data-node-type={node.type} key={key}>{children}</blockquote>
+      return `<blockquote data-node-type="${node.type}">${children}</blockquote>`
     case 'bullet-list':
-      return <ul data-node-type={node.type} key={key}>{children}</ul>
+      return `<ul data-node-type="${node.type}">${children}</ul>`
     case 'code-block':
-      return <pre data-node-type={node.type} key={key}><code>{inline}</code></pre>
+      return `<pre data-node-type="${node.type}"><code>${inline}</code></pre>`
     case 'heading':
       if (node.level === 1) {
-        return <h1 data-node-type={node.type} key={key}>{inline}</h1>
+        return `<h1 data-node-type="${node.type}">${inline}</h1>`
       }
       if (node.level === 2) {
-        return <h2 data-node-type={node.type} key={key}>{inline}</h2>
+        return `<h2 data-node-type="${node.type}">${inline}</h2>`
       }
-      return <h3 data-node-type={node.type} key={key}>{inline}</h3>
+      return `<h3 data-node-type="${node.type}">${inline}</h3>`
     case 'list-item':
-      return <li data-node-type={node.type} key={key}>{children}</li>
+      return `<li data-node-type="${node.type}">${children}</li>`
     case 'ordered-list':
-      return <ol data-node-type={node.type} key={key}>{children}</ol>
+      return `<ol data-node-type="${node.type}">${children}</ol>`
     case 'paragraph':
-      return <p data-node-type={node.type} key={key}>{inline}</p>
+      return `<p data-node-type="${node.type}">${inline}</p>`
     case 'text':
       return inline
   }
@@ -135,9 +146,11 @@ function renderRichTextSection(
 ) {
   return (
     <section className="oneimg-section oneimg-rich-text-section" data-block-id={section.id} data-block-kind="rich-text" key={section.id}>
-      <div className="oneimg-rich-text" {...editableProps(mode, section.id, handlers)}>
-        {section.content.children.map((node, index) => renderRichTextNode(node, `${section.id}-${index}`))}
-      </div>
+      <div
+        className="oneimg-rich-text"
+        dangerouslySetInnerHTML={{ __html: section.content.children.map(renderRichTextNodeHtml).join('') }}
+        {...editableProps(mode, section.id, handlers)}
+      />
     </section>
   )
 }
@@ -271,6 +284,7 @@ function renderSection(
           <p className="oneimg-eyebrow">保留内容</p>
           <h2>暂不支持的内容</h2>
           <p>类型 {section.originalKind}{section.originalVersion ? ` · ${section.originalVersion}` : ''} 将保留在文档中。</p>
+          <pre className="oneimg-unknown-fallback">{section.fallbackText}</pre>
         </section>
       )
   }
@@ -280,14 +294,14 @@ export function getCanonicalOwnedCss(resources: ResolvedResourceSet) {
   return `${resources.fontFaceCss}\n${canonicalStylePack.cssText}`
 }
 
-export function CanonicalRenderer({
+const CanonicalRendererImpl = ({
   onRichTextBlur,
   onRichTextInput,
   onRichTextPaste,
   snapshot,
   resources,
   mode,
-}: CanonicalRendererProps) {
+}: CanonicalRendererProps) => {
   if (snapshot.stylePackId !== canonicalStylePack.id) {
     throw new Error(`Unsupported Style Pack: ${snapshot.stylePackId}`)
   }
@@ -298,6 +312,9 @@ export function CanonicalRenderer({
     '--oneimg-foreground': snapshot.theme.foreground,
     '--oneimg-font-family': resources.fontFamily,
     '--oneimg-muted': snapshot.theme.muted,
+    '--oneimg-page-height': snapshot.presentation.pageFormat.height === undefined
+      ? 'auto'
+      : `${snapshot.presentation.pageFormat.height}px`,
     '--oneimg-reference-width': `${snapshot.referenceViewport.width}px`,
     '--oneimg-surface': snapshot.theme.surface,
   }
@@ -305,13 +322,21 @@ export function CanonicalRenderer({
   return (
     <article
       data-document-id={snapshot.document.id}
+      data-density={snapshot.presentation.density}
       data-oneimg-render-root=""
+      data-local-capability={snapshot.localCapability}
+      data-page-format={snapshot.presentation.pageFormat.preset}
+      data-page-format-kind={snapshot.presentation.pageFormat.kind}
       data-render-mode={mode}
       data-render-ready="false"
       data-renderer-revision={snapshot.rendererRevision}
       data-resource-fingerprint={resources.fingerprint}
       data-snapshot-id={snapshot.snapshotId}
       data-style-pack={snapshot.stylePackId}
+      data-template-family={snapshot.presentation.templateId}
+      data-template-version={snapshot.presentation.templateVersion}
+      data-theme-id={snapshot.presentation.themeId}
+      data-theme-version={snapshot.presentation.themeVersion}
       dir={snapshot.direction}
       lang={snapshot.locale}
       style={style}
@@ -326,6 +351,9 @@ export function CanonicalRenderer({
     </article>
   )
 }
+
+CanonicalRendererImpl.displayName = 'CanonicalRenderer'
+export const CanonicalRenderer = memo(CanonicalRendererImpl)
 
 export function CanonicalRenderSurface(props: CanonicalRendererProps) {
   return (

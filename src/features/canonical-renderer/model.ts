@@ -2,6 +2,8 @@ import type {
   ChecklistItem,
   DataTableColumn,
   DataTableRow,
+  Density,
+  PageFormat,
   RichTextDocument,
 } from '@/features/document-core'
 
@@ -24,6 +26,17 @@ export interface CanonicalTheme {
   readonly muted: string
   readonly surface: string
 }
+
+export interface CanonicalPresentation {
+  readonly density: Density
+  readonly pageFormat: PageFormat
+  readonly templateId: string
+  readonly templateVersion: string
+  readonly themeId: string
+  readonly themeVersion: string
+}
+
+export type CanonicalLocalCapability = 'certified' | 'high-fidelity-required' | 'unsupported'
 
 export interface HeroSection {
   readonly id: string
@@ -84,6 +97,7 @@ export interface DataTableSection {
 }
 
 export interface UnknownBlockSection {
+  readonly fallbackText: string
   readonly id: string
   readonly kind: 'unknown-block'
   readonly originalKind: string
@@ -110,10 +124,12 @@ export interface CanonicalRenderSnapshot {
   readonly snapshotId: string
   readonly rendererRevision: string
   readonly stylePackId: string
+  readonly localCapability: CanonicalLocalCapability
   readonly locale: string
   readonly direction: 'ltr' | 'rtl'
   readonly referenceViewport: ReferenceViewport
   readonly fontPack: CanonicalFontPack
+  readonly presentation: CanonicalPresentation
   readonly theme: CanonicalTheme
   readonly document: CanonicalDocument
 }

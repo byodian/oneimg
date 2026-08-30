@@ -24,11 +24,11 @@ const DOCUMENT_SCHEMA = 'oneimg-document@1' as const
 const DOCUMENT_MODEL_VERSION = 'document@1' as const
 const LEGACY_BLOCK_CATALOG_VERSION = 'block-catalog@1' as const
 const BLOCK_CATALOG_VERSION = 'block-catalog@2' as const
-const CURRENT_RENDERER_REVISION = 'canonical-renderer@2' as const
+const CURRENT_RENDERER_REVISION = 'canonical-renderer@3' as const
 
 export const DEFAULT_DOCUMENT_PRESENTATION: DocumentPresentation = {
   density: 'standard',
-  fontPackId: 'noto-sans-sc@1',
+  fontPackId: 'noto-sans-sc-variable@5.3.0-subset-117-119',
   pageFormat: {
     kind: 'continuous',
     preset: 'long-image',
@@ -37,10 +37,10 @@ export const DEFAULT_DOCUMENT_PRESENTATION: DocumentPresentation = {
   rendererRevision: CURRENT_RENDERER_REVISION,
   sceneId: 'general-long-image',
   sceneVersion: 'general-long-image@1',
-  templateId: 'clear-paper',
-  templateVersion: 'clear-paper@1',
-  themeId: 'cobalt',
-  themeVersion: 'cobalt@1',
+  templateId: 'clear-reading',
+  templateVersion: 'clear-reading@1',
+  themeId: 'clear-paper',
+  themeVersion: 'clear-paper@1',
 }
 
 export type DocumentCoreErrorCode =
@@ -915,17 +915,46 @@ function isJsonValue(value: unknown): value is JsonValue {
 }
 
 function upgradeDocumentRevision(revision: DocumentRevision): DocumentRevision {
-  if (revision.blockVersion !== LEGACY_BLOCK_CATALOG_VERSION) {
+  const needsBlockUpgrade = revision.blockVersion === LEGACY_BLOCK_CATALOG_VERSION
+  const presentation = upgradePresentation(revision.presentation)
+  const needsRendererUpgrade = presentation.rendererRevision !== CURRENT_RENDERER_REVISION
+  const needsPresentationUpgrade = presentation !== revision.presentation
+  if (!needsBlockUpgrade && !needsRendererUpgrade && !needsPresentationUpgrade) {
     return revision
   }
   return {
     ...revision,
-    blockVersion: BLOCK_CATALOG_VERSION,
+    ...(needsBlockUpgrade ? { blockVersion: BLOCK_CATALOG_VERSION } : {}),
     presentation: {
-      ...revision.presentation,
+      ...presentation,
       rendererRevision: CURRENT_RENDERER_REVISION,
     },
   }
+}
+
+function upgradePresentation(presentation: DocumentPresentation): DocumentPresentation {
+  let upgraded = presentation
+  if (presentation.fontPackId === 'noto-sans-sc@1') {
+    upgraded = {
+      ...upgraded,
+      fontPackId: DEFAULT_DOCUMENT_PRESENTATION.fontPackId,
+    }
+  }
+  if (presentation.templateId === 'clear-paper' && presentation.templateVersion === 'clear-paper@1') {
+    upgraded = {
+      ...upgraded,
+      templateId: DEFAULT_DOCUMENT_PRESENTATION.templateId,
+      templateVersion: DEFAULT_DOCUMENT_PRESENTATION.templateVersion,
+    }
+  }
+  if (presentation.themeId === 'cobalt' && presentation.themeVersion === 'cobalt@1') {
+    upgraded = {
+      ...upgraded,
+      themeId: DEFAULT_DOCUMENT_PRESENTATION.themeId,
+      themeVersion: DEFAULT_DOCUMENT_PRESENTATION.themeVersion,
+    }
+  }
+  return upgraded
 }
 
 function cloneValue<T>(value: T): T {

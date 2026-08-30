@@ -53,8 +53,9 @@ const longImageResources = imageDimensions.map(([width, height], index): Browser
 export const longCanonicalSnapshot = {
   schemaVersion: 1,
   snapshotId: 'canonical-long-resource-fixture-v1',
-  rendererRevision: 'canonical-renderer@2',
-  stylePackId: 'oneimg-foundation@2',
+  rendererRevision: 'canonical-renderer@3',
+  stylePackId: 'oneimg-foundation@3',
+  localCapability: 'certified',
   locale: 'zh-CN',
   direction: 'ltr',
   referenceViewport: { width: 640 },
@@ -66,6 +67,14 @@ export const longCanonicalSnapshot = {
       'font:noto-sans-sc@5.3.0/119',
     ],
     supportedWeights: [400, 700],
+  },
+  presentation: {
+    density: 'standard',
+    pageFormat: { kind: 'continuous', preset: 'long-image', width: 640 },
+    templateId: 'clear-reading',
+    templateVersion: 'clear-reading@1',
+    themeId: 'fixture-sunset',
+    themeVersion: 'fixture-sunset@1',
   },
   theme: {
     accent: '#ff5c35',

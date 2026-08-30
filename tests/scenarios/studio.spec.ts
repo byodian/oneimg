@@ -59,6 +59,24 @@ async function readStudioEditorWidths(page: Page) {
   }))
 }
 
+function relativeLuminance(color: string) {
+  const match = /^#([0-9a-f]{6})$/i.exec(color.trim())
+  if (match === null) {
+    throw new Error(`Expected a six-digit hex color, received ${color}`)
+  }
+  const channels = [0, 2, 4].map(offset => Number.parseInt(match[1]!.slice(offset, offset + 2), 16) / 255)
+  const linear = channels.map(channel => channel <= 0.03928
+    ? channel / 12.92
+    : ((channel + 0.055) / 1.055) ** 2.4)
+  return 0.2126 * linear[0]! + 0.7152 * linear[1]! + 0.0722 * linear[2]!
+}
+
+function contrastRatio(left: string, right: string) {
+  const leftLuminance = relativeLuminance(left)
+  const rightLuminance = relativeLuminance(right)
+  return (Math.max(leftLuminance, rightLuminance) + 0.05) / (Math.min(leftLuminance, rightLuminance) + 0.05)
+}
+
 test.describe('General Long Image Studio slice', () => {
   test('opens an editable starter, commits meaningful content, and restores it', async ({ page }) => {
     await page.goto('/studio')
@@ -149,6 +167,171 @@ test.describe('General Long Image Studio slice', () => {
     expect(Math.abs(previewWidths.editorWidth - previewWidths.rootWidth)).toBeLessThanOrEqual(1)
   })
 
+  test('restores a presentation override made before the first meaningful content', async ({ page }) => {
+    await page.goto('/studio')
+
+    const root = page.getByTestId('studio-editor').locator('[data-oneimg-render-root]')
+    await page.getByRole('button', { name: '分区卡片' }).click()
+    await expect.poll(() => readStudioState(page)).toMatchObject({
+      meaningful: false,
+      recentCount: 0,
+      status: '已保存',
+    })
+    await expect(root).toHaveAttribute('data-template-family', 'section-cards')
+
+    await page.reload()
+
+    const restoredRoot = page.getByTestId('studio-editor').locator('[data-oneimg-render-root]')
+    await expect(restoredRoot).toHaveAttribute('data-template-family', 'section-cards')
+    await expect.poll(() => readStudioState(page)).toMatchObject({
+      meaningful: false,
+      recentCount: 0,
+      restored: true,
+    })
+  })
+
+  test('offers real presentation previews and preserves explicit choices across edits', async ({ page }) => {
+    await page.goto('/studio')
+
+    const editorSurface = page.getByTestId('studio-editor')
+    const root = editorSurface.locator('[data-oneimg-render-root]')
+    const editor = root.locator('[contenteditable="true"]')
+    await editor.fill('用于验证模板选择的真实内容。\n第二段内容保持顺序。')
+    await editor.press('Escape')
+
+    await expect.poll(() => readStudioState(page)).toMatchObject({ meaningful: true, status: '已保存' })
+    await expect(root).toHaveAttribute('data-local-capability', 'certified')
+    await expect(root).toHaveAttribute('data-template-family', 'clear-reading')
+    await expect(root).toHaveAttribute('data-theme-id', 'clear-paper')
+    await expect(root).toHaveAttribute('data-density', 'standard')
+    await expect(root).toHaveAttribute('data-page-format', 'long-image')
+    const defaultMetrics = await root.evaluate((element) => {
+      const section = element.querySelector<HTMLElement>('.oneimg-rich-text-section')
+      return {
+        backgroundColor: getComputedStyle(element).backgroundColor,
+        sectionMarginLeft: section === null ? '' : getComputedStyle(section).marginLeft,
+        sectionPaddingTop: section === null ? '' : getComputedStyle(section).paddingTop,
+      }
+    })
+
+    const recommendations = page.getByTestId('studio-template-recommendations')
+    await expect(recommendations.locator('[data-template-preview]')).toHaveCount(3)
+    await expect(recommendations.locator('[data-template-preview]').first().locator('[data-oneimg-render-root]')).toContainText('用于验证模板选择的真实内容。')
+
+    const blockIdsBefore = await root.locator('[data-block-id]').evaluateAll(elements => (
+      elements.map(element => element.getAttribute('data-block-id'))
+    ))
+    await page.getByRole('button', { name: '分区卡片' }).click()
+    await expect(root).toHaveAttribute('data-template-family', 'section-cards')
+    await expect.poll(async () => root.evaluate(element => (
+      getComputedStyle(element.querySelector<HTMLElement>('.oneimg-rich-text-section')!).marginLeft
+    ))).toBe('24px')
+
+    const catalog = page.getByTestId('studio-presentation-catalog')
+    await catalog.locator('summary').click()
+    await expect(page.getByRole('button', { name: '摘要简报' })).toBeVisible()
+    await expect(catalog.locator('fieldset').nth(3).getByRole('button')).toHaveCount(7)
+    await page.getByRole('button', { name: '潮汐' }).click()
+    await expect(root).toHaveAttribute('data-theme-id', 'tide')
+    const tideBackgroundColor = await root.evaluate(element => getComputedStyle(element).backgroundColor)
+    expect(tideBackgroundColor).not.toBe(defaultMetrics.backgroundColor)
+    await page.getByRole('button', { name: '紧凑' }).click()
+    await expect(root).toHaveAttribute('data-density', 'compact')
+    const compactPaddingTop = await root.evaluate(element => (
+      getComputedStyle(element.querySelector<HTMLElement>('.oneimg-rich-text-section')!).paddingTop
+    ))
+    expect(compactPaddingTop).not.toBe(defaultMetrics.sectionPaddingTop)
+    await expect(catalog.getByRole('button', { name: '方形 1:1' })).toBeDisabled()
+    await expect(catalog.getByText('需后续分页适配')).toHaveCount(6)
+    await expect(root).toHaveAttribute('data-page-format', 'long-image')
+    await expect(root).toHaveAttribute('data-page-format-kind', 'continuous')
+
+    const blockIdsAfterPresentation = await root.locator('[data-block-id]').evaluateAll(elements => (
+      elements.map(element => element.getAttribute('data-block-id'))
+    ))
+    expect(blockIdsAfterPresentation).toEqual(blockIdsBefore)
+    await expect(root).toContainText('用于验证模板选择的真实内容。')
+    await expect(root).toContainText('第二段内容保持顺序。')
+
+    await editor.fill('编辑后的内容仍保留显式呈现选择。')
+    await editor.press('Escape')
+    await expect.poll(() => readStudioState(page)).toMatchObject({ meaningful: true, status: '已保存' })
+    await expect(root).toHaveAttribute('data-template-family', 'section-cards')
+    await expect(root).toHaveAttribute('data-theme-id', 'tide')
+    await expect(root).toHaveAttribute('data-density', 'compact')
+    await expect(root).toHaveAttribute('data-page-format', 'long-image')
+
+    await page.reload()
+    const restoredRoot = page.getByTestId('studio-editor').locator('[data-oneimg-render-root]')
+    await expect(restoredRoot).toHaveAttribute('data-template-family', 'section-cards')
+    await expect(restoredRoot).toHaveAttribute('data-theme-id', 'tide')
+    await expect(restoredRoot).toHaveAttribute('data-density', 'compact')
+    await expect(restoredRoot).toHaveAttribute('data-page-format', 'long-image')
+    await expect(restoredRoot).toHaveAttribute('data-local-capability', 'certified')
+    await expect(restoredRoot).toContainText('编辑后的内容仍保留显式呈现选择。')
+  })
+
+  test('keeps all built-in theme tokens above the certified contrast threshold', async ({ page }) => {
+    await page.goto('/studio')
+
+    const root = page.getByTestId('studio-editor').locator('[data-oneimg-render-root]')
+    const catalog = page.getByTestId('studio-presentation-catalog')
+    await catalog.locator('summary').click()
+    for (const themeLabel of ['清晰纸张', '潮汐', '柚金', '松影', '石墨', '夜航']) {
+      await page.getByRole('button', { name: themeLabel }).click()
+      await expect(root).toHaveAttribute('data-local-capability', 'certified')
+      const colors = await root.evaluate((element) => {
+        const style = getComputedStyle(element)
+        return {
+          accent: style.getPropertyValue('--oneimg-accent'),
+          background: style.getPropertyValue('--oneimg-background'),
+          foreground: style.getPropertyValue('--oneimg-foreground'),
+          muted: style.getPropertyValue('--oneimg-muted'),
+          surface: style.getPropertyValue('--oneimg-surface'),
+        }
+      })
+      expect(contrastRatio(colors.accent, colors.background)).toBeGreaterThanOrEqual(4.5)
+      expect(contrastRatio(colors.accent, colors.muted)).toBeGreaterThanOrEqual(4.5)
+      expect(contrastRatio(colors.accent, colors.surface)).toBeGreaterThanOrEqual(4.5)
+      expect(contrastRatio(colors.foreground, colors.background)).toBeGreaterThanOrEqual(4.5)
+      expect(contrastRatio(colors.foreground, colors.surface)).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
+  test('keeps the canonical reference viewport stable when the app viewport changes', async ({ page }) => {
+    await page.goto('/studio')
+
+    const root = page.getByTestId('studio-editor').locator('[data-oneimg-render-root]')
+    const editor = root.locator('[contenteditable="true"]')
+    await editor.fill('参考视口固定后，这一段文字在不同窗口宽度下应保持相同换行和几何尺寸。')
+    await editor.press('Escape')
+    await expect.poll(() => readStudioState(page)).toMatchObject({ meaningful: true, status: '已保存' })
+
+    const readGeometry = () => root.evaluate((element) => {
+      const rootRect = element.getBoundingClientRect()
+      const paragraph = element.querySelector<HTMLElement>('[data-node-type="paragraph"]')
+      const paragraphRect = paragraph?.getBoundingClientRect()
+      return {
+        paragraphHeight: paragraphRect?.height ?? 0,
+        paragraphWidth: paragraphRect?.width ?? 0,
+        rootHeight: rootRect.height,
+        rootWidth: rootRect.width,
+      }
+    })
+
+    const wideGeometry = await readGeometry()
+    await page.setViewportSize({ height: 800, width: 560 })
+    const narrowGeometry = await readGeometry()
+    await page.setViewportSize({ height: 1100, width: 1440 })
+    const restoredGeometry = await readGeometry()
+
+    expect(narrowGeometry.rootWidth).toBe(wideGeometry.rootWidth)
+    expect(narrowGeometry.paragraphWidth).toBe(wideGeometry.paragraphWidth)
+    expect(narrowGeometry.paragraphHeight).toBe(wideGeometry.paragraphHeight)
+    expect(restoredGeometry.rootWidth).toBe(wideGeometry.rootWidth)
+    expect(restoredGeometry.paragraphHeight).toBe(wideGeometry.paragraphHeight)
+  })
+
   test('scrolls long content in edit and clean preview modes', async ({ page }) => {
     await page.goto('/studio')
 
@@ -218,7 +401,7 @@ test.describe('General Long Image Studio slice', () => {
     expect(renderedMarkup).not.toContain('EvilFont')
     expect(renderedMarkup).not.toContain('foreign-title')
     expect(renderedMarkup).not.toContain('恶意脚本不应进入文档')
-    const ownedCss = await page.locator('style[data-oneimg-owned-style]').textContent()
+    const ownedCss = await page.getByTestId('studio-editor').locator('style[data-oneimg-owned-style]').textContent()
     expect(ownedCss).not.toContain('EvilFont')
     expect(ownedCss).not.toContain('position: fixed')
 
@@ -364,16 +547,16 @@ const pasted = true
 
     await expect(competingPage.getByTestId('studio-conflict-notice')).toBeVisible()
     await expect(competingPage.getByTestId('studio-conflict-notice')).toContainText('冲突草稿')
-    await expect(page.getByText('主分支的第二版内容。')).toBeVisible()
+    await expect(page.getByTestId('studio-editor').getByText('主分支的第二版内容。')).toBeVisible()
 
     await competingPage.getByRole('button', { name: '查看冲突草稿' }).click()
     await expect(competingPage.getByTestId('studio-conflict-preview')).toBeVisible()
-    await expect(competingPage.getByText('竞争分支的内容。')).toBeVisible()
+    await expect(competingPage.getByTestId('studio-editor').getByText('竞争分支的内容。')).toBeVisible()
     await expect(competingPage.getByTestId('studio-editor').locator('[contenteditable="true"]')).toHaveCount(0)
     await competingPage.getByRole('button', { name: '返回当前 Draft' }).click()
 
     await competingPage.getByRole('button', { name: '恢复已提交版本' }).click()
-    await expect(competingPage.getByText('主分支的第二版内容。')).toBeVisible()
+    await expect(competingPage.getByTestId('studio-editor').getByText('主分支的第二版内容。')).toBeVisible()
     await competingPage.close()
   })
 })
