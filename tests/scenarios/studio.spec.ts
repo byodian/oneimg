@@ -31,6 +31,27 @@ async function dispatchPaste(
   }, payload)
 }
 
+async function readWheelScroll(page: Page, scroller: ReturnType<Page['locator']>) {
+  await scroller.evaluate((element) => {
+    if (element instanceof HTMLElement) {
+      element.scrollTop = 0
+    }
+  })
+  await scroller.hover()
+  await page.mouse.wheel(0, 800)
+  await page.waitForTimeout(50)
+  return scroller.evaluate((element) => {
+    if (!(element instanceof HTMLElement)) {
+      return { after: 0, clientHeight: 0, scrollHeight: 0 }
+    }
+    return {
+      after: element.scrollTop,
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+    }
+  })
+}
+
 test.describe('General Long Image Studio slice', () => {
   test('opens an editable starter, commits meaningful content, and restores it', async ({ page }) => {
     await page.goto('/studio')
@@ -104,6 +125,30 @@ test.describe('General Long Image Studio slice', () => {
     await expect(root).toHaveAttribute('data-render-mode', 'preview')
     await expect(root).toHaveAttribute('data-document-id', /document:studio:/)
     await expect(page.getByRole('button', { name: '返回编辑' })).toBeVisible()
+  })
+
+  test('scrolls long content in edit and clean preview modes', async ({ page }) => {
+    await page.goto('/studio')
+
+    const root = page.getByTestId('studio-editor').locator('[data-oneimg-render-root]')
+    const editor = root.locator('[contenteditable="true"]')
+    const longText = Array.from({ length: 20 }, (_, index) => `第 ${index + 1} 段需要在长页面中保持可见。`).join('\n\n')
+
+    await editor.fill(longText)
+    await editor.press('Escape')
+    await expect.poll(() => readStudioState(page)).toMatchObject({ meaningful: true, status: '已保存' })
+
+    const scroller = page.getByTestId('studio-scroll-container')
+    const editScroll = await readWheelScroll(page, scroller)
+    expect(editScroll.scrollHeight).toBeGreaterThan(editScroll.clientHeight)
+    expect(editScroll.after).toBeGreaterThan(0)
+
+    await page.getByRole('button', { name: '清爽预览' }).click()
+    await expect(root).toHaveAttribute('data-render-mode', 'preview')
+
+    const previewScroll = await readWheelScroll(page, scroller)
+    expect(previewScroll.scrollHeight).toBeGreaterThan(previewScroll.clientHeight)
+    expect(previewScroll.after).toBeGreaterThan(0)
   })
 
   test('pastes semantic content locally as ordered safe blocks and undoes it once', async ({ page }) => {

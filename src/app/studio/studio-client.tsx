@@ -599,7 +599,10 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
   }
 
   return (
-    <main className="min-h-screen bg-slate-100 px-6 py-8 text-slate-900 sm:px-10">
+    <main
+      className="h-screen overflow-y-auto bg-slate-100 px-6 py-8 text-slate-900 sm:px-10"
+      data-testid="studio-scroll-container"
+    >
       <div className="mx-auto flex max-w-[760px] flex-col gap-4">
         {cleanPreview && (
           <div className="flex justify-end" data-testid="studio-clean-preview-chrome">
