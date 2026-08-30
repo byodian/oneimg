@@ -21,6 +21,8 @@ import {
   type DocumentCommitResult,
   type DocumentRevision,
   type DocumentSession,
+  type MediaArrangement,
+  type MediaGroupChanges,
   type MediaItem,
   createDocumentSession,
   createMediaGroupBlock,
@@ -288,6 +290,91 @@ export function AssetPipelineScenario() {
     return true
   }
 
+  function commitMediaGroupChanges(changes: MediaGroupChanges) {
+    const current = session.current!.getRevision()
+    const currentGroup = getMediaGroup(current)
+    if (currentGroup?.kind !== 'media-group') {
+      return false
+    }
+    const commit = session.current!.commit({
+      blockId: currentGroup.id,
+      changes,
+      selection: { blockId: currentGroup.id },
+      type: 'update-media-group',
+    }, { expectedRevision: current.revision })
+    if (!isCommitted(commit)) {
+      setError(commit.message)
+      return false
+    }
+    setRevision(commit.revision)
+    setLastTransactionType(commit.transaction.intentType)
+    return true
+  }
+
+  function setFeaturedItem(itemId: string) {
+    const current = session.current!.getRevision()
+    const currentGroup = getMediaGroup(current)
+    if (currentGroup?.kind !== 'media-group') {
+      return false
+    }
+    const commit = session.current!.commit({
+      blockId: currentGroup.id,
+      itemId,
+      selection: { blockId: currentGroup.id },
+      type: 'set-media-group-featured',
+    }, { expectedRevision: current.revision })
+    if (!isCommitted(commit)) {
+      setError(commit.message)
+      return false
+    }
+    setRevision(commit.revision)
+    setLastTransactionType(commit.transaction.intentType)
+    return true
+  }
+
+  function removeMediaItem(itemId: string) {
+    const current = session.current!.getRevision()
+    const currentGroup = getMediaGroup(current)
+    if (currentGroup?.kind !== 'media-group') {
+      return false
+    }
+    const commit = session.current!.commit({
+      blockId: currentGroup.id,
+      itemId,
+      selection: { blockId: currentGroup.id },
+      type: 'remove-media-item',
+    }, { expectedRevision: current.revision })
+    if (!isCommitted(commit)) {
+      setError(commit.message)
+      return false
+    }
+    setRevision(commit.revision)
+    setLastTransactionType(commit.transaction.intentType)
+    return true
+  }
+
+  function moveMediaItem(itemId: string, index: number) {
+    const current = session.current!.getRevision()
+    const currentGroup = getMediaGroup(current)
+    if (currentGroup?.kind !== 'media-group') {
+      return false
+    }
+    const commit = session.current!.commit({
+      blockId: currentGroup.id,
+      index,
+      itemId,
+      selection: { blockId: currentGroup.id },
+      type: 'move-media-item',
+    }, { expectedRevision: current.revision })
+    if (!isCommitted(commit)) {
+      setError(commit.message)
+      return false
+    }
+    setRevision(commit.revision)
+    setLastTransactionType(commit.transaction.intentType)
+    return true
+  }
+
   return (
     <main className="min-h-screen bg-slate-100 px-6 py-8 text-slate-900">
       <div className="mx-auto flex max-w-[760px] flex-col gap-4">
@@ -300,9 +387,14 @@ export function AssetPipelineScenario() {
         {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700" data-testid="asset-error">{error}</p>}
 
         <MediaGroupEditor
+          arrangement={mediaGroup?.kind === 'media-group' ? mediaGroup.arrangement : 'auto'}
           items={mediaItems}
           onImportFiles={importFiles}
+          onMoveItem={moveMediaItem}
+          onRemoveItem={removeMediaItem}
           onRelinkItem={relinkFile}
+          onSetFeaturedItem={setFeaturedItem}
+          onUpdateArrangement={(arrangement: MediaArrangement) => commitMediaGroupChanges({ arrangement })}
           onUpdateItem={commitMediaItem}
           unresolvedItemIds={mediaItems
             .filter(item => assetMap.get(item.assetId)?.status !== 'ready')

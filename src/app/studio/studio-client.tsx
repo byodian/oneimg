@@ -20,6 +20,8 @@ import {
   type DocumentHistoryResult,
   type DocumentRevision,
   type DocumentSession,
+  type MediaArrangement,
+  type MediaGroupChanges,
   type MediaItem,
   createDocumentSession,
   createMediaGroupBlock,
@@ -944,6 +946,135 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
     return true
   }
 
+  function commitMediaGroupChanges(changes: MediaGroupChanges) {
+    const currentSession = session.current
+    const currentRevision = currentSession?.getRevision()
+    const currentGroup = currentRevision === undefined ? undefined : findMediaGroup(currentRevision)
+    if (
+      currentSession === undefined
+      || currentRevision === undefined
+      || currentGroup === undefined
+      || conflictDraft !== undefined
+      || conflictPreviewRevision !== undefined
+    ) {
+      return false
+    }
+
+    const result = currentSession.commit({
+      blockId: currentGroup.id,
+      changes,
+      selection: { blockId: currentGroup.id },
+      type: 'update-media-group',
+    }, { expectedRevision: currentRevision.revision })
+    if (!isCommitted(result)) {
+      setError(result.message)
+      setPhase('unsaved')
+      return false
+    }
+    setError(undefined)
+    setRevision(result.revision)
+    setPhase('saving')
+    persistCommit(result.revision, result.transaction)
+    return true
+  }
+
+  function setFeaturedMediaItem(itemId: string) {
+    const currentSession = session.current
+    const currentRevision = currentSession?.getRevision()
+    const currentGroup = currentRevision === undefined ? undefined : findMediaGroup(currentRevision)
+    if (
+      currentSession === undefined
+      || currentRevision === undefined
+      || currentGroup === undefined
+      || conflictDraft !== undefined
+      || conflictPreviewRevision !== undefined
+    ) {
+      return false
+    }
+
+    const result = currentSession.commit({
+      blockId: currentGroup.id,
+      itemId,
+      selection: { blockId: currentGroup.id },
+      type: 'set-media-group-featured',
+    }, { expectedRevision: currentRevision.revision })
+    if (!isCommitted(result)) {
+      setError(result.message)
+      setPhase('unsaved')
+      return false
+    }
+    setError(undefined)
+    setRevision(result.revision)
+    setPhase('saving')
+    persistCommit(result.revision, result.transaction)
+    return true
+  }
+
+  function removeMediaItem(itemId: string) {
+    const currentSession = session.current
+    const currentRevision = currentSession?.getRevision()
+    const currentGroup = currentRevision === undefined ? undefined : findMediaGroup(currentRevision)
+    if (
+      currentSession === undefined
+      || currentRevision === undefined
+      || currentGroup === undefined
+      || conflictDraft !== undefined
+      || conflictPreviewRevision !== undefined
+    ) {
+      return false
+    }
+
+    const result = currentSession.commit({
+      blockId: currentGroup.id,
+      itemId,
+      selection: { blockId: currentGroup.id },
+      type: 'remove-media-item',
+    }, { expectedRevision: currentRevision.revision })
+    if (!isCommitted(result)) {
+      setError(result.message)
+      setPhase('unsaved')
+      return false
+    }
+    setError(undefined)
+    setRevision(result.revision)
+    setPhase('saving')
+    persistCommit(result.revision, result.transaction)
+    return true
+  }
+
+  function moveMediaItem(itemId: string, index: number) {
+    const currentSession = session.current
+    const currentRevision = currentSession?.getRevision()
+    const currentGroup = currentRevision === undefined ? undefined : findMediaGroup(currentRevision)
+    if (
+      currentSession === undefined
+      || currentRevision === undefined
+      || currentGroup === undefined
+      || conflictDraft !== undefined
+      || conflictPreviewRevision !== undefined
+    ) {
+      return false
+    }
+
+    const result = currentSession.commit({
+      blockId: currentGroup.id,
+      index,
+      itemId,
+      selection: { blockId: currentGroup.id },
+      type: 'move-media-item',
+    }, { expectedRevision: currentRevision.revision })
+    if (!isCommitted(result)) {
+      setError(result.message)
+      setPhase('unsaved')
+      return false
+    }
+    setError(undefined)
+    setRevision(result.revision)
+    setPhase('saving')
+    persistCommit(result.revision, result.transaction)
+    return true
+  }
+
   function commitPresentation(change: Parameters<typeof updateGeneralLongImagePresentation>[1]) {
     const currentSession = session.current
     const currentRevision = revision
@@ -1327,10 +1458,15 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
         {error && <p data-testid="studio-error" className="m-0 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
         {!cleanPreview && (
           <MediaGroupEditor
+            arrangement={mediaGroup?.arrangement ?? 'auto'}
             disabled={assetImporting || phase === 'exporting' || conflictDraft !== undefined || conflictPreviewRevision !== undefined}
             items={mediaGroup?.items ?? []}
             onImportFiles={importFiles}
+            onMoveItem={moveMediaItem}
+            onRemoveItem={removeMediaItem}
             onRelinkItem={relinkFile}
+            onSetFeaturedItem={setFeaturedMediaItem}
+            onUpdateArrangement={(arrangement: MediaArrangement) => commitMediaGroupChanges({ arrangement })}
             onUpdateItem={commitMediaItem}
             unresolvedItemIds={mediaGroup?.items
               .filter(item => assetMap.get(item.assetId)?.status !== 'ready')

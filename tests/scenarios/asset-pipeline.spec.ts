@@ -17,8 +17,10 @@ interface AssetPipelineResult {
 type GeneratedImageOptions = {
   readonly exifOrientation?: 6
   readonly fileName: string
+  readonly height?: number
   readonly mimeType: 'image/jpeg' | 'image/png' | 'image/webp'
   readonly corrupt?: boolean
+  readonly width?: number
 }
 
 async function importGeneratedImages(page: Page, options: readonly GeneratedImageOptions[]) {
@@ -30,14 +32,14 @@ async function importGeneratedImages(page: Page, options: readonly GeneratedImag
       throw new Error('Asset input is not mounted')
     }
 
-    const files = await Promise.all(imageOptions.map(async ({ exifOrientation, fileName, mimeType, corrupt }) => {
+    const files = await Promise.all(imageOptions.map(async ({ exifOrientation, fileName, height = 4, mimeType, corrupt, width = 8 }) => {
       let bytes: Blob
       if (corrupt) {
         bytes = new Blob([new Uint8Array([0, 1, 2, 3, 4, 5])], { type: mimeType })
       } else {
         const canvas = document.createElement('canvas')
-        canvas.width = 8
-        canvas.height = 4
+        canvas.width = width
+        canvas.height = height
         const context = canvas.getContext('2d')!
         context.fillStyle = '#e84a5f'
         context.fillRect(0, 0, 4, 4)
@@ -161,5 +163,79 @@ test.describe('Asset Pipeline and MediaGroup contract', () => {
     })
     await expect(page.getByTestId('media-item-1').locator('img')).toHaveJSProperty('naturalWidth', 4)
     await expect(page.getByTestId('media-item-1').locator('img')).toHaveJSProperty('naturalHeight', 8)
+
+    const group = page.getByTestId('asset-preview').locator('[data-oneimg-render-root] .oneimg-media-group')
+    await expect(group).toHaveAttribute('data-effective-arrangement', 'sequence')
+    await expect(group).toHaveAttribute('data-layout-columns', '1')
+    await expect(group.locator('[data-layout-role="single"]')).toHaveCount(1)
+    await page.getByRole('button', { name: '删除图片 1' }).click()
+    await expect.poll(() => readResult(page)).toMatchObject({ assetCount: 0, transactionCount: 2 })
+    await expect(page.getByTestId('asset-preview').locator('[data-oneimg-render-root] .oneimg-media-group')).toHaveCount(0)
+  })
+
+  test('resolves Auto layout from image evidence and keeps manual arrangements stable', async ({ page }) => {
+    await page.goto('/scenario/asset-pipeline')
+    await importGeneratedImages(page, [
+      { fileName: 'portrait-1.png', height: 8, mimeType: 'image/png', width: 4 },
+      { fileName: 'portrait-2.png', height: 8, mimeType: 'image/png', width: 4 },
+      { fileName: 'portrait-3.png', height: 8, mimeType: 'image/png', width: 4 },
+    ])
+
+    const group = page.getByTestId('asset-preview').locator('[data-oneimg-render-root] .oneimg-media-group')
+    await expect.poll(() => readResult(page)).toMatchObject({ assetCount: 3, transactionCount: 1 })
+    await expect(group).toHaveAttribute('data-arrangement', 'auto')
+    await expect(group).toHaveAttribute('data-effective-arrangement', 'margin-album')
+    await expect(group).toHaveAttribute('data-auto-reason', 'portrait-set')
+    await expect(group.locator('[data-featured="true"]')).toHaveAttribute('data-media-item-id', 'media-item-1')
+    await expect(group.locator('[data-layout-role="margin-primary"]')).toHaveCount(1)
+    await expect(group.locator('[data-layout-role="margin-secondary"]')).toHaveCount(2)
+
+    await page.getByLabel('图片布局').selectOption('sequence')
+    await expect.poll(() => readResult(page)).toMatchObject({ transactionCount: 2 })
+    await expect(group).toHaveAttribute('data-arrangement', 'sequence')
+    await expect(group).toHaveAttribute('data-effective-arrangement', 'sequence')
+    await expect(group).toHaveAttribute('data-layout-columns', '1')
+    await expect(group.locator('[data-layout-role="sequence"]')).toHaveCount(3)
+
+    await importGeneratedImage(page, { fileName: 'portrait-4.png', height: 8, mimeType: 'image/png', width: 4 })
+    await expect.poll(() => readResult(page)).toMatchObject({ assetCount: 4, transactionCount: 3 })
+    await expect(group).toHaveAttribute('data-arrangement', 'sequence')
+    await expect(group).toHaveAttribute('data-effective-arrangement', 'sequence')
+    await expect(group.locator('[data-layout-role="sequence"]')).toHaveCount(4)
+
+    for (const arrangement of ['featured', 'balanced', 'margin-album'] as const) {
+      await page.getByLabel('图片布局').selectOption(arrangement)
+      await expect.poll(() => readResult(page)).toMatchObject({ transactionCount: expect.any(Number) })
+      await expect(group).toHaveAttribute('data-arrangement', arrangement)
+      await expect(group).toHaveAttribute('data-effective-arrangement', arrangement)
+      await expect(group).toHaveAttribute('data-layout-columns', '2')
+      if (arrangement === 'featured') {
+        await expect(group.locator('[data-layout-role="hero"]')).toHaveCount(1)
+        await expect(group.locator('[data-layout-role="grid"]')).toHaveCount(3)
+      }
+      if (arrangement === 'balanced') {
+        await expect(group.locator('[data-layout-role="grid"]')).toHaveCount(4)
+      }
+      if (arrangement === 'margin-album') {
+        await expect(group.locator('[data-layout-role="margin-primary"]')).toHaveCount(1)
+        await expect(group.locator('[data-layout-role="margin-secondary"]')).toHaveCount(3)
+      }
+    }
+
+    await page.getByRole('button', { name: '设为主图 2' }).click()
+    await expect.poll(() => readResult(page)).toMatchObject({ transactionCount: 7 })
+    await expect(group.locator('[data-featured="true"]')).toHaveAttribute('data-media-item-id', 'media-item-2')
+
+    await page.getByRole('button', { name: '下移图片 1' }).click()
+    await expect.poll(() => readResult(page)).toMatchObject({ transactionCount: 8 })
+    await expect.poll(() => group.locator('[data-media-item-id]').evaluateAll(elements => elements.map(element => element.getAttribute('data-media-item-id'))))
+      .toEqual(['media-item-2', 'media-item-1', 'media-item-3', 'media-item-4'])
+    await expect(group).toHaveAttribute('data-arrangement', 'margin-album')
+
+    await page.getByRole('button', { name: '删除图片 4' }).click()
+    await expect.poll(() => readResult(page)).toMatchObject({ assetCount: 3, transactionCount: 9 })
+    await expect(group).toHaveAttribute('data-arrangement', 'margin-album')
+    await expect(group.locator('[data-layout-role="margin-primary"]')).toHaveCount(1)
+    await expect(group.locator('[data-layout-role="margin-secondary"]')).toHaveCount(2)
   })
 })

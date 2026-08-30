@@ -1,13 +1,18 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import type { MediaItem } from '@/features/document-core'
+import type { MediaArrangement, MediaItem } from '@/features/document-core'
 
 export interface MediaGroupEditorProps {
+  readonly arrangement: MediaArrangement
   readonly disabled?: boolean
   readonly items: readonly MediaItem[]
   readonly onImportFiles: (files: readonly File[]) => void | Promise<void>
+  readonly onMoveItem: (itemId: string, index: number) => boolean
+  readonly onRemoveItem: (itemId: string) => boolean
   readonly onRelinkItem?: (itemId: string, file: File) => void | Promise<void>
+  readonly onSetFeaturedItem: (itemId: string) => boolean
+  readonly onUpdateArrangement: (arrangement: MediaArrangement) => boolean
   readonly onUpdateItem: (item: MediaItem) => boolean
   readonly unresolvedItemIds?: readonly string[]
 }
@@ -42,11 +47,24 @@ function createTextDrafts(items: readonly MediaItem[]) {
   }]))
 }
 
+const ARRANGEMENT_OPTIONS: readonly { readonly label: string; readonly value: MediaArrangement }[] = [
+  { label: '自动（推荐）', value: 'auto' },
+  { label: '精选主图', value: 'featured' },
+  { label: '均衡网格', value: 'balanced' },
+  { label: '顺序长列', value: 'sequence' },
+  { label: '边距相册', value: 'margin-album' },
+]
+
 export function MediaGroupEditor({
+  arrangement,
   disabled = false,
   items,
   onImportFiles,
+  onMoveItem,
+  onRemoveItem,
   onRelinkItem,
+  onSetFeaturedItem,
+  onUpdateArrangement,
   onUpdateItem,
   unresolvedItemIds = [],
 }: MediaGroupEditorProps) {
@@ -112,6 +130,19 @@ export function MediaGroupEditor({
           {items.length}/9 张
         </span>
       </div>
+      <label className="mt-4 block text-xs font-medium text-slate-700">
+        图片布局
+        <select
+          aria-label="图片布局"
+          className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+          disabled={disabled || items.length === 0}
+          onChange={event => onUpdateArrangement(event.target.value as MediaArrangement)}
+          value={arrangement}
+        >
+          {ARRANGEMENT_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+        <span className="mt-1 block font-normal text-slate-500">自动会结合图片数量、比例和主图意图选择安全几何；手动选择会在增删图片后保持。</span>
+      </label>
       <label className="mt-4 block rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm font-medium text-slate-800">
         <span className="block">选择 JPEG、PNG 或 WebP</span>
         <input
@@ -173,6 +204,34 @@ export function MediaGroupEditor({
                 </div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   <button
+                    aria-label={`设为主图 ${index + 1}`}
+                    aria-pressed={item.featured}
+                    className="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={disabled || item.featured}
+                    onClick={() => onSetFeaturedItem(item.id)}
+                    type="button"
+                  >
+                    {item.featured ? '当前主图' : '设为主图'}
+                  </button>
+                  <button
+                    aria-label={`上移图片 ${index + 1}`}
+                    className="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={disabled || index === 0}
+                    onClick={() => onMoveItem(item.id, index - 1)}
+                    type="button"
+                  >
+                    上移
+                  </button>
+                  <button
+                    aria-label={`下移图片 ${index + 1}`}
+                    className="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={disabled || index === items.length - 1}
+                    onClick={() => onMoveItem(item.id, index + 1)}
+                    type="button"
+                  >
+                    下移
+                  </button>
+                  <button
                     className="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
                     disabled={disabled}
                     onClick={() => saveText(item)}
@@ -187,6 +246,15 @@ export function MediaGroupEditor({
                     type="button"
                   >
                     调整图片 {index + 1}
+                  </button>
+                  <button
+                    aria-label={`删除图片 ${index + 1}`}
+                    className="rounded-full border border-red-200 px-3 py-1.5 text-xs font-medium text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={disabled}
+                    onClick={() => onRemoveItem(item.id)}
+                    type="button"
+                  >
+                    删除
                   </button>
                   {onRelinkItem !== undefined && unresolvedItemIds.includes(item.id) && (
                     <label className="cursor-pointer rounded-full border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-900">

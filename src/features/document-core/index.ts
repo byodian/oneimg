@@ -131,15 +131,46 @@ export interface UpdateMediaItemIntent extends IntentBase {
   readonly type: 'update-media-item'
 }
 
+export type MediaGroupChanges = Partial<Pick<MediaGroupBlock, 'arrangement' | 'caption'>>
+
+export interface UpdateMediaGroupIntent extends IntentBase {
+  readonly blockId: string
+  readonly changes: MediaGroupChanges
+  readonly type: 'update-media-group'
+}
+
+export interface SetMediaGroupFeaturedIntent extends IntentBase {
+  readonly blockId: string
+  readonly itemId: string
+  readonly type: 'set-media-group-featured'
+}
+
+export interface RemoveMediaItemIntent extends IntentBase {
+  readonly blockId: string
+  readonly itemId: string
+  readonly type: 'remove-media-item'
+}
+
+export interface MoveMediaItemIntent extends IntentBase {
+  readonly blockId: string
+  readonly index: number
+  readonly itemId: string
+  readonly type: 'move-media-item'
+}
+
 export type DocumentIntent =
   | InsertBlockIntent
   | InsertBlocksIntent
   | MoveBlockIntent
   | RemoveBlockIntent
   | ReplaceBlockIntent
+  | RemoveMediaItemIntent
   | SetDocumentNameIntent
+  | SetMediaGroupFeaturedIntent
   | SetPresentationIntent
+  | UpdateMediaGroupIntent
   | UpdateMediaItemIntent
+  | MoveMediaItemIntent
 
 export interface EditTransaction {
   readonly documentId: string
@@ -566,6 +597,8 @@ function applyIntent(current: DocumentRevision, intent: DocumentIntent): Documen
       return applyRemoveBlock(next, intent.blockId)
     case 'move-block':
       return applyMoveBlock(next, intent)
+    case 'move-media-item':
+      return applyMoveMediaItem(next, intent)
     case 'set-presentation':
       validatePresentation(intent.presentation)
       return {
@@ -581,8 +614,14 @@ function applyIntent(current: DocumentRevision, intent: DocumentIntent): Documen
         throw new DocumentCoreError('invalid-intention', 'Document name must be a string')
       }
       return { ...next, documentName: intent.documentName }
+    case 'set-media-group-featured':
+      return applySetMediaGroupFeatured(next, intent)
     case 'update-media-item':
       return applyUpdateMediaItem(next, intent)
+    case 'update-media-group':
+      return applyUpdateMediaGroup(next, intent)
+    case 'remove-media-item':
+      return applyRemoveMediaItem(next, intent)
     default:
       return assertNever(intent)
   }
@@ -706,6 +745,104 @@ function applyUpdateMediaItem(
     throw new DocumentCoreError('not-found', `Media Item ${intent.itemId} was not found`)
   }
   return { ...current, pages }
+}
+
+function mapMediaGroupBlock(
+  current: DocumentRevision,
+  blockId: string,
+  transform: (block: MediaGroupBlock) => MediaGroupBlock | undefined,
+): DocumentRevision {
+  let foundBlock = false
+  const pages = current.pages.map(page => ({
+    ...page,
+    blocks: page.blocks.flatMap((block) => {
+      if (block.id !== blockId) {
+        return [block]
+      }
+      foundBlock = true
+      if (block.kind !== 'media-group') {
+        throw new DocumentCoreError('invalid-intention', `Block ${blockId} is not a Media Group`)
+      }
+      const nextBlock = transform(block)
+      if (nextBlock !== undefined) {
+        validateBlock(nextBlock)
+        return [nextBlock]
+      }
+      return []
+    }),
+  }))
+  if (!foundBlock) {
+    throw new DocumentCoreError('not-found', `Block ${blockId} was not found`)
+  }
+  return { ...current, pages }
+}
+
+function applyUpdateMediaGroup(
+  current: DocumentRevision,
+  intent: Pick<UpdateMediaGroupIntent, 'blockId' | 'changes'>,
+): DocumentRevision {
+  return mapMediaGroupBlock(current, intent.blockId, block => (
+    removeUndefinedProperties({ ...block, ...cloneValue(intent.changes) })
+  ))
+}
+
+function applySetMediaGroupFeatured(
+  current: DocumentRevision,
+  intent: Pick<SetMediaGroupFeaturedIntent, 'blockId' | 'itemId'>,
+): DocumentRevision {
+  return mapMediaGroupBlock(current, intent.blockId, (block) => {
+    if (block.items.every(item => item.id !== intent.itemId)) {
+      throw new DocumentCoreError('not-found', `Media Item ${intent.itemId} was not found`)
+    }
+    return {
+      ...block,
+      items: block.items.map(item => ({
+        ...item,
+        featured: item.id === intent.itemId,
+      })),
+    }
+  })
+}
+
+function applyRemoveMediaItem(
+  current: DocumentRevision,
+  intent: Pick<RemoveMediaItemIntent, 'blockId' | 'itemId'>,
+): DocumentRevision {
+  return mapMediaGroupBlock(current, intent.blockId, (block) => {
+    if (block.items.every(item => item.id !== intent.itemId)) {
+      throw new DocumentCoreError('not-found', `Media Item ${intent.itemId} was not found`)
+    }
+    if (block.items.length === 1) {
+      return undefined
+    }
+    return {
+      ...block,
+      items: block.items.filter(item => item.id !== intent.itemId),
+    }
+  })
+}
+
+function applyMoveMediaItem(
+  current: DocumentRevision,
+  intent: Pick<MoveMediaItemIntent, 'blockId' | 'index' | 'itemId'>,
+): DocumentRevision {
+  return mapMediaGroupBlock(current, intent.blockId, (block) => {
+    const itemIndex = block.items.findIndex(item => item.id === intent.itemId)
+    if (itemIndex < 0) {
+      throw new DocumentCoreError('not-found', `Media Item ${intent.itemId} was not found`)
+    }
+    if (!Number.isSafeInteger(intent.index) || intent.index < 0 || intent.index >= block.items.length) {
+      throw new DocumentCoreError('invalid-intention', 'Media Item move index is outside the Media Group')
+    }
+    const nextItems = [...block.items]
+    const moving = nextItems[itemIndex]!
+    nextItems.splice(itemIndex, 1)
+    nextItems.splice(intent.index, 0, moving)
+    return {
+      ...block,
+      items: nextItems,
+    }
+  })
 }
 
 function applyMoveBlock(

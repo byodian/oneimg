@@ -60,6 +60,8 @@ Media Arrangements are user intentions rather than geometry presets:
 
 The interface uses these names instead of `grid-2`, masonry, or other implementation language. A desktop contextual inspector or mobile bottom sheet initially shows no more than three reasoned visual recommendations using the user's real media, with access to all compatible choices. Auto discloses its current resolution, such as “自动 · 突出主图”. A Template maps each arrangement to tested geometry for the current Page Format; users never manipulate that geometry directly.
 
+Issue #39's first implementation resolves Auto from the ordered Media Items' count, normalized aspect-ratio evidence, and Featured intent. The Canonical Renderer publishes the resolved arrangement, column count, and per-item geometry role as render metadata, while the Style Pack maps those roles to bounded geometry shared by preview and local export. Explicit arrangement changes, Featured reassignment, item reordering, and deletion are semantic Media Group transactions; adding or deleting content preserves an explicit manual arrangement.
+
 Browsing arrangements is a Transient Edit. Applying one creates a single Edit Transaction; canceling restores the committed state. While an unapplied arrangement is visible, the recommended action reads “应用后导出” and cannot snapshot a different composition.
 
 ## Social collage and share sets
