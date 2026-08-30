@@ -451,7 +451,7 @@ test.describe('Canonical Renderer local export contract', () => {
         return []
       }
       const rootRect = rootElement.getBoundingClientRect()
-      return elements.map(element => {
+      return elements.map((element) => {
         const rect = element.getBoundingClientRect()
         return {
           end: rect.bottom - rootRect.top,
