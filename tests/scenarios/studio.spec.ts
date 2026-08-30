@@ -240,6 +240,40 @@ test.describe('General Long Image Studio slice', () => {
     })
   })
 
+  test('blocks local export when the capability probe times out', async ({ page }) => {
+    await page.addInitScript(() => {
+      class HangingImage extends EventTarget {
+        naturalHeight = 0
+        naturalWidth = 0
+        decoding = ''
+        private source = ''
+
+        get src() {
+          return this.source
+        }
+
+        set src(value: string) {
+          this.source = value
+          // Deliberately leave the probe image without load or error.
+        }
+
+        decode() {
+          return new Promise<void>(() => undefined)
+        }
+      }
+
+      Object.defineProperty(window, 'Image', {
+        configurable: true,
+        value: HangingImage,
+      })
+    })
+    await page.goto('/studio')
+
+    await expect(page.getByTestId('preflight-panel')).toContainText('本地 SVG foreignObject 探测超时', { timeout: 10_000 })
+    await expect(page.getByRole('button', { name: '导出本地文件' })).toBeDisabled()
+    await expect(page.getByTestId('preflight-panel')).not.toContainText('应用兼容呈现')
+  })
+
   test('plans output options without rasterizing and reuses a normal-page raster', async ({ page }) => {
     await page.goto('/studio')
 

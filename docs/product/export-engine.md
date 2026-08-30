@@ -6,7 +6,15 @@ The Export Engine is the single deep Module responsible for turning a Document i
 
 Issue #35 delivers the first Studio-facing vertical slice of this contract for the certified General Long Image path. The export panel calls `plan()` without mounting an inert renderer or producing encoded bytes; an explicit run calls `run(plan)` with a deeply frozen Snapshot, reports real local stages, and downloads only the completed artifact. The initial UI supports PNG at 1× and 2×, caches immutable normal-size Page rasters by Snapshot/resource/presentation/viewport/output/Adapter/encoder inputs, and marks a receipt when the active Document has advanced beyond the exported Revision.
 
-The local slice intentionally does not claim the complete output matrix. Bounded pagination, remote High-Fidelity execution, broad runtime probes, full Preflight, and multi-Page/bundle reuse remain later gates. Unsupported local presentations stay blocked rather than producing a best-effort mismatch.
+The local slice intentionally does not claim the complete output matrix. Bounded pagination, remote High-Fidelity execution, and multi-Page/bundle reuse remain later gates. Unsupported local presentations stay blocked rather than producing a best-effort mismatch.
+
+## Slice 10 — Render Ready, Preflight, and compatibility repair
+
+Issue #36 adds the last validation gate around the certified local path. `waitForCanonicalRenderReady()` now waits for declared font faces and `document.fonts.ready`, decoded images, Mutation/ResizeObserver convergence, two stable animation frames, and the current generation token. It returns stable geometry, overflow, final pagination diagnostics, and any visible font fallback identifiers; a stale or canceled generation cannot publish readiness.
+
+The Studio runs an explicit Preflight over that result before enabling Local Export. Empty or corrupt Documents, an unavailable Renderer, unresolved Resources, decode failures, unsafe overflow, and an unverified local capability are Blocking Errors. Low-resolution media, visible fallback fonts, and risky presentations are Quality Warnings; missing recommended Scene Slots are Content Suggestions. Each finding has a navigation or recovery action, and findings are carried into the immutable Export Plan so the plan and the UI cannot disagree.
+
+The local capability probe exercises the same SVG `foreignObject` → Data URL → Image decode → Canvas PNG path used by the certified adapter. A failed probe offers only a verified compatible presentation or, for an ordinary Document, explicit High-Fidelity authorization. Sensitive Documents remain local-only and never receive a remote bypass action. Bounded pagination and a full Scene-specific slot catalog still require later slices.
 
 Local `Export Job` failures keep a stable category (`resource-resolution-failed`, `rendering-failed`, `encoding-failed`, or `packaging-failed`), the execution stage that failed, and a recovery action. The panel exposes all three together with the original diagnostic message, so a failed export cannot be mistaken for a successful but lower-quality file.
 

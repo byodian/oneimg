@@ -3,6 +3,7 @@ import type { ResolvedResourceSet } from './resource-resolver'
 import {
   abortableRenderPromise,
   createRenderAbortError,
+  isRenderAbortError,
   throwIfRenderAborted,
 } from '@/features/rendering/cancellation'
 
@@ -18,15 +19,67 @@ export interface CanonicalGeometry {
   readonly height: number
 }
 
+export interface CanonicalPaginationPage {
+  readonly height: number
+  readonly index: number
+  readonly y: number
+}
+
+export interface CanonicalPaginationDiagnostics {
+  readonly final: boolean
+  readonly pageCount: number
+  readonly pages: readonly CanonicalPaginationPage[]
+}
+
+export interface CanonicalRenderReadiness {
+  readonly fontFallbackIds: readonly string[]
+  readonly geometry: readonly CanonicalGeometry[]
+  readonly height: number
+  readonly overflow: {
+    readonly horizontal: boolean
+    readonly vertical: boolean
+  }
+  readonly pagination: CanonicalPaginationDiagnostics
+  readonly stableFrames: number
+  readonly width: number
+}
+
+export type CanonicalRenderReadyErrorCode = 'image-decode-failed' | 'image-load-failed' | 'pagination-not-final'
+
+export class CanonicalRenderReadyError extends Error {
+  readonly code: CanonicalRenderReadyErrorCode
+  readonly readiness?: CanonicalRenderReadiness
+  readonly resourceIds: readonly string[]
+
+  constructor(
+    code: CanonicalRenderReadyErrorCode,
+    message: string,
+    options: { readonly readiness?: CanonicalRenderReadiness; readonly resourceIds?: readonly string[] } = {},
+  ) {
+    super(message)
+    this.name = 'CanonicalRenderReadyError'
+    this.code = code
+    this.readiness = options.readiness
+    this.resourceIds = [...(options.resourceIds ?? [])]
+  }
+}
+
 export interface CanonicalRenderReadyOptions {
   readonly isCurrent?: () => boolean
   readonly signal?: AbortSignal
+  readonly generation?: {
+    readonly expected: number
+    readonly getCurrent: () => number
+  }
 }
 
 function assertCurrent(options: CanonicalRenderReadyOptions) {
   throwIfRenderAborted(options.signal)
   if (options.isCurrent && !options.isCurrent()) {
     throw new Error('Canonical Render Root readiness became stale')
+  }
+  if (options.generation && options.generation.getCurrent() !== options.generation.expected) {
+    throw new Error('Canonical Render Root readiness generation became stale')
   }
 }
 
@@ -46,20 +99,201 @@ export function getCanonicalGeometry(root: HTMLElement): readonly CanonicalGeome
 }
 
 function geometrySignature(root: HTMLElement) {
-  return getCanonicalGeometry(root)
-    .map(geometry => [
-      geometry.id,
-      geometry.x.toFixed(3),
-      geometry.y.toFixed(3),
-      geometry.width.toFixed(3),
-      geometry.height.toFixed(3),
-    ].join(':'))
-    .join('|')
+  const rootRect = root.getBoundingClientRect()
+  return [
+    rootRect.width.toFixed(3),
+    rootRect.height.toFixed(3),
+    String(root.clientHeight),
+    String(root.clientWidth),
+    String(root.scrollHeight),
+    String(root.scrollWidth),
+    root.dataset.paginationState ?? '',
+    root.dataset.paginationSnapshotId ?? '',
+    root.dataset.paginationDiagnostics ?? '',
+    getCanonicalGeometry(root)
+      .map(geometry => [
+        geometry.id,
+        geometry.x.toFixed(3),
+        geometry.y.toFixed(3),
+        geometry.width.toFixed(3),
+        geometry.height.toFixed(3),
+      ].join(':'))
+      .join('|'),
+  ].join(';')
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function parsePaginationDiagnostics(value: unknown): CanonicalPaginationDiagnostics | undefined {
+  if (!isRecord(value) || typeof value.final !== 'boolean' || typeof value.pageCount !== 'number') {
+    return undefined
+  }
+  if (!Number.isInteger(value.pageCount) || value.pageCount < 1 || !Array.isArray(value.pages)) {
+    return undefined
+  }
+
+  const pages = value.pages.flatMap((page): CanonicalPaginationPage[] => {
+    if (!isRecord(page)
+      || typeof page.height !== 'number'
+      || typeof page.index !== 'number'
+      || typeof page.y !== 'number'
+      || !Number.isFinite(page.height)
+      || !Number.isInteger(page.index)
+      || page.index < 0
+      || !Number.isFinite(page.y)
+      || page.height <= 0
+      || page.y < 0
+    ) {
+      return []
+    }
+    return [{
+      height: page.height,
+      index: page.index,
+      y: page.y,
+    }]
+  })
+  if (pages.length !== value.pages.length || pages.length !== value.pageCount) {
+    return undefined
+  }
+  for (let index = 0; index < pages.length; index += 1) {
+    const page = pages[index]!
+    if (page.index !== index) {
+      return undefined
+    }
+    if (index > 0) {
+      const previous = pages[index - 1]!
+      if (Math.abs(page.y - (previous.y + previous.height)) > 1) {
+        return undefined
+      }
+    } else if (Math.abs(page.y) > 1) {
+      return undefined
+    }
+  }
+  return {
+    final: value.final,
+    pageCount: value.pageCount,
+    pages,
+  }
+}
+
+function measureCanonicalPagination(
+  root: HTMLElement,
+  snapshot: CanonicalRenderSnapshot,
+): CanonicalPaginationDiagnostics {
+  const rootRect = root.getBoundingClientRect()
+  const contentHeight = Math.max(1, Math.ceil(Math.max(rootRect.height, root.scrollHeight)))
+  const pageFormat = snapshot.presentation.pageFormat
+  const referencePageHeight = pageFormat.kind === 'bounded'
+    ? Math.max(1, Math.ceil(pageFormat.height ?? contentHeight))
+    : contentHeight
+  const pageCount = pageFormat.kind === 'bounded'
+    ? Math.max(1, Math.ceil(contentHeight / referencePageHeight))
+    : 1
+
+  return {
+    final: pageFormat.kind === 'continuous' || pageCount === 1,
+    pageCount,
+    pages: Array.from({ length: pageCount }, (_, index) => ({
+      height: pageFormat.kind === 'bounded'
+        ? Math.min(referencePageHeight, Math.max(1, contentHeight - index * referencePageHeight))
+        : contentHeight,
+      index,
+      y: pageFormat.kind === 'bounded' ? index * referencePageHeight : 0,
+    })),
+  }
+}
+
+/**
+ * Publishes the renderer-owned pagination result after the DOM has laid out.
+ * A future bounded pagination adapter can replace this protocol with real
+ * page slots; Render Ready never treats a missing or pending result as final.
+ */
+export function publishCanonicalPaginationDiagnostics(root: HTMLElement, snapshot: CanonicalRenderSnapshot) {
+  const diagnostics = measureCanonicalPagination(root, snapshot)
+  root.dataset.paginationDiagnostics = JSON.stringify(diagnostics)
+  root.dataset.paginationSnapshotId = snapshot.snapshotId
+  root.dataset.paginationState = 'ready'
+}
+
+export function readCanonicalPaginationDiagnostics(
+  root: HTMLElement,
+  snapshot?: CanonicalRenderSnapshot,
+): CanonicalPaginationDiagnostics | undefined {
+  if (root.dataset.paginationState !== 'ready') {
+    return undefined
+  }
+  if (snapshot !== undefined && root.dataset.paginationSnapshotId !== snapshot.snapshotId) {
+    return undefined
+  }
+  try {
+    const diagnostics = parsePaginationDiagnostics(JSON.parse(root.dataset.paginationDiagnostics ?? ''))
+    if (diagnostics === undefined) {
+      return undefined
+    }
+
+    const rootRect = root.getBoundingClientRect()
+    const contentHeight = Math.max(1, Math.ceil(Math.max(rootRect.height, root.scrollHeight)))
+    const pageFormat = snapshot?.presentation.pageFormat
+    if (pageFormat?.kind === 'continuous' && diagnostics.pageCount !== 1) {
+      return undefined
+    }
+    if (pageFormat?.kind === 'bounded') {
+      const referencePageHeight = Math.max(1, Math.ceil(pageFormat.height ?? contentHeight))
+      if (diagnostics.pages.some(page => page.height > referencePageHeight + 1)) {
+        return undefined
+      }
+      if (diagnostics.final && diagnostics.pages.at(-1)!.y + diagnostics.pages.at(-1)!.height < contentHeight - 1) {
+        return undefined
+      }
+    }
+    if (diagnostics.final && diagnostics.pages.at(-1)!.y + diagnostics.pages.at(-1)!.height < contentHeight - 1) {
+      return undefined
+    }
+    return diagnostics
+  } catch {
+    return undefined
+  }
+}
+
+function createReadiness(
+  root: HTMLElement,
+  snapshot: CanonicalRenderSnapshot,
+  resources: ResolvedResourceSet,
+  pagination: CanonicalPaginationDiagnostics,
+  stableFrames: number,
+): CanonicalRenderReadiness {
+  const rootRect = root.getBoundingClientRect()
+  const width = Math.max(1, Math.ceil(rootRect.width))
+  const height = Math.max(1, Math.ceil(Math.max(rootRect.height, root.scrollHeight)))
+  const horizontalOverflow = root.scrollWidth > root.clientWidth + 1
+  const pageFormat = snapshot.presentation.pageFormat
+  const referencePageHeight = pageFormat.kind === 'bounded'
+    ? Math.max(1, Math.ceil(pageFormat.height ?? height))
+    : height
+  const verticalOverflow = pageFormat.kind === 'bounded'
+    && height > referencePageHeight + 1
+    && !pagination.final
+
+  return {
+    fontFallbackIds: [...(resources.fontFallbackIds ?? [])],
+    geometry: getCanonicalGeometry(root),
+    height,
+    overflow: {
+      horizontal: horizontalOverflow,
+      vertical: verticalOverflow,
+    },
+    pagination,
+    stableFrames,
+    width,
+  }
 }
 
 async function waitForImages(root: HTMLElement, options: CanonicalRenderReadyOptions) {
   const images = Array.from(root.querySelectorAll<HTMLImageElement>('img'))
   await Promise.all(images.map(async (image) => {
+    const resourceId = image.dataset.resourceId ?? image.alt
     assertCurrent(options)
     if (!image.complete) {
       await new Promise<void>((resolve, reject) => {
@@ -76,7 +310,11 @@ async function waitForImages(root: HTMLElement, options: CanonicalRenderReadyOpt
 
         function onError() {
           cleanup()
-          reject(new Error(`Unable to load ${image.dataset.resourceId ?? image.alt}`))
+          reject(new CanonicalRenderReadyError(
+            'image-load-failed',
+            `Unable to load ${resourceId}`,
+            { resourceIds: [resourceId] },
+          ))
         }
 
         function onAbort() {
@@ -93,10 +331,25 @@ async function waitForImages(root: HTMLElement, options: CanonicalRenderReadyOpt
     }
 
     if (image.naturalWidth === 0) {
-      throw new Error(`Unable to decode ${image.dataset.resourceId ?? image.alt}`)
+      throw new CanonicalRenderReadyError(
+        'image-decode-failed',
+        `Unable to decode ${resourceId}`,
+        { resourceIds: [resourceId] },
+      )
     }
 
-    await abortableRenderPromise(image.decode(), options.signal)
+    try {
+      await abortableRenderPromise(image.decode(), options.signal)
+    } catch (error) {
+      if (isRenderAbortError(error)) {
+        throw error
+      }
+      throw new CanonicalRenderReadyError(
+        'image-decode-failed',
+        `Unable to decode ${resourceId}`,
+        { resourceIds: [resourceId] },
+      )
+    }
     assertCurrent(options)
   }))
 }
@@ -116,6 +369,7 @@ export async function waitForCanonicalRenderReady(
     document.fonts.load(`${weight} 16px ${resources.fontFamily}`, '所见即所得 Canonical'),
     options.signal,
   )))
+  await abortableRenderPromise(document.fonts.ready, options.signal)
   assertCurrent(options)
   await waitForImages(root, options)
 
@@ -150,11 +404,28 @@ export async function waitForCanonicalRenderReady(
       geometryInvalidated = false
       lastSignature = signature
       if (stableFrames >= 2) {
-        return
+        assertCurrent(options)
+        const pagination = readCanonicalPaginationDiagnostics(root, snapshot)
+        if (pagination === undefined) {
+          stableFrames = 0
+          continue
+        }
+        const readiness = createReadiness(root, snapshot, resources, pagination, stableFrames)
+        if (!readiness.pagination.final) {
+          throw new CanonicalRenderReadyError(
+            'pagination-not-final',
+            'Canonical pagination did not reach a final layout',
+            { readiness },
+          )
+        }
+        return readiness
       }
     }
 
-    throw new Error('Canonical Render Root did not reach stable geometry')
+    throw new CanonicalRenderReadyError(
+      'pagination-not-final',
+      'Canonical pagination diagnostics did not reach a valid final state',
+    )
   } finally {
     mutationObserver.disconnect()
     resizeObserver.disconnect()

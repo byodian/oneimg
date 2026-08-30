@@ -442,6 +442,7 @@ export function createGeneralLongImageSnapshot(
     snapshotId: `general-long-image:${revision.id}:r${revision.revision}`,
     stylePackId: GENERAL_LONG_IMAGE_STYLE_PACK_ID,
     theme: resolvedPresentation.theme.theme,
+    ...(revision.presentation.sensitive === undefined ? {} : { sensitive: revision.presentation.sensitive }),
   }
 }
 

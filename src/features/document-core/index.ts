@@ -658,6 +658,9 @@ function validatePresentation(value: unknown): asserts value is DocumentPresenta
   ]) {
     assertNonEmptyString(value[key], `Presentation ${key}`)
   }
+  if (value.sensitive !== undefined && typeof value.sensitive !== 'boolean') {
+    throw new DocumentCoreError('invalid-document', 'Presentation sensitive flag must be a boolean')
+  }
   validatePageFormat(value.pageFormat)
 }
 

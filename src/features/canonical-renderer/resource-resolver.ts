@@ -51,6 +51,7 @@ export interface ResolvedResourceSet {
   readonly fingerprint: string
   readonly fontFaceCss: string
   readonly fontFamily: string
+  readonly fontFallbackIds?: readonly CanonicalResourceId[]
   readonly resources: readonly ResolvedResource[]
   get(resourceId: CanonicalResourceId): ResolvedResource
   release(): void
@@ -66,6 +67,24 @@ export interface ResourceResolverDiagnostics {
   readonly createdObjectUrls: number
   readonly releasedSessions: number
   readonly revokedObjectUrls: number
+}
+
+export type ResourceResolverErrorCode = 'resource-load-failed' | 'unresolved-resource'
+
+export class ResourceResolverError extends Error {
+  readonly code: ResourceResolverErrorCode
+  readonly resourceIds: readonly CanonicalResourceId[]
+
+  constructor(
+    code: ResourceResolverErrorCode,
+    message: string,
+    resourceIds: readonly CanonicalResourceId[],
+  ) {
+    super(message)
+    this.name = 'ResourceResolverError'
+    this.code = code
+    this.resourceIds = [...resourceIds]
+  }
 }
 
 export interface ResourceResolver {
@@ -177,17 +196,21 @@ class BrowserResourceResolver implements ResourceResolver {
     }
 
     try {
-      const resources = await Promise.all(requestedIds.map(async (resourceId) => {
-        throwIfRenderAborted(options.signal)
-        const definition = this.definitions.get(resourceId)
-        if (!definition) {
-          throw new Error(`No resource definition for ${resourceId}`)
-        }
-
-        const blob = await loadBlob(definition, options.signal)
-        const objectUrl = createObjectUrl(blob)
-
+      const resourceResults = await Promise.allSettled(requestedIds.map(async (resourceId) => {
+        let objectUrl: string | undefined
         try {
+          throwIfRenderAborted(options.signal)
+          const definition = this.definitions.get(resourceId)
+          if (!definition) {
+            throw new ResourceResolverError(
+              'unresolved-resource',
+              `No resource definition for ${resourceId}`,
+              [resourceId],
+            )
+          }
+
+          const blob = await loadBlob(definition, options.signal)
+          objectUrl = createObjectUrl(blob)
           const hash = await sha256(blob)
           throwIfRenderAborted(options.signal)
           return {
@@ -201,11 +224,53 @@ class BrowserResourceResolver implements ResourceResolver {
             font: definition.font,
           } satisfies ResolvedResource
         } catch (error) {
-          revokeObjectUrl(objectUrl)
-          throw error
+          if (objectUrl !== undefined) {
+            revokeObjectUrl(objectUrl)
+          }
+          if (error instanceof ResourceResolverError || (error instanceof DOMException && error.name === 'AbortError')) {
+            throw error
+          }
+          if (error instanceof Error && error.name === 'AbortError') {
+            throw error
+          }
+          throw new ResourceResolverError(
+            'resource-load-failed',
+            error instanceof Error ? error.message : `Unable to resolve ${resourceId}`,
+            [resourceId],
+          )
         }
       }))
+      const rejectedResources = resourceResults.flatMap((result, index) => result.status === 'rejected'
+        ? [{ index, reason: result.reason }]
+        : [])
+      if (rejectedResources.length > 0) {
+        const abortReason = rejectedResources.find(({ reason }) => (
+          (reason instanceof DOMException && reason.name === 'AbortError')
+          || (reason instanceof Error && reason.name === 'AbortError')
+        ))
+        if (abortReason) {
+          throw abortReason.reason
+        }
+        const resolverErrors = rejectedResources.map(({ reason }) => reason)
+          .filter((reason): reason is ResourceResolverError => reason instanceof ResourceResolverError)
+        const resourceIds = rejectedResources.map(({ index }) => requestedIds[index]!)
+        const error = resolverErrors[0]
+        throw new ResourceResolverError(
+          resolverErrors.some(reason => reason.code === 'unresolved-resource')
+            ? 'unresolved-resource'
+            : 'resource-load-failed',
+          error?.message ?? 'Unable to resolve canonical resources',
+          resourceIds,
+        )
+      }
+      const resources = resourceResults.map((result) => {
+        if (result.status === 'rejected') {
+          throw result.reason
+        }
+        return result.value
+      })
 
+      const fontFallbackIds: CanonicalResourceId[] = []
       for (const resource of resources) {
         throwIfRenderAborted(options.signal)
         if (!resource.font) {
@@ -220,22 +285,42 @@ class BrowserResourceResolver implements ResourceResolver {
             weight: resource.font.weight,
           },
         )
-        await abortableRenderPromise(fontFace.load(), options.signal)
-        throwIfRenderAborted(options.signal)
-        document.fonts.add(fontFace)
-        fontFaces.add(fontFace)
+        try {
+          await abortableRenderPromise(fontFace.load(), options.signal)
+          throwIfRenderAborted(options.signal)
+          document.fonts.add(fontFace)
+          fontFaces.add(fontFace)
+        } catch (error) {
+          if (error instanceof DOMException && error.name === 'AbortError') {
+            throw error
+          }
+          if (error instanceof Error && error.name === 'AbortError') {
+            throw error
+          }
+          fontFallbackIds.push(resource.id)
+        }
       }
 
       const resourceMap = new Map(resources.map(resource => [resource.id, resource]))
       const fontResources = snapshot.fontPack.resourceIds.map((resourceId) => {
         const resource = resourceMap.get(resourceId)
         if (!resource?.font) {
-          throw new Error(`Canonical font resource ${resourceId} did not resolve as a font`)
+          throw new ResourceResolverError(
+            'unresolved-resource',
+            `Canonical font resource ${resourceId} did not resolve as a font`,
+            [resourceId],
+          )
         }
         return resource
       })
-      const fontFamily = fontResources.map(resource => quoteCss(resource.font!.family)).join(', ')
-      const fontFaceCss = fontResources.map(resource => String.raw`
+      const fontFallbackSet = new Set(fontFallbackIds)
+      const loadedFontResources = fontResources.filter(resource => !fontFallbackSet.has(resource.id))
+      const fontFamilies = loadedFontResources.map(resource => quoteCss(resource.font!.family))
+      if (fontFallbackIds.length > 0 || fontFamilies.length === 0) {
+        fontFamilies.push('system-ui', 'sans-serif')
+      }
+      const fontFamily = fontFamilies.join(', ')
+      const fontFaceCss = loadedFontResources.map(resource => String.raw`
 @font-face {
   font-family: ${quoteCss(resource.font!.family)};
   font-style: ${resource.font!.style};
@@ -254,6 +339,7 @@ class BrowserResourceResolver implements ResourceResolver {
         fingerprint,
         fontFaceCss,
         fontFamily,
+        fontFallbackIds,
         resources,
         get(resourceId) {
           const resource = resourceMap.get(resourceId)

@@ -7,7 +7,10 @@ import {
   controlledFixtureResources,
 } from '@/features/canonical-renderer/controlled-fixture'
 import type { CanonicalRenderSnapshot } from '@/features/canonical-renderer/model'
-import { waitForCanonicalRenderReady } from '@/features/canonical-renderer/render-ready'
+import {
+  type CanonicalRenderReadiness,
+  waitForCanonicalRenderReady,
+} from '@/features/canonical-renderer/render-ready'
 import {
   type BrowserResourceDefinition,
   type ResolvedResourceSet,
@@ -83,6 +86,7 @@ export function CanonicalLocalExportHarness({
   const exportJobRef = useRef<ExportJob>()
   const cancelRequestedAt = useRef<number>()
   const [resources, setResources] = useState<ResolvedResourceSet>()
+  const [renderReadiness, setRenderReadiness] = useState<CanonicalRenderReadiness>()
   const [previewReady, setPreviewReady] = useState(false)
   const [error, setError] = useState<string>()
   const [exporting, setExporting] = useState(false)
@@ -137,6 +141,7 @@ export function CanonicalLocalExportHarness({
   useEffect(() => {
     if (!resources) {
       setPreviewReady(false)
+      setRenderReadiness(undefined)
       return
     }
 
@@ -150,13 +155,18 @@ export function CanonicalLocalExportHarness({
     }
 
     waitForCanonicalRenderReady(previewRoot, snapshot, resources, {
+      generation: {
+        expected: generation,
+        getCurrent: () => readinessGeneration.current,
+      },
       isCurrent: () => active && readinessGeneration.current === generation,
     })
-      .then(() => {
+      .then((readiness) => {
         if (!active) {
           return
         }
         previewRoot.dataset.renderReady = 'true'
+        setRenderReadiness(readiness)
         setPreviewReady(true)
       })
       .catch((reason: unknown) => {
@@ -182,6 +192,7 @@ export function CanonicalLocalExportHarness({
     resources?.release()
     setResources(undefined)
     setPreviewReady(false)
+    setRenderReadiness(undefined)
     setResourceAudit(resolver.getDiagnostics())
   }
 
@@ -406,6 +417,9 @@ export function CanonicalLocalExportHarness({
       )}
       <pre data-testid="resource-audit" style={{ background: '#fff', margin: '18px auto 0', overflow: 'auto', padding: 16, width: 640 }}>
         {JSON.stringify(resourceAudit)}
+      </pre>
+      <pre data-testid="render-ready-diagnostics" style={{ background: '#fff', margin: '18px auto 0', overflow: 'auto', padding: 16, width: 640 }}>
+        {JSON.stringify(renderReadiness ?? null)}
       </pre>
       <pre data-testid="export-audit" style={{ background: '#fff', margin: '18px auto 0', overflow: 'auto', padding: 16, width: 640 }}>
         {JSON.stringify(progress)}

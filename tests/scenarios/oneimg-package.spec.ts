@@ -69,6 +69,7 @@ function buildStoredZip(entries: readonly RawZipEntry[]) {
 function createRawPackage(
   assetData = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
   snapshot: Record<string, unknown> = { blocks: [], pages: [] },
+  sensitive = false,
 ) {
   const documentData = Buffer.from(JSON.stringify({
     blockVersion: 'block-catalog@1',
@@ -79,6 +80,7 @@ function createRawPackage(
       fontPackId: 'noto-sans-sc@1',
       pageFormat: 'continuous',
       rendererRevision: 'canonical-renderer@1',
+      ...(sensitive ? { sensitive: true } : {}),
       templateId: 'clear-paper',
       templateVersion: 'clear-paper@1',
       themeId: 'cobalt',
@@ -113,6 +115,7 @@ function createRawPackage(
         fontPackId: 'noto-sans-sc@1',
         pageFormat: 'continuous',
         rendererRevision: 'canonical-renderer@1',
+        ...(sensitive ? { sensitive: true } : {}),
         templateId: 'clear-paper',
         templateVersion: 'clear-paper@1',
         themeId: 'cobalt',
@@ -282,5 +285,8 @@ test.describe('OneIMG Package streaming contract', () => {
       buildStoredZip(createRawPackage(undefined, { blocks: [{ onmouseover: 'alert(1)' }] })),
     )
     expect(executable).toMatchObject({ code: 'executable-content', ok: false })
+
+    const sensitive = await inspectBytes(page, buildStoredZip(createRawPackage(undefined, { blocks: [], pages: [] }, true)))
+    expect(sensitive).toMatchObject({ ok: true })
   })
 })

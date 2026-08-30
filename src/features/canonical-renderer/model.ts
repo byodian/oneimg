@@ -125,6 +125,7 @@ export interface CanonicalRenderSnapshot {
   readonly rendererRevision: string
   readonly stylePackId: string
   readonly localCapability: CanonicalLocalCapability
+  readonly sensitive?: boolean
   readonly locale: string
   readonly direction: 'ltr' | 'rtl'
   readonly referenceViewport: ReferenceViewport

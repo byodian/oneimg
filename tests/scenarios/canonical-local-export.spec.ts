@@ -175,6 +175,7 @@ test.describe('Canonical Renderer local export contract', () => {
 
     await expect(root).toBeVisible()
     await expect(root).toHaveAttribute('data-render-ready', 'true')
+    await expect(root).toHaveAttribute('data-pagination-state', 'ready')
     await expect(root).toHaveAttribute('data-snapshot-id', 'canonical-wysiwyg-fixture-v1')
     await expect(root).toHaveAttribute('data-style-pack', 'oneimg-foundation@3')
     await expect(root.getByRole('heading', { name: '所见即所得' })).toBeVisible()
@@ -208,6 +209,19 @@ test.describe('Canonical Renderer local export contract', () => {
     expect(geometry.width).toBe(640)
     expect(geometry.height).toBeGreaterThan(800)
     expect(geometry.shadow).not.toBe('none')
+
+    const readiness = JSON.parse(await page.getByTestId('render-ready-diagnostics').textContent() ?? '{}') as {
+      fontFallbackIds: string[]
+      overflow: { horizontal: boolean; vertical: boolean }
+      pagination: { final: boolean; pageCount: number }
+      stableFrames: number
+    }
+    expect(readiness).toMatchObject({
+      fontFallbackIds: [],
+      overflow: { horizontal: false, vertical: false },
+      pagination: { final: true, pageCount: 1 },
+      stableFrames: 2,
+    })
   })
 
   test('downloads a local PNG that is faithful to the visible preview', async ({ page }, testInfo) => {

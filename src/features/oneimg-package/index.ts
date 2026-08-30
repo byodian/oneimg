@@ -9,6 +9,7 @@ export interface PackagePresentation {
   readonly fontPackId: string
   readonly pageFormat: 'bounded' | 'continuous'
   readonly rendererRevision: string
+  readonly sensitive?: boolean
   readonly sceneId?: string
   readonly sceneVersion?: string
   readonly templateId: string
@@ -472,6 +473,14 @@ function requireString(record: { readonly [key: string]: JsonValue }, key: strin
   return value
 }
 
+function requireBoolean(record: { readonly [key: string]: JsonValue }, key: string, path: string) {
+  const value = record[key]
+  if (typeof value !== 'boolean') {
+    fail('invalid-manifest', `${path}.${key} must be a boolean`, path)
+  }
+  return value
+}
+
 function isNewerComponentVersion(value: string) {
   const match = /@(\d+)$/.exec(value)
   return match !== null && Number(match[1]) > 1
@@ -525,6 +534,7 @@ function normalizePresentation(presentation: PackagePresentation): PackagePresen
     templateVersion: presentation.templateVersion,
     themeId: presentation.themeId,
     themeVersion: presentation.themeVersion,
+    ...(presentation.sensitive === undefined ? {} : { sensitive: presentation.sensitive }),
     ...(presentation.sceneId === undefined ? {} : { sceneId: presentation.sceneId }),
     ...(presentation.sceneVersion === undefined ? {} : { sceneVersion: presentation.sceneVersion }),
   }
@@ -535,6 +545,12 @@ function normalizePresentation(presentation: PackagePresentation): PackagePresen
     fail('invalid-manifest', 'Presentation page format is not supported')
   }
   for (const [name, value] of Object.entries(normalized)) {
+    if (name === 'sensitive') {
+      if (typeof value !== 'boolean') {
+        fail('invalid-manifest', `Presentation ${name} must be a boolean`)
+      }
+      continue
+    }
     if (typeof value !== 'string' || value.length === 0) {
       fail('invalid-manifest', `Presentation ${name} must be a non-empty string`)
     }
@@ -1476,6 +1492,7 @@ function parsePresentation(value: JsonValue, path: string): PackagePresentation 
   const templateVersion = requireString(record, 'templateVersion', path)
   const themeId = requireString(record, 'themeId', path)
   const themeVersion = requireString(record, 'themeVersion', path)
+  const sensitive = record.sensitive === undefined ? undefined : requireBoolean(record, 'sensitive', path)
   const sceneId = record.sceneId === undefined ? undefined : requireString(record, 'sceneId', path)
   const sceneVersion = record.sceneVersion === undefined ? undefined : requireString(record, 'sceneVersion', path)
   return normalizePresentation({
@@ -1487,6 +1504,7 @@ function parsePresentation(value: JsonValue, path: string): PackagePresentation 
     templateVersion,
     themeId,
     themeVersion,
+    ...(sensitive === undefined ? {} : { sensitive }),
     ...(sceneId === undefined ? {} : { sceneId }),
     ...(sceneVersion === undefined ? {} : { sceneVersion }),
   })

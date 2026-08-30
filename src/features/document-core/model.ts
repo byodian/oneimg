@@ -16,6 +16,7 @@ export interface DocumentPresentation {
   readonly fontPackId: string
   readonly pageFormat: PageFormat
   readonly rendererRevision: string
+  readonly sensitive?: boolean
   readonly sceneId: string
   readonly sceneVersion: string
   readonly templateId: string

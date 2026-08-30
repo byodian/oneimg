@@ -1,3 +1,4 @@
+import type { PreflightFinding, PreflightFindingKind } from './preflight'
 import {
   type PageFormatKind,
   cloneValue,
@@ -20,18 +21,33 @@ import {
   throwIfRenderAborted,
 } from '@/features/rendering/cancellation'
 
+export {
+  evaluateExportPreflight,
+  readPreflightImageObservations,
+} from './preflight'
+export type {
+  ExportPreflightInput,
+  ExportPreflightResult,
+  LocalCapabilityProbeObservation,
+  PreflightAction,
+  PreflightActionKind,
+  PreflightFinding,
+  PreflightFindingKind,
+  PreflightImageObservation,
+  PreflightSceneSlotObservation,
+} from './preflight'
+export { probeLocalSvgCapability } from './capability-probe'
+export { ExportPreflightPanel } from './preflight-panel'
+export type { ExportPreflightPanelProps } from './preflight-panel'
+
 export type ExportOutputScale = 1 | 2
 export type ExportFormat = 'png'
 export type ExportPlanRoute = 'cannot-export' | 'high-fidelity-recommended' | 'high-fidelity-required' | 'local-eligible'
-export type ExportFindingKind = 'blocking-error' | 'content-suggestion' | 'quality-warning'
+export type ExportFindingKind = PreflightFindingKind
 export type ExportJobExecutionStage = 'encoding' | 'packaging' | 'preparing' | 'rendering'
 export type ExportJobStage = ExportJobExecutionStage | 'canceled' | 'failed' | 'ready'
 
-export interface ExportFinding {
-  readonly code: string
-  readonly kind: ExportFindingKind
-  readonly message: string
-}
+export type ExportFinding = PreflightFinding
 
 export interface ExportPageMeasurement {
   readonly height: number
@@ -61,6 +77,7 @@ export interface ExportPlanRequest {
     readonly scale?: ExportOutputScale
   }
   readonly pageMeasurements?: readonly ExportPageMeasurement[]
+  readonly preflightFindings?: readonly PreflightFinding[]
   readonly renderReady: boolean
   readonly resourceFingerprint?: string
   readonly snapshot: CanonicalRenderSnapshot
@@ -347,18 +364,31 @@ export function createExportEngine({
     const outputFormat = request.output?.format ?? 'png'
     const outputScale = request.output?.scale ?? 1
     const findings: ExportFinding[] = []
+    const addFinding = (finding: ExportFinding) => {
+      if (findings.some(existing => (
+        existing.code === finding.code
+        && existing.resourceId === finding.resourceId
+        && existing.targetId === finding.targetId
+      ))) {
+        return
+      }
+      findings.push(finding)
+    }
+    for (const finding of request.preflightFindings ?? []) {
+      addFinding(cloneValue(finding))
+    }
 
     if (outputFormat !== 'png') {
-      findings.push({ code: 'unsupported-format', kind: 'blocking-error', message: '当前 Export Engine 仅支持 PNG。' })
+      addFinding({ code: 'unsupported-format', kind: 'blocking-error', message: '当前 Export Engine 仅支持 PNG。' })
     }
     if (!request.meaningful) {
-      findings.push({ code: 'empty-document', kind: 'blocking-error', message: '空 Document 没有可导出的内容。' })
+      addFinding({ code: 'empty-document', kind: 'blocking-error', message: '空 Document 没有可导出的内容。' })
     }
     if (!request.renderReady) {
-      findings.push({ code: 'render-not-ready', kind: 'blocking-error', message: 'Canonical Preview 尚未 Render Ready。' })
+      addFinding({ code: 'render-not-ready', kind: 'blocking-error', message: 'Canonical Preview 尚未 Render Ready。' })
     }
     if (request.resourceFingerprint === undefined) {
-      findings.push({ code: 'resources-not-ready', kind: 'blocking-error', message: 'Referenced Render Sources 尚未完成解析。' })
+      addFinding({ code: 'resources-not-ready', kind: 'blocking-error', message: 'Referenced Render Sources 尚未完成解析。' })
     }
 
     const pages: ExportPagePlan[] = []
@@ -367,7 +397,7 @@ export function createExportEngine({
       try {
         pages.push(createPagePlan(measurement, index, outputScale))
       } catch (error) {
-        findings.push({
+        addFinding({
           code: 'invalid-page-measurement',
           kind: 'blocking-error',
           message: error instanceof Error ? error.message : String(error),
@@ -375,13 +405,20 @@ export function createExportEngine({
       }
     })
     if (pages.length === 0) {
-      findings.push({ code: 'page-measurement-unavailable', kind: 'blocking-error', message: '没有可供导出的 Page 几何信息。' })
+      addFinding({ code: 'page-measurement-unavailable', kind: 'blocking-error', message: '没有可供导出的 Page 几何信息。' })
     }
 
     if (snapshot.localCapability === 'unsupported') {
-      findings.push({ code: 'unsupported-local-presentation', kind: 'blocking-error', message: '当前呈现没有已验证的导出适配器。' })
+      addFinding({ code: 'unsupported-local-presentation', kind: 'blocking-error', message: '当前呈现没有已验证的导出适配器。' })
     } else if (snapshot.localCapability === 'high-fidelity-required') {
-      findings.push({ code: 'local-capability', kind: 'quality-warning', message: '当前呈现需要 High-Fidelity Export 或兼容的本地呈现。' })
+      addFinding({ code: 'local-capability', kind: 'quality-warning', message: '当前呈现需要 High-Fidelity Export 或兼容的本地呈现。' })
+    }
+    if (snapshot.sensitive && snapshot.localCapability !== 'certified') {
+      addFinding({
+        code: 'sensitive-local-only',
+        kind: 'blocking-error',
+        message: 'Sensitive Document 只能通过已认证的本地呈现导出。',
+      })
     }
 
     const hasBlockingFinding = findings.some(finding => finding.kind === 'blocking-error')

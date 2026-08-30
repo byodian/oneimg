@@ -5,9 +5,14 @@ import { CanonicalRenderSurface } from '@/features/canonical-renderer/canonical-
 import { type CanonicalRenderSnapshot, collectSnapshotResourceIds } from '@/features/canonical-renderer/model'
 import {
   type ResolvedResourceSet,
+  ResourceResolverError,
   createBrowserResourceResolver,
 } from '@/features/canonical-renderer/resource-resolver'
-import { waitForCanonicalRenderReady } from '@/features/canonical-renderer/render-ready'
+import {
+  type CanonicalRenderReadiness,
+  CanonicalRenderReadyError,
+  waitForCanonicalRenderReady,
+} from '@/features/canonical-renderer/render-ready'
 import {
   type DocumentCommitResult,
   type DocumentHistoryResult,
@@ -34,7 +39,13 @@ import {
   type ExportOutputScale,
   ExportPanel,
   type ExportPlan,
+  ExportPreflightPanel,
+  type PreflightAction,
+  evaluateExportPreflight,
+  probeLocalSvgCapability,
+  readPreflightImageObservations,
 } from '@/features/export-engine'
+import { canonicalStylePack } from '@/features/canonical-renderer/style-pack'
 import { createStudioExportEngine } from '@/features/export-engine/studio-export-engine'
 import { parseSmartPaste } from '@/features/smart-paste'
 import {
@@ -187,7 +198,18 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
   const [phase, setPhase] = useState<StudioPhase>('ready')
   const [cleanPreview, setCleanPreview] = useState(false)
   const [previewReady, setPreviewReady] = useState(false)
+  const [renderReadiness, setRenderReadiness] = useState<CanonicalRenderReadiness>()
+  const [renderReadyRetryVersion, setRenderReadyRetryVersion] = useState(0)
+  const [rendererAvailable, setRendererAvailable] = useState(true)
   const [resources, setResources] = useState<ResolvedResourceSet>()
+  const [resolvedResourceKey, setResolvedResourceKey] = useState('')
+  const [imageObservations, setImageObservations] = useState<ReturnType<typeof readPreflightImageObservations>>([])
+  const [resourceErrorIds, setResourceErrorIds] = useState<readonly string[]>([])
+  const [renderErrorResourceIds, setRenderErrorResourceIds] = useState<readonly string[]>([])
+  const [localCapabilityProbe, setLocalCapabilityProbe] = useState<{
+    readonly reason?: string
+    readonly status: 'failed' | 'passed' | 'pending'
+  }>({ status: 'pending' })
   const [error, setError] = useState<string>()
   const [exportPanelOpen, setExportPanelOpen] = useState(false)
   const [exportPlan, setExportPlan] = useState<ExportPlan>()
@@ -199,16 +221,56 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
 
   const displayedRevision = conflictPreviewRevision ?? revision
   const snapshot = useMemo(
-    () => displayedRevision === undefined ? undefined : createGeneralLongImageSnapshot(displayedRevision),
+    () => {
+      if (displayedRevision === undefined) {
+        return undefined
+      }
+      try {
+        return createGeneralLongImageSnapshot(displayedRevision)
+      } catch {
+        return undefined
+      }
+    },
     [displayedRevision],
   )
+  const contentError = displayedRevision !== undefined && snapshot === undefined ? 'invalid-document' : undefined
   const resourceSnapshot = useRef(snapshot)
   resourceSnapshot.current = snapshot
+  const resourceSetRef = useRef<ResolvedResourceSet>()
+  resourceSetRef.current = resources
   const resourceKey = useMemo(
     () => snapshot === undefined ? '' : collectSnapshotResourceIds(snapshot).join('|'),
     [snapshot],
   )
-  const meaningful = revision === undefined ? false : isMeaningfulDocumentRevision(revision)
+  const renderResources = resources !== undefined && resolvedResourceKey === resourceKey
+    ? resources
+    : undefined
+  const meaningful = useMemo(() => {
+    if (revision === undefined) {
+      return false
+    }
+    try {
+      return isMeaningfulDocumentRevision(revision)
+    } catch {
+      return false
+    }
+  }, [revision])
+
+  const preflight = useMemo(() => evaluateExportPreflight({
+    contentError,
+    fontFallbackIds: renderResources?.fontFallbackIds,
+    highFidelityAvailable: false,
+    images: imageObservations,
+    localCapabilityProbe,
+    meaningful,
+    readiness: renderReadiness,
+    renderReady: previewReady,
+    rendererAvailable: rendererAvailable && snapshot?.stylePackId === canonicalStylePack.id,
+    resourceResolutionPending: snapshot !== undefined && renderResources === undefined && resourceErrorIds.length === 0,
+    resolvedResourceIds: renderResources?.resources.map(resource => resource.id),
+    snapshot,
+    unresolvedResourceIds: [...resourceErrorIds, ...renderErrorResourceIds],
+  }), [contentError, imageObservations, localCapabilityProbe, meaningful, previewReady, renderErrorResourceIds, renderReadiness, renderResources, rendererAvailable, resourceErrorIds, snapshot])
 
   const buildExportPlan = useCallback(() => {
     if (snapshot === undefined) {
@@ -220,10 +282,11 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
       output: { format: 'png', scale: exportOutputScale },
       pageMeasurements: readStudioPageMeasurement(snapshot),
       renderReady: previewReady,
-      resourceFingerprint: resources?.fingerprint,
+      preflightFindings: preflight.findings,
+      resourceFingerprint: renderResources?.fingerprint,
       snapshot,
     })
-  }, [exportEngine, exportOutputScale, meaningful, previewReady, resources?.fingerprint, revision?.revision, snapshot])
+  }, [exportEngine, exportOutputScale, meaningful, preflight.findings, previewReady, renderResources?.fingerprint, revision?.revision, snapshot])
 
   useEffect(() => {
     if (!exportPanelOpen || snapshot === undefined) {
@@ -239,6 +302,27 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
     }
     return exportJob.subscribe(setExportJobState)
   }, [exportJob])
+
+  useEffect(() => {
+    let active = true
+    probeLocalSvgCapability()
+      .then((result) => {
+        if (active) {
+          setLocalCapabilityProbe(result)
+        }
+      })
+      .catch((reason: unknown) => {
+        if (active) {
+          setLocalCapabilityProbe({
+            reason: reason instanceof Error ? reason.message : '本地导出能力验证失败',
+            status: 'failed',
+          })
+        }
+      })
+    return () => {
+      active = false
+    }
+  }, [])
 
   useEffect(() => {
     mounted.current = true
@@ -311,14 +395,29 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
   useEffect(() => {
     const snapshotForResources = resourceSnapshot.current
     if (snapshotForResources === undefined || resourceKey === '') {
+      resourceSetRef.current?.release()
+      resourceSetRef.current = undefined
       setResources(undefined)
+      setResolvedResourceKey('')
       setPreviewReady(false)
+      setRenderReadiness(undefined)
+      setImageObservations([])
+      setResourceErrorIds([])
+      setRenderErrorResourceIds([])
       return
     }
 
     let active = true
     const controller = new AbortController()
+    resourceSetRef.current?.release()
+    resourceSetRef.current = undefined
+    setResources(undefined)
+    setResolvedResourceKey('')
     setPreviewReady(false)
+    setRenderReadiness(undefined)
+    setImageObservations([])
+    setResourceErrorIds([])
+    setRenderErrorResourceIds([])
 
     resolver.resolve(snapshotForResources, 'preview', { signal: controller.signal })
       .then((resourceSet) => {
@@ -327,9 +426,14 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
           return
         }
         setResources(resourceSet)
+        setResolvedResourceKey(resourceKey)
+        setResourceErrorIds([])
       })
       .catch((reason: unknown) => {
         if (active && !isRenderAbortError(reason)) {
+          setResources(undefined)
+          setResolvedResourceKey('')
+          setResourceErrorIds(reason instanceof ResourceResolverError ? reason.resourceIds : [])
           setError(reason instanceof Error ? reason.message : String(reason))
           setPhase('error')
         }
@@ -346,29 +450,49 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
   }, [resources])
 
   useEffect(() => {
-    if (!resources || snapshot === undefined) {
+    const generation = readinessGeneration.current + 1
+    readinessGeneration.current = generation
+    if (
+      !renderResources
+      || snapshot === undefined
+      || resourceSetRef.current !== renderResources
+      || resolvedResourceKey !== resourceKey
+    ) {
+      setRendererAvailable(true)
       setPreviewReady(false)
+      setRenderReadiness(undefined)
       return
     }
 
     let active = true
-    const generation = readinessGeneration.current + 1
-    readinessGeneration.current = generation
+    setRendererAvailable(true)
+    setPreviewReady(false)
+    setRenderReadiness(undefined)
+    setImageObservations([])
+    setRenderErrorResourceIds([])
     const root = document.querySelector<HTMLElement>('[data-testid="studio-editor"] [data-oneimg-render-root]')
     if (!root) {
+      setRendererAvailable(false)
       setError('Studio did not mount a Canonical Render Root')
       setPhase('error')
       return
     }
 
-    waitForCanonicalRenderReady(root, snapshot, resources, {
+    waitForCanonicalRenderReady(root, snapshot, renderResources, {
+      generation: {
+        expected: generation,
+        getCurrent: () => readinessGeneration.current,
+      },
       isCurrent: () => active && readinessGeneration.current === generation,
     })
-      .then(() => {
+      .then((readiness) => {
         if (!active) {
           return
         }
         root.dataset.renderReady = 'true'
+        setRenderReadiness(readiness)
+        setRenderErrorResourceIds([])
+        setImageObservations(readPreflightImageObservations(root))
         setPreviewReady(true)
         if (!meaningful && !cleanPreview) {
           document.querySelector<HTMLElement>('[data-testid="studio-editor"] [data-studio-empty-editor]')?.focus()
@@ -376,6 +500,10 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
       })
       .catch((reason: unknown) => {
         if (active && !isRenderAbortError(reason)) {
+          setRenderErrorResourceIds(reason instanceof CanonicalRenderReadyError ? reason.resourceIds : [])
+          if (reason instanceof CanonicalRenderReadyError && reason.readiness !== undefined) {
+            setRenderReadiness(reason.readiness)
+          }
           setError(reason instanceof Error ? reason.message : String(reason))
           setPhase('error')
         }
@@ -384,7 +512,7 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
     return () => {
       active = false
     }
-  }, [cleanPreview, meaningful, resources, snapshot])
+  }, [cleanPreview, meaningful, renderReadyRetryVersion, renderResources, resolvedResourceKey, resourceKey, snapshot])
 
   function persistCommit(nextRevision: DocumentRevision, transaction: Extract<DocumentCommitResult, { status: 'committed' }>['transaction']) {
     const localRepository = repository.current
@@ -590,6 +718,63 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
     persistCommit(result.revision, result.transaction)
   }
 
+  function handlePreflightAction(action: PreflightAction) {
+    if (action.kind === 'focus-content') {
+      const target = action.targetId === undefined
+        ? document.querySelector<HTMLElement>('[data-testid="studio-editor"] [data-studio-empty-editor]')
+        : Array.from(document.querySelectorAll<HTMLElement>('[data-testid="studio-editor"] [data-block-id]'))
+          .find(element => element.dataset.blockId === action.targetId)
+      target?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      target?.querySelector<HTMLElement>('[contenteditable="true"]')?.focus()
+      target?.focus()
+      return
+    }
+
+    if (action.kind === 'apply-compatible-presentation') {
+      if (revision === undefined) {
+        return
+      }
+      const currentPageFormat = revision.presentation.pageFormat
+      if (currentPageFormat.kind !== 'continuous' || currentPageFormat.preset !== 'long-image') {
+        commitPresentation({ pageFormatId: 'long-image' })
+        return
+      }
+      if (revision.presentation.templateId !== 'clear-reading') {
+        commitPresentation({ templateId: 'clear-reading' })
+        return
+      }
+      if (revision.presentation.themeId !== 'clear-paper') {
+        commitPresentation({ themeId: 'clear-paper' })
+        return
+      }
+      if (revision.presentation.density !== 'standard') {
+        commitPresentation({ density: 'standard' })
+      }
+      return
+    }
+
+    if (action.kind === 'authorize-high-fidelity') {
+      setError('High-Fidelity Export 需要连接已授权的远程适配器；当前版本不会以 best-effort 方式生成不一致的本地文件。')
+      setPhase('unsaved')
+      return
+    }
+
+    if (action.kind === 'retry-render-ready') {
+      setError(undefined)
+      setPreviewReady(false)
+      setRenderReadiness(undefined)
+      setRenderReadyRetryVersion(version => version + 1)
+      return
+    }
+
+    if (action.resourceId !== undefined) {
+      setError(action.kind === 'remove-resource'
+        ? `资源 ${action.resourceId} 仍被当前内容引用；移除资源前请先删除对应内容。`
+        : `资源 ${action.resourceId} 尚未解析；请重新链接或重新粘贴对应内容。`)
+      setPhase('unsaved')
+    }
+  }
+
   function commitPaste(
     blockId: string | undefined,
     payload: { readonly html: string; readonly text: string },
@@ -763,13 +948,19 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
     status: phaseLabel(phase),
   }
 
-  if (revision === undefined || snapshot === undefined || resources === undefined) {
+  if (revision === undefined || snapshot === undefined || renderResources === undefined) {
     return (
       <main className="min-h-screen bg-slate-100 px-6 py-12 text-slate-900">
         <output aria-live="polite" data-testid="studio-status" className="mx-auto block max-w-3xl text-sm text-slate-600">
           {phaseLabel(phase)}
         </output>
         {error && <pre data-testid="studio-error" className="mx-auto mt-4 max-w-3xl whitespace-pre-wrap text-sm text-red-700">{error}</pre>}
+        <div className="mx-auto mt-4 max-w-3xl">
+          {revision !== undefined && <ExportPreflightPanel findings={preflight.findings} onAction={handlePreflightAction} />}
+          <pre className="mt-4 overflow-auto rounded-xl bg-white p-4 text-xs" data-testid="studio-render-ready-diagnostics">
+            {JSON.stringify(renderReadiness ?? null)}
+          </pre>
+        </div>
         <output data-testid="studio-document-state" hidden>{JSON.stringify(state)}</output>
       </main>
     )
@@ -827,8 +1018,9 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
               </button>
               <button
                 className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
-                disabled={conflictPreviewRevision !== undefined || snapshot.localCapability !== 'certified' || !meaningful || !previewReady}
+                disabled={conflictPreviewRevision !== undefined || !meaningful || !preflight.canExport || preflight.localRoute !== 'local-eligible'}
                 onClick={() => {
+                  setExportPlan(buildExportPlan())
                   setExportPanelOpen(open => !open)
                   setExportPlanVersion(version => version + 1)
                 }}
@@ -900,6 +1092,7 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
             </button>
           </div>
         )}
+        {!cleanPreview && <ExportPreflightPanel findings={preflight.findings} onAction={handlePreflightAction} />}
         {!cleanPreview && exportPanelOpen && (
           <ExportPanel
             jobState={exportJobState}
@@ -947,7 +1140,7 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
           <GeneralLongImagePresentationPanel
             disabled={phase === 'exporting' || conflictDraft !== undefined || conflictPreviewRevision !== undefined}
             onChange={commitPresentation}
-            resources={resources}
+            resources={renderResources}
             snapshot={snapshot}
           />
         )}
@@ -962,10 +1155,13 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
             onRichTextBlur={stableRichTextBlurHandler}
             onRichTextInput={stableRichTextInputHandler}
             onRichTextPaste={stableRichTextPasteHandler}
-            resources={resources}
+            resources={renderResources}
             snapshot={snapshot}
           />
         </div>
+        <pre className="overflow-auto rounded-xl bg-white p-4 text-xs" data-testid="studio-render-ready-diagnostics">
+          {JSON.stringify(renderReadiness ?? null)}
+        </pre>
         {!cleanPreview && <p className="m-0 text-center text-xs text-slate-500">内容默认保存在此设备。编辑会在离开正文后自动保存。</p>}
         <output data-testid="studio-document-state" hidden>{JSON.stringify(state)}</output>
       </div>

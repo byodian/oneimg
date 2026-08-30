@@ -1,7 +1,8 @@
 import type { CSSProperties, ClipboardEvent, FormEvent, KeyboardEvent } from 'react'
-import { memo } from 'react'
+import { memo, useLayoutEffect, useRef } from 'react'
 import type { CanonicalRenderSnapshot, CanonicalSection } from './model'
 import type { ResolvedResourceSet } from './resource-resolver'
+import { publishCanonicalPaginationDiagnostics } from './render-ready'
 import { canonicalStylePack } from './style-pack'
 import type { RichTextNode } from '@/features/document-core'
 
@@ -302,6 +303,27 @@ const CanonicalRendererImpl = ({
   resources,
   mode,
 }: CanonicalRendererProps) => {
+  const rootRef = useRef<HTMLElement>(null)
+
+  useLayoutEffect(() => {
+    const root = rootRef.current
+    if (root === null) {
+      return
+    }
+
+    delete root.dataset.paginationDiagnostics
+    delete root.dataset.paginationSnapshotId
+    root.dataset.paginationState = 'pending'
+    const publish = () => publishCanonicalPaginationDiagnostics(root, snapshot)
+    publish()
+    const resizeObserver = new ResizeObserver(publish)
+    resizeObserver.observe(root)
+    for (const element of Array.from(root.querySelectorAll<HTMLElement>('[data-block-id], [data-resource-id]'))) {
+      resizeObserver.observe(element)
+    }
+    return () => resizeObserver.disconnect()
+  }, [mode, resources.fingerprint, snapshot])
+
   if (snapshot.stylePackId !== canonicalStylePack.id) {
     throw new Error(`Unsupported Style Pack: ${snapshot.stylePackId}`)
   }
@@ -329,8 +351,10 @@ const CanonicalRendererImpl = ({
       data-page-format-kind={snapshot.presentation.pageFormat.kind}
       data-render-mode={mode}
       data-render-ready="false"
+      data-pagination-state="pending"
       data-renderer-revision={snapshot.rendererRevision}
       data-resource-fingerprint={resources.fingerprint}
+      data-sensitive-document={snapshot.sensitive ? 'true' : 'false'}
       data-snapshot-id={snapshot.snapshotId}
       data-style-pack={snapshot.stylePackId}
       data-template-family={snapshot.presentation.templateId}
@@ -340,6 +364,7 @@ const CanonicalRendererImpl = ({
       dir={snapshot.direction}
       lang={snapshot.locale}
       style={style}
+      ref={rootRef}
     >
       {snapshot.document.sections.map(section => renderSection(
         section,
