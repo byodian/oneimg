@@ -4,9 +4,11 @@ import type { ChangeEvent } from 'react'
 import type { ExportJobState, ExportOutputScale, ExportPlan } from './index'
 
 export interface ExportPanelProps {
+  readonly availableSliceIndexes?: readonly number[]
   readonly jobState?: ExportJobState
   readonly onCancel: () => void
   readonly onClose: () => void
+  readonly onDownloadSlice: (index: number) => void
   readonly onOutputScaleChange: (scale: ExportOutputScale) => void
   readonly onRun: () => void
   readonly outputScale: ExportOutputScale
@@ -59,6 +61,7 @@ function planSummary(plan: ExportPlan | undefined) {
       height: page.height,
       id: page.id,
       segmentCount: page.segmentCount,
+      semanticSlices: page.semanticSlices,
       segmented: page.segmented,
       width: page.width,
     })),
@@ -69,9 +72,11 @@ function planSummary(plan: ExportPlan | undefined) {
 }
 
 export function ExportPanel({
+  availableSliceIndexes = [],
   jobState,
   onCancel,
   onClose,
+  onDownloadSlice,
   onOutputScaleChange,
   onRun,
   outputScale,
@@ -131,6 +136,11 @@ export function ExportPanel({
       <div className="mt-4 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
         <p className="m-0" data-testid="studio-export-route">{plan?.routeReason ?? '正在生成 Export Plan…'}</p>
         {plan && <p className="m-0 mt-1" data-testid="studio-export-plan-status">{plan.canRun ? '可以显式运行' : '当前不能运行本地导出'}</p>}
+        {plan && (
+          <p className="m-0 mt-1" data-testid="studio-export-slice-summary">
+            预计输出 {plan.pages.reduce((total, page) => total + page.semanticSlices.length, 0)} 个 Slice；边界来自当前 Canonical Preview
+          </p>
+        )}
       </div>
 
       {plan && plan.findings.length > 0 && (
@@ -174,6 +184,26 @@ export function ExportPanel({
           <p className="m-0 mt-1">恢复动作：{jobState.error.recoveryAction}</p>
           <p className="m-0 mt-1">下一步：{jobState.error.nextStep}</p>
         </div>
+      )}
+
+      {availableSliceIndexes.length > 0 && (
+        <nav aria-label="Semantic Slice 下载" className="mt-4 rounded-xl border border-indigo-100 bg-indigo-50 p-3" data-testid="studio-export-slices">
+          <p className="m-0 text-sm font-semibold text-indigo-950">Semantic Slice 已生成，可单独下载</p>
+          <ul className="mt-2 flex list-none flex-wrap gap-2 p-0">
+            {availableSliceIndexes.map(index => (
+              <li key={index}>
+                <button
+                  aria-label={`下载 Slice ${index + 1}`}
+                  className="rounded-full border border-indigo-200 bg-white px-3 py-1.5 text-sm font-medium text-indigo-900"
+                  onClick={() => onDownloadSlice(index)}
+                  type="button"
+                >
+                  下载 Slice {index + 1}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </nav>
       )}
     </section>
   )

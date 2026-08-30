@@ -20,6 +20,12 @@ Local `Export Job` failures keep a stable category (`resource-resolution-failed`
 
 The certified SVG bridge retains the bounded Data URL transport established by the existing local adapter. Chromium currently marks the Blob-backed `foreignObject` bridge as not origin-clean when it reaches Canvas, so this slice keeps the 512 KiB transport guard and fails closed instead of silently degrading output. A future transport gate must prove a Blob URL path in the target browser matrix before removing that guard.
 
+## Slice 11 — Semantic Slices and Export Bundle
+
+Issue #37 extends the established Continuous Page composition with output-only Semantic Slices. The Export Plan reads Section, heading, Block, and declarative Keep Together candidates from the already laid-out Canonical Root, treats Keep Together as a start/end protected range, chooses the latest safe semantic boundary within each bounded capture budget, and uses a visual boundary only when no semantic boundary can satisfy the budget. It never reflows or re-renders a Slice as an independent composition; each output keeps the Page's original coordinates, width, typography, background, crop, and ordering. The plan stores the Canonical layout and resolved-resource fingerprints, and a cached artifact is reusable only after the current inert Render Root validates those identities and segment coordinates.
+
+The plan exposes the expected Slice count and boundary reason before execution. Studio renders the boundaries as an overlay outside the Canonical Render Root, while the Export Panel records the same immutable Slice descriptors. A segmented local Job returns the final PNG parts for individual download as well as an ordered ZIP Bundle. Bundle entries use stable zero-padded names such as `oneimg-slice-001.png`, and packaging consumes JSZip's chunked internal stream through a backpressure-aware `ReadableStream` with the same cancellation signal instead of using an eager one-shot Blob generator. The browser download fallback still materializes the completed ZIP as a Blob because the current artifact contract is download-oriented; it does not claim an end-to-end streaming sink. The ZIP extension is selected from the actual encoded artifact, and canceling packaging leaves the active Draft untouched.
+
 ## Interface
 
 The conceptual Interface remains small:

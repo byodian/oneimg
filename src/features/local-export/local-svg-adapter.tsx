@@ -1,20 +1,33 @@
 import JSZip from 'jszip'
 import { flushSync } from 'react-dom'
 import { createRoot } from 'react-dom/client'
-import type {
-  LocalExportCleanupAudit,
-  LocalExportDiagnostics,
-  LocalExportProgress,
-  LocalExportRequest,
-  LocalPngArtifact,
-  LocalPngSegment,
-  LocalRasterizerAdapter,
+import {
+  type LocalExportCleanupAudit,
+  type LocalExportDiagnostics,
+  type LocalExportPagePlan,
+  type LocalExportProgress,
+  type LocalExportRequest,
+  type LocalPngArtifact,
+  type LocalPngSegment,
+  type LocalRasterizerAdapter,
+  getLocalPngSliceFilename,
 } from './local-rasterizer'
 import { type RasterWorkerClient, createRasterWorkerClient } from './raster-worker'
-import { type RenderSegment, createSegmentedRenderPlan } from './segmented-render'
+import {
+  DEFAULT_SEGMENTED_RENDER_LIMITS,
+  type RenderSegment,
+  type SegmentedRenderPlan,
+  type SemanticSliceBoundary,
+  createSegmentedRenderPlan,
+} from './segmented-render'
 import { CanonicalRenderSurface, getCanonicalOwnedCss } from '@/features/canonical-renderer/canonical-renderer'
 import type { CanonicalResourceId } from '@/features/canonical-renderer/model'
-import { getCanonicalGeometry, waitForCanonicalRenderReady } from '@/features/canonical-renderer/render-ready'
+import {
+  getCanonicalGeometry,
+  getCanonicalLayoutFingerprint,
+  getCanonicalSemanticSliceBoundaries,
+  waitForCanonicalRenderReady,
+} from '@/features/canonical-renderer/render-ready'
 import type { ResolvedResourceSet } from '@/features/canonical-renderer/resource-resolver'
 import {
   createRenderAbortError,
@@ -341,20 +354,222 @@ async function packageSegments(
   const zip = new JSZip()
   for (const segment of segments) {
     throwIfRenderAborted(signal)
-    zip.file(`oneimg-segment-${String(segment.index + 1).padStart(3, '0')}.png`, segment.blob)
+    zip.file(getLocalPngSliceFilename(segment.index), segment.blob)
   }
-  return zip.generateAsync({ type: 'blob' }, (metadata) => {
-    throwIfRenderAborted(signal)
-    emitProgress(onProgress, {
-      completed: Math.round(metadata.percent),
-      segmentCount: segments.length,
-      stage: 'packaging',
-      total: 100,
-    })
+
+  let chunkCount = 0
+  let resumeProducer: (() => void) | undefined
+  let cancelProducer: (() => void) | undefined
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      let closed = false
+      const helper = zip.generateInternalStream({ type: 'uint8array', streamFiles: true })
+      let cleanup: () => void = () => undefined
+      const cleanupProducer = () => {
+        if (closed) {
+          return
+        }
+        closed = true
+        cleanup()
+        helper.pause()
+      }
+      const finalize = (reason?: unknown) => {
+        if (closed) {
+          return
+        }
+        closed = true
+        cleanup()
+        helper.pause()
+        if (reason === undefined) {
+          controller.close()
+        } else {
+          controller.error(reason)
+        }
+      }
+      resumeProducer = () => {
+        if (!closed) {
+          helper.resume()
+        }
+      }
+      cancelProducer = cleanupProducer
+      const fail = (reason: unknown) => finalize(reason)
+      const onAbort = () => fail(createRenderAbortError())
+      cleanup = () => signal?.removeEventListener('abort', onAbort)
+
+      signal?.addEventListener('abort', onAbort, { once: true })
+      if (signal?.aborted) {
+        onAbort()
+        return
+      }
+
+      helper
+        .on('data', (chunk, metadata) => {
+          if (closed) {
+            return
+          }
+          chunkCount += 1
+          controller.enqueue(chunk)
+          emitProgress(onProgress, {
+            completed: Math.round(metadata.percent),
+            segmentCount: segments.length,
+            stage: 'packaging',
+            total: 100,
+          })
+          if (controller.desiredSize !== null && controller.desiredSize <= 0) {
+            helper.pause()
+          }
+        })
+        .on('end', () => {
+          finalize()
+        })
+        .on('error', fail)
+        .pause()
+      resumeProducer()
+    },
+    pull() {
+      // JSZip's internal stream is paused after each queued chunk. The
+      // ReadableStream consumer drives the next chunk through pull(), which
+      // keeps packaging responsive to backpressure and cancellation.
+      // The helper is installed synchronously by start before pull runs.
+      resumeProducer?.()
+    },
+    cancel() {
+      // The start callback owns the helper lifecycle. This is intentionally
+      // wired through a closure below so cancel/error/abort share finalization.
+      cancelProducer?.()
+    },
   })
+
+  return {
+    blob: await new Response(stream).blob(),
+    chunkCount,
+  }
 }
 
-async function exportPng({ beforeStage, onProgress, outputScale: requestedOutputScale, signal, snapshot, resources }: LocalExportRequest): Promise<LocalPngArtifact> {
+function resolvePlannedRenderPlan(
+  measuredPlan: SegmentedRenderPlan,
+  pagePlan: LocalExportPagePlan | undefined,
+  layoutFingerprint: string,
+  resourceFingerprint: string,
+): SegmentedRenderPlan {
+  if (pagePlan === undefined) {
+    return measuredPlan
+  }
+  if (
+    pagePlan.width !== measuredPlan.width
+    || pagePlan.height !== measuredPlan.height
+    || pagePlan.layoutFingerprint === undefined
+    || pagePlan.layoutFingerprint !== layoutFingerprint
+    || pagePlan.resourceFingerprint === undefined
+    || pagePlan.resourceFingerprint !== resourceFingerprint
+  ) {
+    throw new Error('Canonical composition changed after Export Plan creation; reopen the Export Plan')
+  }
+  if (pagePlan.mode !== measuredPlan.mode || pagePlan.segments.length !== measuredPlan.segments.length) {
+    throw new Error('Canonical composition changed after Export Plan creation; reopen the Export Plan')
+  }
+  for (let index = 0; index < measuredPlan.segments.length; index += 1) {
+    const measuredSegment = measuredPlan.segments[index]
+    const plannedSegment = pagePlan.segments[index]
+    if (
+      measuredSegment === undefined
+      || plannedSegment === undefined
+      || measuredSegment.captureHeight !== plannedSegment.captureHeight
+      || measuredSegment.captureY !== plannedSegment.captureY
+      || measuredSegment.height !== plannedSegment.height
+      || measuredSegment.index !== plannedSegment.index
+      || measuredSegment.trimTop !== plannedSegment.trimTop
+      || measuredSegment.y !== plannedSegment.y
+      || measuredSegment.semanticSlice.height !== plannedSegment.semanticSlice.height
+      || measuredSegment.semanticSlice.index !== plannedSegment.semanticSlice.index
+      || measuredSegment.semanticSlice.y !== plannedSegment.semanticSlice.y
+      || measuredSegment.semanticSlice.boundary.id !== plannedSegment.semanticSlice.boundary.id
+      || measuredSegment.semanticSlice.boundary.kind !== plannedSegment.semanticSlice.boundary.kind
+      || measuredSegment.semanticSlice.boundary.y !== plannedSegment.semanticSlice.boundary.y
+    ) {
+      throw new Error('Canonical composition changed after Export Plan creation; reopen the Export Plan')
+    }
+  }
+  return {
+    ...measuredPlan,
+    mode: pagePlan.mode,
+    semanticSlices: pagePlan.semanticSlices,
+    segments: pagePlan.segments,
+  }
+}
+
+function createInertRenderHost(snapshot: LocalExportRequest['snapshot']) {
+  const host = document.createElement('div')
+  host.dataset.oneimgInertRenderSession = snapshot.snapshotId
+  host.inert = true
+  host.setAttribute('aria-hidden', 'true')
+  Object.assign(host.style, {
+    left: '-100000px',
+    pointerEvents: 'none',
+    position: 'fixed',
+    top: '0',
+    width: `${snapshot.referenceViewport.width}px`,
+    zIndex: '-1',
+  })
+  document.body.append(host)
+  return host
+}
+
+function measureCanonicalExportPlan(canonicalRoot: HTMLElement, outputScale: 1 | 2) {
+  const bounds = canonicalRoot.getBoundingClientRect()
+  const width = Math.ceil(bounds.width)
+  const height = Math.ceil(bounds.height)
+  const semanticBoundaries = getCanonicalSemanticSliceBoundaries(canonicalRoot)
+    .map<SemanticSliceBoundary>(boundary => ({
+      ...boundary,
+      ...(boundary.endY === undefined ? {} : { endY: boundary.endY * outputScale }),
+      y: boundary.y * outputScale,
+    }))
+  return {
+    layoutFingerprint: getCanonicalLayoutFingerprint(canonicalRoot),
+    plan: createSegmentedRenderPlan(
+      width * outputScale,
+      height * outputScale,
+      DEFAULT_SEGMENTED_RENDER_LIMITS,
+      semanticBoundaries,
+    ),
+  }
+}
+
+async function validatePlan({ outputScale: requestedOutputScale, pagePlan, signal, snapshot, resources }: LocalExportRequest) {
+  if (pagePlan === undefined) {
+    return
+  }
+  const outputScale = requestedOutputScale ?? 1
+  if (outputScale !== 1 && outputScale !== 2) {
+    throw new Error(`Unsupported local output scale: ${outputScale}`)
+  }
+  throwIfRenderAborted(signal)
+  const host = createInertRenderHost(snapshot)
+  const reactRoot = createRoot(host)
+  try {
+    flushSync(() => {
+      reactRoot.render(
+        <CanonicalRenderSurface mode="export" resources={resources} snapshot={snapshot} />,
+      )
+    })
+    const canonicalRoot = host.querySelector<HTMLElement>('[data-oneimg-render-root]')
+    if (!canonicalRoot || canonicalRoot.dataset.snapshotId !== snapshot.snapshotId) {
+      throw new Error('Inert Render Root was mounted from a different Snapshot')
+    }
+    await waitForCanonicalRenderReady(canonicalRoot, snapshot, resources, {
+      isCurrent: () => !signal?.aborted,
+      signal,
+    })
+    const measured = measureCanonicalExportPlan(canonicalRoot, outputScale)
+    resolvePlannedRenderPlan(measured.plan, pagePlan, measured.layoutFingerprint, resources.fingerprint)
+  } finally {
+    reactRoot.unmount()
+    host.remove()
+  }
+}
+
+async function exportPng({ beforeStage, onProgress, outputScale: requestedOutputScale, pagePlan, signal, snapshot, resources }: LocalExportRequest): Promise<LocalPngArtifact> {
   const outputScale = requestedOutputScale ?? 1
   if (outputScale !== 1 && outputScale !== 2) {
     throw new Error(`Unsupported local output scale: ${outputScale}`)
@@ -376,19 +591,7 @@ async function exportPng({ beforeStage, onProgress, outputScale: requestedOutput
   }
   signal?.addEventListener('abort', onAbort, { once: true })
 
-  const host = document.createElement('div')
-  host.dataset.oneimgInertRenderSession = snapshot.snapshotId
-  host.inert = true
-  host.setAttribute('aria-hidden', 'true')
-  Object.assign(host.style, {
-    left: '-100000px',
-    pointerEvents: 'none',
-    position: 'fixed',
-    top: '0',
-    width: `${snapshot.referenceViewport.width}px`,
-    zIndex: '-1',
-  })
-  document.body.append(host)
+  const host = createInertRenderHost(snapshot)
 
   const reactRoot = createRoot(host)
   let canvasDisposed = 0
@@ -399,6 +602,7 @@ async function exportPng({ beforeStage, onProgress, outputScale: requestedOutput
   let longTaskCount = 0
   let longTaskMs = 0
   let temporarySegmentBlobsCreated = 0
+  let temporarySegmentBlobsRetained = 0
   let temporarySegmentBlobsReleased = 0
   let workerEncoded = 0
   let workerFallbacks = 0
@@ -420,12 +624,15 @@ async function exportPng({ beforeStage, onProgress, outputScale: requestedOutput
   let exportResult: {
     blob: Blob
     format: 'png' | 'zip'
+    segments: readonly LocalPngSegment[]
   } | undefined
   const svgSegments: LocalPngSegment[] = []
   let diagnosticsInput: {
     embeddedImageCount: number
     geometry: ReturnType<typeof getCanonicalGeometry>
+    layoutFingerprint: string
     maxSvgDataUrlBytes: number
+    packagingChunkCount: number
     plan: ReturnType<typeof createSegmentedRenderPlan>
     renderReadyAt: number
     totalSvgBytes: number
@@ -441,6 +648,7 @@ async function exportPng({ beforeStage, onProgress, outputScale: requestedOutput
       imageBitmapsClosed: workerAudit.imageBitmapsClosed + imageBitmapsClosed,
       cancelLatencyMs,
       temporaryCacheEntriesCreated: temporarySegmentBlobsCreated,
+      temporaryCacheEntriesRetained: temporarySegmentBlobsRetained,
       temporaryCacheEntriesReleased: temporarySegmentBlobsReleased,
       temporaryObjectUrlsRevoked: workerAudit.workerObjectUrlCreated ? temporaryObjectUrlsRevoked : 0,
     }
@@ -469,14 +677,20 @@ async function exportPng({ beforeStage, onProgress, outputScale: requestedOutput
     })
     sampleMemory()
     const renderReadyAt = performance.now()
-    const bounds = canonicalRoot.getBoundingClientRect()
-    const width = Math.ceil(bounds.width)
-    const height = Math.ceil(bounds.height)
-    const plan = createSegmentedRenderPlan(width * outputScale, height * outputScale)
+    const measured = measureCanonicalExportPlan(canonicalRoot, outputScale)
+    const measuredPlan = measured.plan
+    const plan = resolvePlannedRenderPlan(
+      measuredPlan,
+      pagePlan,
+      measured.layoutFingerprint,
+      resources.fingerprint,
+    )
     const geometry = getCanonicalGeometry(canonicalRoot)
+    const layoutFingerprint = measured.layoutFingerprint
     let totalSvgBytes = 0
     let maxSvgDataUrlBytes = 0
     let embeddedImageCount = 0
+    let packagingChunkCount = 0
 
     for (const segment of plan.segments) {
       throwIfRenderAborted(signal)
@@ -562,15 +776,19 @@ async function exportPng({ beforeStage, onProgress, outputScale: requestedOutput
         total: 100,
       })
       await waitBeforeStage(beforeStage, 'packaging', signal)
-      const zipBlob = await packageSegments(svgSegments, signal, onProgress)
-      exportResult = { blob: zipBlob, format: 'zip' }
+      const packaged = await packageSegments(svgSegments, signal, onProgress)
+      packagingChunkCount = packaged.chunkCount
+      exportResult = { blob: packaged.blob, format: 'zip', segments: svgSegments.slice() }
+      temporarySegmentBlobsRetained = svgSegments.length
     } else {
-      exportResult = { blob: svgSegments[0]!.blob, format: 'png' }
+      exportResult = { blob: svgSegments[0]!.blob, format: 'png', segments: [] }
     }
     diagnosticsInput = {
       embeddedImageCount,
       geometry,
+      layoutFingerprint,
       maxSvgDataUrlBytes,
+      packagingChunkCount,
       plan,
       renderReadyAt,
       totalSvgBytes,
@@ -584,7 +802,7 @@ async function exportPng({ beforeStage, onProgress, outputScale: requestedOutput
     if (cancelRequestedAt !== undefined) {
       cancelLatencyMs = performance.now() - cancelRequestedAt
     }
-    temporarySegmentBlobsReleased = temporarySegmentBlobsCreated
+    temporarySegmentBlobsReleased = temporarySegmentBlobsCreated - temporarySegmentBlobsRetained
     svgSegments.length = 0
     signal?.removeEventListener('abort', onAbort)
     reactRoot.unmount()
@@ -612,11 +830,13 @@ async function exportPng({ beforeStage, onProgress, outputScale: requestedOutput
     format: exportResult.format,
     geometry: diagnosticsInput.geometry,
     height: diagnosticsInput.plan.height,
+    layoutFingerprint: diagnosticsInput.layoutFingerprint,
     longTaskCount,
     longTaskMs,
     maxSvgDataUrlBytes: diagnosticsInput.maxSvgDataUrlBytes,
     memorySource: peakMemoryBytes === null ? 'unavailable' : 'performance.memory',
     outputScale,
+    packagingChunkCount: diagnosticsInput.packagingChunkCount,
     peakMemoryBytes,
     peakEstimatedRasterBytes: Math.max(...diagnosticsInput.plan.segments.map(segment => (
       (segment.captureHeight + segment.height) * diagnosticsInput.plan.width * 4
@@ -625,6 +845,7 @@ async function exportPng({ beforeStage, onProgress, outputScale: requestedOutput
     rasterizeMs: finishedAt - diagnosticsInput.renderReadyAt,
     renderReadyMs: diagnosticsInput.renderReadyAt - startedAt,
     resourceCount: resources.resources.length,
+    semanticSlices: diagnosticsInput.plan.semanticSlices,
     segmentBleed: diagnosticsInput.plan.limits.segmentBleed,
     segmentCount: diagnosticsInput.plan.segments.length,
     segmentPlan: diagnosticsInput.plan.segments,
@@ -646,6 +867,7 @@ async function exportPng({ beforeStage, onProgress, outputScale: requestedOutput
     blob: exportResult.blob,
     diagnostics,
     format: exportResult.format,
+    segments: exportResult.segments,
   }
 }
 
@@ -653,5 +875,6 @@ export function createLocalSvgAdapter(): LocalRasterizerAdapter {
   return {
     id: ADAPTER_ID,
     exportPng,
+    validatePlan,
   }
 }

@@ -16,7 +16,7 @@ function percentile(values: readonly number[], ratio: number) {
   return sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * ratio) - 1)] ?? 0
 }
 
-async function compareSegmentEdgesInBrowser(
+async function compareSegmentsInBrowser(
   page: Page,
   preview: Buffer,
   segments: readonly Buffer[],
@@ -35,12 +35,12 @@ async function compareSegmentEdgesInBrowser(
     let totalChannelDelta = 0
     let sampleCount = 0
 
-    const readRow = (image: ImageBitmap, y: number) => {
+    const readPixels = (image: ImageBitmap, sourceY: number, height: number) => {
       canvas.width = image.width
-      canvas.height = 1
-      context.clearRect(0, 0, image.width, 1)
-      context.drawImage(image, 0, y, image.width, 1, 0, 0, image.width, 1)
-      return context.getImageData(0, 0, image.width, 1).data
+      canvas.height = height
+      context.clearRect(0, 0, image.width, height)
+      context.drawImage(image, 0, sourceY, image.width, height, 0, 0, image.width, height)
+      return context.getImageData(0, 0, image.width, height).data
     }
     const compareRows = (actual: Uint8ClampedArray, expected: Uint8ClampedArray) => {
       for (let offset = 0; offset < actual.length; offset += 4) {
@@ -59,10 +59,9 @@ async function compareSegmentEdgesInBrowser(
       if (!segment || !descriptor) {
         throw new Error(`Missing segment ${index}`)
       }
-      compareRows(readRow(segment, 0), readRow(previewImage, descriptor.y))
       compareRows(
-        readRow(segment, segment.height - 1),
-        readRow(previewImage, descriptor.y + descriptor.height - 1),
+        readPixels(segment, 0, segment.height),
+        readPixels(previewImage, descriptor.y, descriptor.height),
       )
     }
 
@@ -431,6 +430,42 @@ test.describe('Canonical Renderer local export contract', () => {
     await expect(page.locator('[data-oneimg-inert-render-session]')).toHaveCount(0)
   })
 
+  test('keeps protected template blocks intact when a long page is segmented', async ({ page }) => {
+    await page.goto('/scenario/export-engine-long')
+
+    const root = page.getByTestId('canonical-preview').locator('[data-oneimg-render-root]')
+    await expect(root).toHaveAttribute('data-render-ready', 'true')
+    const plan = JSON.parse(await page.getByTestId('export-plan').textContent() ?? '{}') as {
+      slices: Array<{
+        boundary: { kind: string }
+        height: number
+        y: number
+      }>
+    }
+    expect(plan.slices.length).toBeGreaterThan(1)
+    expect(plan.slices.some(slice => slice.boundary.kind === 'heading')).toBe(true)
+
+    const keepTogetherRanges = await root.locator('[data-keep-together="true"]').evaluateAll((elements) => {
+      const rootElement = elements[0]?.closest<HTMLElement>('[data-oneimg-render-root]')
+      if (!rootElement) {
+        return []
+      }
+      const rootRect = rootElement.getBoundingClientRect()
+      return elements.map(element => {
+        const rect = element.getBoundingClientRect()
+        return {
+          end: rect.bottom - rootRect.top,
+          start: rect.top - rootRect.top,
+        }
+      }).filter(range => range.end > range.start)
+    })
+    expect(keepTogetherRanges.length).toBeGreaterThan(0)
+    for (const slice of plan.slices.slice(0, -1)) {
+      const cutY = slice.y + slice.height
+      expect(keepTogetherRanges.some(range => cutY > range.start && cutY < range.end)).toBe(false)
+    }
+  })
+
   test('runs the segmented Page path through the production Export Engine', async ({ page }) => {
     await page.goto('/scenario/export-engine-long')
 
@@ -438,6 +473,27 @@ test.describe('Canonical Renderer local export contract', () => {
     await expect(root).toBeVisible()
     await expect(root).toHaveAttribute('data-render-ready', 'true')
     await expect(root.locator('img')).toHaveCount(20)
+
+    const exportPlan = JSON.parse(await page.getByTestId('export-plan').textContent() ?? '{}') as {
+      pageCount: number
+      slices: Array<{
+        boundary: { kind: string }
+        height: number
+        index: number
+        y: number
+      }>
+      sliceCount: number
+    }
+    expect(exportPlan.pageCount).toBe(1)
+    expect(exportPlan.sliceCount).toBeGreaterThan(1)
+    expect(exportPlan.slices.some(slice => ['block', 'heading', 'keep-together', 'section'].includes(slice.boundary.kind))).toBe(true)
+    expect(exportPlan.slices).toHaveLength(exportPlan.sliceCount)
+    for (let index = 1; index < exportPlan.slices.length; index += 1) {
+      const previous = exportPlan.slices[index - 1]
+      const current = exportPlan.slices[index]
+      expect(current.y).toBe(previous.y + previous.height)
+    }
+
     const previewPng = await root.screenshot({ animations: 'disabled' })
     const downloadPromise = page.waitForEvent('download')
     await page.getByRole('button', { name: '导出本地 PNG' }).click()
@@ -450,15 +506,28 @@ test.describe('Canonical Renderer local export contract', () => {
     expect(download.suggestedFilename()).toBe('oneimg-canonical-long-resource-fixture-v1.zip')
     const diagnostics = JSON.parse(await page.getByTestId('export-diagnostics').textContent() ?? '{}') as {
       format: string
+      packagingChunkCount: number
       segmentCount: number
       segmented: boolean
-      segmentPlan: Array<{ height: number; y: number }>
+      segmentPlan: Array<{
+        height: number
+        semanticSlice: {
+          boundary: { kind: string }
+          height: number
+          index: number
+          y: number
+        }
+        y: number
+      }>
     }
     const entries = Object.keys(exportedZip.files).filter(name => name.endsWith('.png')).sort()
     expect(diagnostics).toMatchObject({ format: 'zip', segmented: true })
+    expect(diagnostics.packagingChunkCount).toBeGreaterThan(1)
     expect(diagnostics.segmentCount).toBeGreaterThan(1)
     expect(entries).toHaveLength(diagnostics.segmentCount)
+    expect(entries).toEqual(entries.map((_entry, index) => `oneimg-slice-${String(index + 1).padStart(3, '0')}.png`))
     expect(diagnostics.segmentPlan).toHaveLength(diagnostics.segmentCount)
+    expect(diagnostics.segmentPlan.map(segment => segment.semanticSlice)).toEqual(exportPlan.slices)
     for (let index = 1; index < diagnostics.segmentPlan.length; index += 1) {
       const previous = diagnostics.segmentPlan[index - 1]
       const current = diagnostics.segmentPlan[index]
@@ -479,14 +548,45 @@ test.describe('Canonical Renderer local export contract', () => {
       height: segment.height,
       width: 640,
     })))
-    const edgeComparison = await compareSegmentEdgesInBrowser(
+    const segmentComparison = await compareSegmentsInBrowser(
       page,
       previewPng,
       segmentBuffers,
       diagnostics.segmentPlan,
     )
-    expect(edgeComparison.meanChannelDelta).toBeLessThanOrEqual(12)
+    expect(segmentComparison.meanChannelDelta).toBeLessThanOrEqual(12)
+
+    const sliceDownloadPromise = page.waitForEvent('download')
+    await page.getByRole('button', { name: '下载 Slice 1' }).click()
+    const sliceDownload = await sliceDownloadPromise
+    const sliceDownloadPath = await sliceDownload.path()
+    if (!sliceDownloadPath) {
+      throw new Error('Playwright did not expose the individual Slice download path')
+    }
+    expect(sliceDownload.suggestedFilename()).toBe('oneimg-slice-001.png')
+    expect((await readFile(sliceDownloadPath)).subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
     await expect(page.getByTestId('export-status')).toHaveText('已完成')
+    await expect(page.locator('[data-oneimg-inert-render-session]')).toHaveCount(0)
+  })
+
+  test('cancels after ZIP packaging emits a chunk and preserves the next export', async ({ page }) => {
+    await page.goto('/scenario/export-engine-long?cancelAfterPackagingChunk=1')
+
+    const root = page.getByTestId('canonical-preview').locator('[data-oneimg-render-root]')
+    await expect(root).toHaveAttribute('data-render-ready', 'true')
+
+    await page.getByRole('button', { name: '导出本地 PNG' }).click()
+    await expect(page.getByTestId('export-status')).toHaveText('已取消', { timeout: 15_000 })
+    await expect(page.getByTestId('export-diagnostics')).toHaveCount(0)
+    await expect(page.getByTestId('export-slices')).toHaveCount(0)
+    await expect(page.locator('[data-oneimg-inert-render-session]')).toHaveCount(0)
+
+    const retryDownloadPromise = page.waitForEvent('download')
+    await page.getByRole('button', { name: '导出本地 PNG' }).click()
+    const retryDownload = await retryDownloadPromise
+    await retryDownload.path()
+    await expect(page.getByTestId('export-status')).toHaveText('已完成', { timeout: 15_000 })
+    await expect(page.getByTestId('export-slices')).toBeVisible()
     await expect(page.locator('[data-oneimg-inert-render-session]')).toHaveCount(0)
   })
 })
@@ -538,6 +638,7 @@ test.describe('Long-page Resource Resolver lifecycle contract', () => {
         imageBitmapsClosed: number
         requested: number
         temporaryCacheEntriesCreated: number
+        temporaryCacheEntriesRetained: number
         temporaryCacheEntriesReleased: number
         temporaryObjectUrlsRevoked: number
         workerObjectUrlRevoked: boolean
@@ -612,13 +713,13 @@ test.describe('Long-page Resource Resolver lifecycle contract', () => {
       height: segment.height,
       width: 640,
     })))
-    const edgeComparison = await compareSegmentEdgesInBrowser(
+    const segmentComparison = await compareSegmentsInBrowser(
       page,
       await root.screenshot({ animations: 'disabled' }),
       segmentBuffers,
       diagnostics.segmentPlan,
     )
-    expect(edgeComparison.meanChannelDelta).toBeLessThanOrEqual(12)
+    expect(segmentComparison.meanChannelDelta).toBeLessThanOrEqual(12)
     expect(diagnostics.cleanupAudit).toMatchObject({
       workerObjectUrlRevoked: true,
       workerTerminated: true,
@@ -626,7 +727,9 @@ test.describe('Long-page Resource Resolver lifecycle contract', () => {
     expect(diagnostics.cleanupAudit.canvasDisposed).toBe(diagnostics.cleanupAudit.canvasCreated)
     expect(diagnostics.cleanupAudit.imageBitmapsClosed).toBe(diagnostics.cleanupAudit.imageBitmapsCreated)
     expect(diagnostics.cleanupAudit.arrayBuffersReleased).toBe(diagnostics.cleanupAudit.arrayBuffersReceived)
-    expect(diagnostics.cleanupAudit.temporaryCacheEntriesReleased).toBe(diagnostics.cleanupAudit.temporaryCacheEntriesCreated)
+    expect(diagnostics.cleanupAudit.temporaryCacheEntriesReleased + diagnostics.cleanupAudit.temporaryCacheEntriesRetained)
+      .toBe(diagnostics.cleanupAudit.temporaryCacheEntriesCreated)
+    expect(diagnostics.cleanupAudit.temporaryCacheEntriesRetained).toBe(diagnostics.segmentCount)
     await expect(page.locator('[data-oneimg-inert-render-session]')).toHaveCount(0)
 
     const timingSamples = [diagnostics]
@@ -687,6 +790,7 @@ test.describe('Long-page Resource Resolver lifecycle contract', () => {
         imageBitmapsCreated: number
         imageBitmapsClosed: number
         temporaryCacheEntriesCreated: number
+        temporaryCacheEntriesRetained: number
         temporaryCacheEntriesReleased: number
         workerObjectUrlRevoked: boolean
         workerTerminated: boolean
@@ -717,6 +821,7 @@ test.describe('Long-page Resource Resolver lifecycle contract', () => {
           imageBitmapsCreated: number
           imageBitmapsClosed: number
           temporaryCacheEntriesCreated: number
+          temporaryCacheEntriesRetained: number
           temporaryCacheEntriesReleased: number
           workerObjectUrlRevoked: boolean
           workerTerminated: boolean
@@ -729,7 +834,9 @@ test.describe('Long-page Resource Resolver lifecycle contract', () => {
       expect(audit.cleanupAudit.canvasDisposed).toBe(audit.cleanupAudit.canvasCreated)
       expect(audit.cleanupAudit.imageBitmapsClosed).toBe(audit.cleanupAudit.imageBitmapsCreated)
       expect(audit.cleanupAudit.arrayBuffersReleased).toBe(audit.cleanupAudit.arrayBuffersReceived)
-      expect(audit.cleanupAudit.temporaryCacheEntriesReleased).toBe(audit.cleanupAudit.temporaryCacheEntriesCreated)
+      expect(audit.cleanupAudit.temporaryCacheEntriesReleased + audit.cleanupAudit.temporaryCacheEntriesRetained)
+        .toBe(audit.cleanupAudit.temporaryCacheEntriesCreated)
+      expect(audit.cleanupAudit.temporaryCacheEntriesRetained).toBe(0)
       await expect(page.locator('[data-oneimg-inert-render-session]')).toHaveCount(0)
       expect(audit.cleanupAudit.cancelLatencyMs).not.toBeNull()
       expect(audit.cleanupAudit.cancelLatencyMs!).toBeLessThan(500)
@@ -768,6 +875,7 @@ test.describe('Long-page Resource Resolver lifecycle contract', () => {
         imageBitmapsCreated: number
         imageBitmapsClosed: number
         temporaryCacheEntriesCreated: number
+        temporaryCacheEntriesRetained: number
         temporaryCacheEntriesReleased: number
         workerObjectUrlRevoked: boolean
         workerTerminated: boolean
@@ -804,6 +912,7 @@ test.describe('Long-page Resource Resolver lifecycle contract', () => {
           imageBitmapsCreated: number
           imageBitmapsClosed: number
           temporaryCacheEntriesCreated: number
+          temporaryCacheEntriesRetained: number
           temporaryCacheEntriesReleased: number
           workerObjectUrlRevoked: boolean
           workerTerminated: boolean
@@ -817,7 +926,8 @@ test.describe('Long-page Resource Resolver lifecycle contract', () => {
       expect(audit.cleanupAudit.imageBitmapsClosed).toBe(audit.cleanupAudit.imageBitmapsCreated)
       expect(audit.cleanupAudit.arrayBuffersReleased).toBe(audit.cleanupAudit.arrayBuffersReceived)
       expect(audit.cleanupAudit.temporaryCacheEntriesReleased)
-        .toBe(audit.cleanupAudit.temporaryCacheEntriesCreated)
+        .toBe(audit.cleanupAudit.temporaryCacheEntriesCreated - audit.cleanupAudit.temporaryCacheEntriesRetained)
+      expect(audit.cleanupAudit.temporaryCacheEntriesRetained).toBe(0)
       expect(audit.cleanupAudit.cancelLatencyMs).not.toBeNull()
       expect(audit.cleanupAudit.cancelLatencyMs!).toBeLessThan(500)
       await expect.poll(async () => {

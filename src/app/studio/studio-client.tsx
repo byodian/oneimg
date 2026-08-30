@@ -11,6 +11,8 @@ import {
 import {
   type CanonicalRenderReadiness,
   CanonicalRenderReadyError,
+  getCanonicalLayoutFingerprint,
+  getCanonicalSemanticSliceBoundaries,
   waitForCanonicalRenderReady,
 } from '@/features/canonical-renderer/render-ready'
 import {
@@ -49,8 +51,10 @@ import { canonicalStylePack } from '@/features/canonical-renderer/style-pack'
 import { createStudioExportEngine } from '@/features/export-engine/studio-export-engine'
 import { parseSmartPaste } from '@/features/smart-paste'
 import {
-  isRenderAbortError,
-} from '@/features/rendering/cancellation'
+  type LocalPngArtifact,
+  getLocalPngSliceFilename,
+} from '@/features/local-export/local-rasterizer'
+import { isRenderAbortError } from '@/features/rendering/cancellation'
 import {
   type ConflictDraft,
   type LocalRepository,
@@ -141,8 +145,60 @@ function readStudioPageMeasurement(snapshot: CanonicalRenderSnapshot) {
     height: bounds.height,
     id: 'page-1',
     kind: snapshot.presentation.pageFormat.kind,
+    layoutFingerprint: getCanonicalLayoutFingerprint(root),
+    semanticBoundaries: getCanonicalSemanticSliceBoundaries(root),
     width: bounds.width,
   }] as const
+}
+
+function sliceBoundaryLabel(kind: string) {
+  switch (kind) {
+    case 'block':
+      return 'Block'
+    case 'heading':
+      return '标题'
+    case 'keep-together':
+      return 'Keep Together'
+    case 'section':
+      return 'Section'
+    case 'document-end':
+      return '文档末尾'
+    case 'visual-fallback':
+      return '视觉回退'
+    default:
+      return kind
+  }
+}
+
+function StudioSliceBoundaryOverlay({ plan }: { readonly plan: ExportPlan }) {
+  const page = plan.pages[0]
+  const slices = page?.semanticSlices ?? []
+  if (slices.length <= 1) {
+    return null
+  }
+
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 z-10"
+      data-testid="studio-slice-boundaries"
+    >
+      <div className="absolute right-3 top-3 rounded-full bg-slate-900/85 px-3 py-1 text-xs font-semibold text-white shadow-sm">
+        预计输出 {slices.length} 个 Slice
+      </div>
+      {slices.slice(0, -1).map(slice => (
+        <div
+          className="absolute inset-x-0 border-t-2 border-dashed border-indigo-500/80"
+          key={slice.index}
+          style={{ top: `${(slice.y + slice.height) / plan.outputScale}px` }}
+        >
+          <span className="absolute right-3 -top-6 rounded bg-indigo-600 px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm">
+            Slice {slice.index + 1} · {sliceBoundaryLabel(slice.boundary.kind)}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 function isCommitted(
@@ -217,6 +273,7 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
   const [exportJob, setExportJob] = useState<ExportJob>()
   const [exportJobState, setExportJobState] = useState<ReturnType<ExportJob['getState']>>()
   const [exportOutputScale, setExportOutputScale] = useState<ExportOutputScale>(1)
+  const [exportArtifact, setExportArtifact] = useState<LocalPngArtifact>()
   const [lastExport, setLastExport] = useState<StudioExportReceipt>()
 
   const displayedRevision = conflictPreviewRevision ?? revision
@@ -272,6 +329,14 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
     unresolvedResourceIds: [...resourceErrorIds, ...renderErrorResourceIds],
   }), [contentError, imageObservations, localCapabilityProbe, meaningful, previewReady, renderErrorResourceIds, renderReadiness, renderResources, rendererAvailable, resourceErrorIds, snapshot])
 
+  const currentExportArtifact = exportPlan !== undefined
+    && exportArtifact !== undefined
+    && exportArtifact.diagnostics.snapshotId === exportPlan.snapshot.snapshotId
+    && exportArtifact.diagnostics.exportFingerprint === exportPlan.resourceFingerprint
+    && exportArtifact.diagnostics.layoutFingerprint === exportPlan.pages[0]?.layoutFingerprint
+    ? exportArtifact
+    : undefined
+
   const buildExportPlan = useCallback(() => {
     if (snapshot === undefined) {
       return undefined
@@ -294,6 +359,10 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
     }
     setExportPlan(buildExportPlan())
   }, [buildExportPlan, exportPanelOpen, exportPlanVersion, snapshot])
+
+  useEffect(() => {
+    setExportArtifact(current => current?.diagnostics.snapshotId === snapshot?.snapshotId ? current : undefined)
+  }, [snapshot?.snapshotId])
 
   useEffect(() => {
     if (exportJob === undefined) {
@@ -883,6 +952,7 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
 
     exportJobRef.current = job
     setExportJob(job)
+    setExportArtifact(undefined)
     setError(undefined)
     setPhase('exporting')
     job.promise
@@ -903,6 +973,7 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
           fromCache: result.fromCache,
           snapshotId: result.snapshotId,
         })
+        setExportArtifact(result.artifact)
         setExportPlanVersion(version => version + 1)
         if (conflictDraft !== undefined) {
           setPhase('conflict')
@@ -935,6 +1006,19 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
       return
     }
     exportEngine.cancel(exportJob.id)
+  }
+
+  function downloadSlice(index: number) {
+    const segment = currentExportArtifact?.segments?.find(candidate => candidate.index === index)
+    if (segment === undefined) {
+      return
+    }
+    const downloadUrl = URL.createObjectURL(segment.blob)
+    const anchor = document.createElement('a')
+    anchor.download = getLocalPngSliceFilename(segment.index)
+    anchor.href = downloadUrl
+    anchor.click()
+    setTimeout(() => URL.revokeObjectURL(downloadUrl), 0)
   }
 
   const state: StudioDocumentState = {
@@ -1095,11 +1179,14 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
         {!cleanPreview && <ExportPreflightPanel findings={preflight.findings} onAction={handlePreflightAction} />}
         {!cleanPreview && exportPanelOpen && (
           <ExportPanel
+            availableSliceIndexes={currentExportArtifact?.segments?.map(segment => segment.index) ?? []}
             jobState={exportJobState}
             onCancel={cancelExport}
             onClose={() => setExportPanelOpen(false)}
+            onDownloadSlice={downloadSlice}
             onOutputScaleChange={(scale) => {
               setExportOutputScale(scale)
+              setExportArtifact(undefined)
               setExportPlanVersion(version => version + 1)
             }}
             onRun={runExport}
@@ -1146,7 +1233,7 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
         )}
         <div
           aria-busy={!previewReady}
-          className="mx-auto w-full overflow-x-auto rounded-2xl shadow-[0_20px_60px_rgba(24,32,57,0.14)]"
+          className="relative mx-auto w-full overflow-x-auto rounded-2xl shadow-[0_20px_60px_rgba(24,32,57,0.14)]"
           data-testid="studio-editor"
           style={{ maxWidth: snapshot.referenceViewport.width }}
         >
@@ -1158,6 +1245,7 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
             resources={renderResources}
             snapshot={snapshot}
           />
+          {!cleanPreview && exportPanelOpen && exportPlan && <StudioSliceBoundaryOverlay plan={exportPlan} />}
         </div>
         <pre className="overflow-auto rounded-xl bg-white p-4 text-xs" data-testid="studio-render-ready-diagnostics">
           {JSON.stringify(renderReadiness ?? null)}

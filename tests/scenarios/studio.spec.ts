@@ -319,6 +319,61 @@ test.describe('General Long Image Studio slice', () => {
     await expect(page.locator('[data-oneimg-inert-render-session]')).toHaveCount(0)
   })
 
+  test('shows semantic Slice boundaries and downloads an individual Slice for long content', async ({ page }) => {
+    await page.goto('/studio')
+
+    const root = page.getByTestId('studio-editor').locator('[data-oneimg-render-root]')
+    const editor = root.locator('[contenteditable="true"]')
+    const sections = Array.from({ length: 90 }, (_, index) => (
+      `<h2>第 ${index + 1} 节</h2><p>这是一段用于验证连续长图语义切片的内容，保持同一份 Canonical composition。</p>`
+    )).join('')
+    await dispatchPaste(editor, { html: `<div>${sections}</div>`, text: '' })
+    await expect.poll(() => readStudioState(page)).toMatchObject({ meaningful: true, status: '已保存' })
+    await expect(root).toHaveAttribute('data-render-ready', 'true')
+
+    await page.getByRole('button', { name: '导出本地文件' }).click()
+    await expect(page.getByTestId('studio-slice-boundaries')).toBeVisible()
+    await expect(page.getByTestId('studio-slice-boundaries')).toContainText('预计输出')
+    const plan = JSON.parse(await page.getByTestId('studio-export-plan').textContent() ?? '{}') as {
+      pages: Array<{
+        semanticSlices: Array<{
+          boundary: { kind: string }
+          height: number
+          y: number
+        }>
+      }>
+    }
+    const slices = plan.pages[0]?.semanticSlices ?? []
+    expect(slices.length).toBeGreaterThan(1)
+    expect(slices.some(slice => slice.boundary.kind === 'heading')).toBe(true)
+    for (let index = 1; index < slices.length; index += 1) {
+      const previous = slices[index - 1]!
+      const current = slices[index]!
+      expect(current.y).toBe(previous.y + previous.height)
+    }
+
+    const bundleDownloadPromise = page.waitForEvent('download')
+    await page.getByRole('button', { name: '导出 PNG' }).click()
+    const bundleDownload = await bundleDownloadPromise
+    expect(bundleDownload.suggestedFilename()).toMatch(/\.zip$/)
+    await expect(page.getByTestId('studio-export-slices')).toBeVisible()
+
+    const sliceDownloadPromise = page.waitForEvent('download')
+    await page.getByRole('button', { name: '下载 Slice 1' }).click()
+    const sliceDownload = await sliceDownloadPromise
+    expect(sliceDownload.suggestedFilename()).toBe('oneimg-slice-001.png')
+    const slicePath = await sliceDownload.path()
+    if (!slicePath) {
+      throw new Error('Playwright did not expose the individual Studio Slice path')
+    }
+    expect((await readFile(slicePath)).subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+
+    await editor.fill('导出完成后编辑的内容不能继续显示旧 Slice。')
+    await editor.press('Escape')
+    await expect.poll(() => readStudioState(page)).toMatchObject({ meaningful: true, status: '已保存' })
+    await expect(page.getByTestId('studio-export-slices')).toHaveCount(0)
+  })
+
   test('marks an artifact from an older revision and offers a current re-export', async ({ page }) => {
     await page.goto('/studio')
 

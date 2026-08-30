@@ -9,6 +9,8 @@ import {
 import type { CanonicalRenderSnapshot } from '@/features/canonical-renderer/model'
 import {
   type CanonicalRenderReadiness,
+  getCanonicalLayoutFingerprint,
+  getCanonicalSemanticSliceBoundaries,
   waitForCanonicalRenderReady,
 } from '@/features/canonical-renderer/render-ready'
 import {
@@ -20,6 +22,7 @@ import {
 import {
   type ExportJob,
   type ExportJobState,
+  type ExportPlan,
   createExportEngine,
 } from '@/features/export-engine'
 import {
@@ -31,16 +34,20 @@ import {
   type LocalExportProgress,
   type LocalExportStage,
   type LocalExportStageHook,
+  type LocalPngArtifact,
   type LocalRasterizerAdapter,
+  getLocalPngSliceFilename,
 } from '@/features/local-export/local-rasterizer'
 import { createLocalSvgAdapter } from '@/features/local-export/local-svg-adapter'
 
 export interface CanonicalExportScenarioProps {
   readonly beforeExportStage?: LocalExportStageHook
+  readonly cancelAfterPackagingChunk?: boolean
   readonly resourceDefinitions: readonly BrowserResourceDefinition[]
   readonly runThroughExportEngine?: boolean
   readonly scenarioLabel: string
   readonly snapshot: CanonicalRenderSnapshot
+  readonly outputScale?: 1 | 2
 }
 
 export function CanonicalLocalExportScenario() {
@@ -54,12 +61,16 @@ export function CanonicalLocalExportScenario() {
 }
 
 export function CanonicalExportEngineScenario() {
+  const outputScale: 1 | 2 = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('scale') === '2'
+    ? 2
+    : 1
   return (
     <CanonicalLocalExportHarness
       resourceDefinitions={controlledFixtureResources}
       runThroughExportEngine
       scenarioLabel="STUDIO SCENARIO HARNESS · ISSUE #35"
       snapshot={controlledCanonicalSnapshot}
+      outputScale={outputScale}
     />
   )
 }
@@ -67,10 +78,12 @@ export function CanonicalExportEngineScenario() {
 export function CanonicalLocalExportHarness({
   adapter,
   beforeExportStage,
+  cancelAfterPackagingChunk = false,
   resourceDefinitions,
   runThroughExportEngine = false,
   scenarioLabel,
   snapshot,
+  outputScale = 1,
 }: CanonicalExportScenarioProps & { readonly adapter?: LocalRasterizerAdapter }) {
   const resolvedAdapter = useMemo(
     () => adapter ?? createLocalSvgAdapter(),
@@ -85,6 +98,8 @@ export function CanonicalLocalExportHarness({
   const exportController = useRef<AbortController>()
   const exportJobRef = useRef<ExportJob>()
   const cancelRequestedAt = useRef<number>()
+  const packagingProgressCount = useRef(0)
+  const packagingCancelTriggered = useRef(false)
   const [resources, setResources] = useState<ResolvedResourceSet>()
   const [renderReadiness, setRenderReadiness] = useState<CanonicalRenderReadiness>()
   const [previewReady, setPreviewReady] = useState(false)
@@ -98,6 +113,8 @@ export function CanonicalLocalExportHarness({
     total: 0,
   })
   const [diagnostics, setDiagnostics] = useState<(LocalExportDiagnostics & { previewFingerprint: string })>()
+  const [exportArtifact, setExportArtifact] = useState<LocalPngArtifact>()
+  const [exportPlan, setExportPlan] = useState<ExportPlan>()
   const [resourceAudit, setResourceAudit] = useState<ResourceResolverDiagnostics>(resolver.getDiagnostics())
 
   useEffect(() => () => {
@@ -142,6 +159,7 @@ export function CanonicalLocalExportHarness({
     if (!resources) {
       setPreviewReady(false)
       setRenderReadiness(undefined)
+      setExportPlan(undefined)
       return
     }
 
@@ -179,6 +197,34 @@ export function CanonicalLocalExportHarness({
       active = false
     }
   }, [resources, snapshot])
+
+  useEffect(() => {
+    if (!resources || !previewReady) {
+      setExportPlan(undefined)
+      return
+    }
+    const previewRoot = document.querySelector<HTMLElement>('[data-testid="canonical-preview"] [data-oneimg-render-root]')
+    if (!previewRoot) {
+      setExportPlan(undefined)
+      return
+    }
+    const bounds = previewRoot.getBoundingClientRect()
+    setExportPlan(exportEngine.plan({
+      meaningful: true,
+      output: { format: 'png', scale: outputScale },
+      pageMeasurements: [{
+        height: bounds.height,
+        id: 'page-1',
+        kind: snapshot.presentation.pageFormat.kind,
+        layoutFingerprint: getCanonicalLayoutFingerprint(previewRoot),
+        semanticBoundaries: getCanonicalSemanticSliceBoundaries(previewRoot),
+        width: bounds.width,
+      }],
+      renderReady: previewReady,
+      resourceFingerprint: resources.fingerprint,
+      snapshot,
+    }))
+  }, [exportEngine, outputScale, previewReady, resources, snapshot])
 
   const releasePreviewResources = () => {
     if (exportController.current) {
@@ -222,11 +268,13 @@ export function CanonicalLocalExportHarness({
     const bounds = previewRoot.getBoundingClientRect()
     const plan = exportEngine.plan({
       meaningful: true,
-      output: { format: 'png', scale: 1 },
+      output: { format: 'png', scale: outputScale },
       pageMeasurements: [{
         height: bounds.height,
         id: 'page-1',
         kind: snapshot.presentation.pageFormat.kind,
+        layoutFingerprint: getCanonicalLayoutFingerprint(previewRoot),
+        semanticBoundaries: getCanonicalSemanticSliceBoundaries(previewRoot),
         width: bounds.width,
       }],
       renderReady: previewReady,
@@ -244,8 +292,18 @@ export function CanonicalLocalExportHarness({
     setExportStatus('running')
     setError(undefined)
     setDiagnostics(undefined)
+    setExportArtifact(undefined)
+    packagingProgressCount.current = 0
     setProgress({ completed: 0, segmentCount: plan.pages.reduce((total, page) => total + page.segmentCount, 0), stage: 'render-ready', total: 1 })
     const unsubscribe = job.subscribe((state: ExportJobState) => {
+      if (cancelAfterPackagingChunk && !packagingCancelTriggered.current && state.stage === 'packaging') {
+        packagingProgressCount.current += 1
+        if (packagingProgressCount.current >= 2) {
+          packagingCancelTriggered.current = true
+          cancelRequestedAt.current = performance.now()
+          exportEngine.cancel(job.id)
+        }
+      }
       const stage: LocalExportStage = state.stage === 'packaging'
         ? 'packaging'
         : state.stage === 'encoding'
@@ -272,6 +330,7 @@ export function CanonicalLocalExportHarness({
         ...result.artifact.diagnostics,
         previewFingerprint: resources.fingerprint,
       })
+      setExportArtifact(result.artifact)
       setExportStatus('completed')
     }).catch((reason: unknown) => {
       if (job.getState().status === 'canceled' || isRenderAbortError(reason)) {
@@ -305,6 +364,8 @@ export function CanonicalLocalExportHarness({
     setExportStatus('running')
     setError(undefined)
     setDiagnostics(undefined)
+    setExportArtifact(undefined)
+    packagingProgressCount.current = 0
     setProgress({ completed: 0, segmentCount: 0, stage: 'render-ready', total: 1 })
 
     let exportResources: ResolvedResourceSet | undefined
@@ -312,7 +373,18 @@ export function CanonicalLocalExportHarness({
       exportResources = await resolver.resolve(snapshot, 'local-export', { signal: controller.signal })
       const artifact = await resolvedAdapter.exportPng({
         beforeStage: beforeExportStage,
-        onProgress: setProgress,
+        onProgress: (nextProgress) => {
+          setProgress(nextProgress)
+          if (cancelAfterPackagingChunk && !packagingCancelTriggered.current && nextProgress.stage === 'packaging') {
+            packagingProgressCount.current += 1
+            if (packagingProgressCount.current >= 2) {
+              packagingCancelTriggered.current = true
+              cancelRequestedAt.current = performance.now()
+              controller.abort()
+            }
+          }
+        },
+        outputScale,
         resources: exportResources,
         signal: controller.signal,
         snapshot,
@@ -331,6 +403,7 @@ export function CanonicalLocalExportHarness({
         ...artifact.diagnostics,
         previewFingerprint: resources.fingerprint,
       })
+      setExportArtifact(artifact)
       setExportStatus('completed')
     } catch (reason) {
       if (isRenderAbortError(reason) || controller.signal.aborted) {
@@ -370,6 +443,19 @@ export function CanonicalLocalExportHarness({
     idle: '待机',
     running: '导出中',
   }[exportStatus]
+
+  const downloadSlice = (index: number) => {
+    const segment = exportArtifact?.segments?.find(candidate => candidate.index === index)
+    if (segment === undefined) {
+      return
+    }
+    const downloadUrl = URL.createObjectURL(segment.blob)
+    const anchor = document.createElement('a')
+    anchor.download = getLocalPngSliceFilename(index)
+    anchor.href = downloadUrl
+    anchor.click()
+    setTimeout(() => URL.revokeObjectURL(downloadUrl), 0)
+  }
 
   return (
     <main style={{ background: '#dfe4ef', minHeight: '100vh', padding: '32px 0 80px' }}>
@@ -424,10 +510,26 @@ export function CanonicalLocalExportHarness({
       <pre data-testid="export-audit" style={{ background: '#fff', margin: '18px auto 0', overflow: 'auto', padding: 16, width: 640 }}>
         {JSON.stringify(progress)}
       </pre>
+      <pre data-testid="export-plan" style={{ background: '#fff', margin: '18px auto 0', overflow: 'auto', padding: 16, width: 640 }}>
+        {JSON.stringify({
+          pageCount: exportPlan?.pages.length ?? 0,
+          sliceCount: exportPlan?.pages.reduce((total, page) => total + page.semanticSlices.length, 0) ?? 0,
+          slices: exportPlan?.pages.flatMap(page => page.semanticSlices) ?? [],
+        })}
+      </pre>
       {diagnostics && (
         <pre data-testid="export-diagnostics" style={{ background: '#fff', margin: '18px auto 0', overflow: 'auto', padding: 16, width: 640 }}>
           {JSON.stringify(diagnostics)}
         </pre>
+      )}
+      {exportArtifact?.segments && exportArtifact.segments.length > 0 && (
+        <nav aria-label="Semantic Slice 下载" data-testid="export-slices" style={{ display: 'flex', gap: 8, margin: '18px auto 0', width: 640 }}>
+          {exportArtifact.segments.map(segment => (
+            <button key={segment.index} onClick={() => downloadSlice(segment.index)} type="button">
+              下载 Slice {segment.index + 1}
+            </button>
+          ))}
+        </nav>
       )}
     </main>
   )

@@ -85,17 +85,46 @@ export const longCanonicalSnapshot = {
   },
   document: {
     id: 'document:canonical-long-resource-fixture',
-    sections: imageDimensions.map((_, index) => ({
-      id: `section:long-media-${String(index + 1).padStart(2, '0')}`,
-      kind: 'media' as const,
-      label: `MEDIA ${String(index + 1).padStart(2, '0')} · ASPECT RATIO FIXTURE`,
-      title: `第 ${index + 1} 张图片保持同一 Canonical 坐标`,
-      body: '分段导出只改变 capture allocation；图片、文字和顺序仍由同一个 Render Root 决定。',
-      image: {
-        resourceId: `image:long-fixture-${String(index + 1).padStart(2, '0')}@1`,
-        alt: `长页测试图片 ${index + 1}`,
+    sections: [
+      {
+        id: 'section:long-feature-grid',
+        kind: 'feature-grid' as const,
+        label: 'KEEP TOGETHER · SEMANTIC FIXTURE',
+        items: [
+          {
+            id: 'feature:long-layout',
+            title: '保护同一组内容',
+            body: '分段导出不应在 Keep Together 内容内部机械切断。',
+          },
+          {
+            id: 'feature:long-boundary',
+            title: '优先语义边界',
+            body: '标题、Section 和 Block 仍来自同一份 Canonical composition。',
+          },
+          {
+            id: 'feature:long-coordinate',
+            title: '复用连续坐标',
+            body: '每个 Slice 只改变 capture allocation，不重新排版。',
+          },
+          {
+            id: 'feature:long-order',
+            title: '保持输出顺序',
+            body: 'ZIP 中的 Slice 以稳定的零填充序号排列。',
+          },
+        ],
       },
-    })),
+      ...imageDimensions.map((_, index) => ({
+        id: `section:long-media-${String(index + 1).padStart(2, '0')}`,
+        kind: 'media' as const,
+        label: `MEDIA ${String(index + 1).padStart(2, '0')} · ASPECT RATIO FIXTURE`,
+        title: `第 ${index + 1} 张图片保持同一 Canonical 坐标`,
+        body: '分段导出只改变 capture allocation；图片、文字和顺序仍由同一个 Render Root 决定。',
+        image: {
+          resourceId: `image:long-fixture-${String(index + 1).padStart(2, '0')}@1`,
+          alt: `长页测试图片 ${index + 1}`,
+        },
+      })),
+    ],
   },
 } as const satisfies CanonicalRenderSnapshot
 

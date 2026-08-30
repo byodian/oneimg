@@ -6,6 +6,7 @@ import {
   stableStringify,
 } from '@/features/document-core'
 import type { CanonicalRenderSnapshot } from '@/features/canonical-renderer/model'
+import type { SemanticSliceBoundary } from '@/features/canonical-renderer/semantic-boundaries'
 import type {
   LocalExportProgress,
   LocalPngArtifact,
@@ -15,7 +16,12 @@ import type {
   ResolvedResourceSet,
   ResourceResolver,
 } from '@/features/canonical-renderer/resource-resolver'
-import { type RenderSegment, createSegmentedRenderPlan } from '@/features/local-export/segmented-render'
+import {
+  DEFAULT_SEGMENTED_RENDER_LIMITS,
+  type RenderSegment,
+  type SemanticSlice,
+  createSegmentedRenderPlan,
+} from '@/features/local-export/segmented-render'
 import {
   isRenderAbortError,
   throwIfRenderAborted,
@@ -36,6 +42,12 @@ export type {
   PreflightImageObservation,
   PreflightSceneSlotObservation,
 } from './preflight'
+export type {
+  SemanticSlice,
+  SemanticSliceBoundary,
+  SemanticSliceBoundaryKind,
+  SemanticSliceBoundaryReason,
+} from '@/features/local-export/segmented-render'
 export { probeLocalSvgCapability } from './capability-probe'
 export { ExportPreflightPanel } from './preflight-panel'
 export type { ExportPreflightPanelProps } from './preflight-panel'
@@ -53,6 +65,8 @@ export interface ExportPageMeasurement {
   readonly height: number
   readonly id: string
   readonly kind: PageFormatKind
+  readonly layoutFingerprint: string
+  readonly semanticBoundaries?: readonly SemanticSliceBoundary[]
   readonly width: number
 }
 
@@ -61,8 +75,10 @@ export interface ExportPagePlan {
   readonly id: string
   readonly index: number
   readonly kind: PageFormatKind
+  readonly layoutFingerprint: string
   readonly referenceHeight: number
   readonly referenceWidth: number
+  readonly semanticSlices: readonly SemanticSlice[]
   readonly segmentCount: number
   readonly segments: readonly RenderSegment[]
   readonly segmented: boolean
@@ -270,14 +286,22 @@ function createPagePlan(
   const renderPlan = createSegmentedRenderPlan(
     Math.ceil(measurement.width * outputScale),
     Math.ceil(measurement.height * outputScale),
+    DEFAULT_SEGMENTED_RENDER_LIMITS,
+    measurement.semanticBoundaries?.map(boundary => ({
+      ...boundary,
+      ...(boundary.endY === undefined ? {} : { endY: boundary.endY * outputScale }),
+      y: boundary.y * outputScale,
+    })),
   )
   return {
     height: renderPlan.height,
     id: measurement.id,
     index,
     kind: measurement.kind,
+    layoutFingerprint: measurement.layoutFingerprint,
     referenceHeight: measurement.height,
     referenceWidth: measurement.width,
+    semanticSlices: renderPlan.semanticSlices,
     segmentCount: renderPlan.segments.length,
     segments: renderPlan.segments,
     segmented: renderPlan.mode === 'segmented',
@@ -443,7 +467,7 @@ export function createExportEngine({
       cacheKey,
       cacheReuse: request.resourceFingerprint === undefined
         ? 'unknown'
-        : artifactCache.has(cacheKey) ? 'hit' : 'miss',
+        : localAdapter.validatePlan !== undefined && pages.length === 1 && artifactCache.has(cacheKey) ? 'hit' : 'miss',
       canRun: route === 'local-eligible',
       ...(request.documentRevision === undefined ? {} : { documentRevision: request.documentRevision }),
       findings,
@@ -568,14 +592,6 @@ export function createExportEngine({
       let resources: ResolvedResourceSet | undefined
       try {
         throwIfRenderAborted(controller.signal)
-        const plannedArtifact = artifactCache.get(exportPlan.cacheKey)
-        if (plannedArtifact !== undefined) {
-          if (!finishReady(plannedArtifact, true)) {
-            throw new ExportJobError(createCanceledErrorInfo(activeStage(state.stage)))
-          }
-          return
-        }
-
         updateState({ stage: 'preparing' })
         resources = await resolver.resolve(exportPlan.snapshot, 'local-export', { signal: controller.signal })
         throwIfRenderAborted(controller.signal)
@@ -588,8 +604,31 @@ export function createExportEngine({
           exportPlan.pages,
           resources.fingerprint,
         )
+        if (resources.fingerprint !== exportPlan.resourceFingerprint) {
+          throw new Error('Referenced resources changed after Export Plan creation; reopen the Export Plan')
+        }
+        const pagePlan = exportPlan.pages.length === 1
+          ? {
+              height: exportPlan.pages[0]!.height,
+              layoutFingerprint: exportPlan.pages[0]!.layoutFingerprint,
+              mode: exportPlan.pages[0]!.segmented ? 'segmented' as const : 'single' as const,
+              resourceFingerprint: exportPlan.resourceFingerprint,
+              semanticSlices: exportPlan.pages[0]!.semanticSlices,
+              segments: exportPlan.pages[0]!.segments,
+              width: exportPlan.pages[0]!.width,
+            }
+          : undefined
         const resolvedArtifact = artifactCache.get(actualCacheKey)
-        if (resolvedArtifact !== undefined) {
+        if (resolvedArtifact !== undefined && localAdapter.validatePlan !== undefined && pagePlan !== undefined) {
+          updateState({ stage: 'rendering' })
+          await localAdapter.validatePlan({
+            outputScale: exportPlan.outputScale,
+            pagePlan,
+            resources,
+            signal: controller.signal,
+            snapshot: exportPlan.snapshot,
+          })
+          throwIfRenderAborted(controller.signal)
           if (!finishReady(resolvedArtifact, true)) {
             throw new ExportJobError(createCanceledErrorInfo(activeStage(state.stage)))
           }
@@ -609,6 +648,7 @@ export function createExportEngine({
             })
           },
           outputScale: exportPlan.outputScale,
+          pagePlan,
           resources,
           signal: controller.signal,
           snapshot: exportPlan.snapshot,

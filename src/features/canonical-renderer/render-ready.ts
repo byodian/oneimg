@@ -1,5 +1,6 @@
 import type { CanonicalRenderSnapshot } from './model'
 import type { ResolvedResourceSet } from './resource-resolver'
+import type { SemanticSliceBoundary, SemanticSliceBoundaryKind } from './semantic-boundaries'
 import {
   abortableRenderPromise,
   createRenderAbortError,
@@ -23,6 +24,76 @@ export interface CanonicalPaginationPage {
   readonly height: number
   readonly index: number
   readonly y: number
+}
+
+const CANONICAL_SEMANTIC_BOUNDARY_KINDS: readonly SemanticSliceBoundaryKind[] = [
+  'block',
+  'heading',
+  'keep-together',
+  'section',
+]
+
+function isCanonicalSemanticBoundaryKind(value: string): value is SemanticSliceBoundaryKind {
+  return CANONICAL_SEMANTIC_BOUNDARY_KINDS.includes(value as SemanticSliceBoundaryKind)
+}
+
+/**
+ * Reads semantic break candidates from the already laid-out Canonical Root.
+ * The result is geometry only; no candidate causes a second layout pass.
+ */
+export function getCanonicalSemanticSliceBoundaries(root: HTMLElement): readonly SemanticSliceBoundary[] {
+  const rootRect = root.getBoundingClientRect()
+  const boundaries: SemanticSliceBoundary[] = []
+  const elements = Array.from(root.querySelectorAll<HTMLElement>(
+    '[data-slice-boundary], [data-keep-together], [data-node-type="heading"], [data-block-id]',
+  ))
+
+  for (const element of elements) {
+    const declaredKind = element.dataset.sliceBoundary
+    const kind = element.dataset.keepTogether === 'true'
+      ? 'keep-together'
+      : declaredKind !== undefined && isCanonicalSemanticBoundaryKind(declaredKind)
+        ? declaredKind
+        : element.dataset.nodeType === 'heading'
+          ? 'heading'
+          : element.dataset.blockId !== undefined
+            ? 'block'
+            : undefined
+    if (kind === undefined) {
+      continue
+    }
+    const ownerBlockId = element.closest<HTMLElement>('[data-block-id]')?.dataset.blockId
+    const id = element.dataset.blockId
+      ?? element.dataset.sliceId
+      ?? (element.dataset.nodeType === 'heading'
+        ? `${ownerBlockId ?? 'document'}:heading:${boundaries.length + 1}`
+        : kind === 'keep-together'
+          ? `${ownerBlockId ?? 'document'}:keep-together:${boundaries.length + 1}`
+          : undefined)
+    if (id === undefined || id.trim() === '') {
+      continue
+    }
+    const rect = element.getBoundingClientRect()
+    const y = rect.top - rootRect.top
+    const endY = kind === 'keep-together' ? rect.bottom - rootRect.top : undefined
+    if (
+      !Number.isFinite(y)
+      || y < 0
+      || y >= rootRect.height
+      || (y === 0 && kind !== 'keep-together')
+      || (kind === 'keep-together' && (endY === undefined || !Number.isFinite(endY) || endY <= y))
+    ) {
+      continue
+    }
+    boundaries.push({
+      ...(endY === undefined ? {} : { endY }),
+      id,
+      kind,
+      y,
+    })
+  }
+
+  return boundaries
 }
 
 export interface CanonicalPaginationDiagnostics {
@@ -98,6 +169,31 @@ export function getCanonicalGeometry(root: HTMLElement): readonly CanonicalGeome
     })
 }
 
+export function getCanonicalLayoutFingerprint(root: HTMLElement) {
+  const rootRect = root.getBoundingClientRect()
+  return [
+    rootRect.width.toFixed(3),
+    rootRect.height.toFixed(3),
+    getCanonicalGeometry(root)
+      .map(geometry => [
+        geometry.id,
+        geometry.x.toFixed(3),
+        geometry.y.toFixed(3),
+        geometry.width.toFixed(3),
+        geometry.height.toFixed(3),
+      ].join(':'))
+      .join('|'),
+    getCanonicalSemanticSliceBoundaries(root)
+      .map(boundary => [
+        boundary.id,
+        boundary.kind,
+        boundary.y.toFixed(3),
+        boundary.endY?.toFixed(3) ?? '',
+      ].join(':'))
+      .join('|'),
+  ].join(';')
+}
+
 function geometrySignature(root: HTMLElement) {
   const rootRect = root.getBoundingClientRect()
   return [
@@ -110,15 +206,7 @@ function geometrySignature(root: HTMLElement) {
     root.dataset.paginationState ?? '',
     root.dataset.paginationSnapshotId ?? '',
     root.dataset.paginationDiagnostics ?? '',
-    getCanonicalGeometry(root)
-      .map(geometry => [
-        geometry.id,
-        geometry.x.toFixed(3),
-        geometry.y.toFixed(3),
-        geometry.width.toFixed(3),
-        geometry.height.toFixed(3),
-      ].join(':'))
-      .join('|'),
+    getCanonicalLayoutFingerprint(root),
   ].join(';')
 }
 

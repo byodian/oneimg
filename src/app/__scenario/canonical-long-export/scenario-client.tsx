@@ -47,10 +47,13 @@ export function CanonicalLongExportScenario() {
       }
     }
   }, [])
+  const cancelAfterPackagingChunk = typeof window !== 'undefined'
+    && new URLSearchParams(window.location.search).get('cancelAfterPackagingChunk') === '1'
 
   return (
     <CanonicalLocalExportHarness
       beforeExportStage={beforeExportStage}
+      cancelAfterPackagingChunk={cancelAfterPackagingChunk}
       resourceDefinitions={longCanonicalFixtureResources}
       scenarioLabel="STUDIO SCENARIO HARNESS · ISSUE #28"
       snapshot={longCanonicalSnapshot}
@@ -59,8 +62,11 @@ export function CanonicalLongExportScenario() {
 }
 
 export function CanonicalLongExportEngineScenario() {
+  const cancelAfterPackagingChunk = typeof window !== 'undefined'
+    && new URLSearchParams(window.location.search).get('cancelAfterPackagingChunk') === '1'
   return (
     <CanonicalLocalExportHarness
+      cancelAfterPackagingChunk={cancelAfterPackagingChunk}
       resourceDefinitions={longCanonicalFixtureResources}
       runThroughExportEngine
       scenarioLabel="STUDIO SCENARIO HARNESS · ISSUE #35 · SEGMENTED"

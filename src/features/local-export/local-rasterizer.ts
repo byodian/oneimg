@@ -1,5 +1,5 @@
 import type { RasterWorkerCleanupAudit } from './raster-worker'
-import type { RenderSegment } from './segmented-render'
+import type { RenderSegment, SemanticSlice } from './segmented-render'
 import type { CanonicalRenderSnapshot } from '@/features/canonical-renderer/model'
 import type { CanonicalGeometry } from '@/features/canonical-renderer/render-ready'
 import type { ResolvedResourceSet } from '@/features/canonical-renderer/resource-resolver'
@@ -7,10 +7,21 @@ import type { ResolvedResourceSet } from '@/features/canonical-renderer/resource
 export interface LocalExportRequest {
   readonly beforeStage?: LocalExportStageHook
   readonly outputScale?: 1 | 2
+  readonly pagePlan?: LocalExportPagePlan
   readonly snapshot: CanonicalRenderSnapshot
   readonly resources: ResolvedResourceSet
   readonly onProgress?: (progress: LocalExportProgress) => void
   readonly signal?: AbortSignal
+}
+
+export interface LocalExportPagePlan {
+  readonly height: number
+  readonly layoutFingerprint: string
+  readonly mode: 'segmented' | 'single'
+  readonly resourceFingerprint: string
+  readonly semanticSlices: readonly SemanticSlice[]
+  readonly segments: readonly RenderSegment[]
+  readonly width: number
 }
 
 export type LocalExportStage = 'cleanup' | 'encoding' | 'packaging' | 'render-ready' | 'serializing'
@@ -34,6 +45,7 @@ export interface LocalExportCleanupAudit extends RasterWorkerCleanupAudit {
   readonly imageBitmapsCreated: number
   readonly canvasCreated: number
   readonly temporaryCacheEntriesCreated: number
+  readonly temporaryCacheEntriesRetained: number
   readonly temporaryCacheEntriesReleased: number
   readonly temporaryObjectUrlsRevoked: number
 }
@@ -48,6 +60,7 @@ export const EMPTY_LOCAL_EXPORT_CLEANUP_AUDIT: LocalExportCleanupAudit = {
   imageBitmapsClosed: 0,
   requested: 0,
   temporaryCacheEntriesCreated: 0,
+  temporaryCacheEntriesRetained: 0,
   temporaryCacheEntriesReleased: 0,
   temporaryObjectUrlsRevoked: 0,
   workerObjectUrlCreated: false,
@@ -76,6 +89,8 @@ export interface LocalExportDiagnostics {
   readonly resourceCount: number
   readonly embeddedImageCount: number
   readonly format: 'png' | 'zip'
+  readonly layoutFingerprint: string
+  readonly semanticSlices: readonly SemanticSlice[]
   readonly segmentCount: number
   readonly segmentBleed: number
   readonly segmented: boolean
@@ -89,12 +104,14 @@ export interface LocalExportDiagnostics {
   readonly memorySource: 'performance.memory' | 'unavailable'
   readonly maxSvgDataUrlBytes: number
   readonly outputScale: 1 | 2
+  readonly packagingChunkCount: number
 }
 
 export interface LocalPngArtifact {
   readonly blob: Blob
   readonly diagnostics: LocalExportDiagnostics
   readonly format: 'png' | 'zip'
+  readonly segments?: readonly LocalPngSegment[]
 }
 
 export interface LocalPngSegment {
@@ -104,7 +121,12 @@ export interface LocalPngSegment {
   readonly y: number
 }
 
+export function getLocalPngSliceFilename(index: number) {
+  return `oneimg-slice-${String(index + 1).padStart(3, '0')}.png`
+}
+
 export interface LocalRasterizerAdapter {
   readonly id: string
   exportPng(request: LocalExportRequest): Promise<LocalPngArtifact>
+  readonly validatePlan?: (request: LocalExportRequest) => Promise<void>
 }

@@ -69,28 +69,28 @@ function renderMarkedTextHtml(node: RichTextNode): string {
   return content
 }
 
-function renderRichTextNodeHtml(node: RichTextNode): string {
-  const children = node.children?.map(renderRichTextNodeHtml).join('') ?? ''
+function renderRichTextNodeHtml(node: RichTextNode, path: string): string {
+  const children = node.children?.map((child, index) => renderRichTextNodeHtml(child, `${path}.${index}`)).join('') ?? ''
   const inline = node.children === undefined ? renderMarkedTextHtml(node) : children
   switch (node.type) {
     case 'blockquote':
-      return `<blockquote data-node-type="${node.type}">${children}</blockquote>`
+      return `<blockquote data-keep-together="true" data-node-type="${node.type}" data-slice-id="keep-together:${path}">${children}</blockquote>`
     case 'bullet-list':
-      return `<ul data-node-type="${node.type}">${children}</ul>`
+      return `<ul data-keep-together="true" data-node-type="${node.type}" data-slice-id="keep-together:${path}">${children}</ul>`
     case 'code-block':
-      return `<pre data-node-type="${node.type}"><code>${inline}</code></pre>`
+      return `<pre data-keep-together="true" data-node-type="${node.type}" data-slice-id="keep-together:${path}"><code>${inline}</code></pre>`
     case 'heading':
       if (node.level === 1) {
-        return `<h1 data-node-type="${node.type}">${inline}</h1>`
+        return `<h1 data-node-type="${node.type}" data-slice-id="heading:${path}">${inline}</h1>`
       }
       if (node.level === 2) {
-        return `<h2 data-node-type="${node.type}">${inline}</h2>`
+        return `<h2 data-node-type="${node.type}" data-slice-id="heading:${path}">${inline}</h2>`
       }
-      return `<h3 data-node-type="${node.type}">${inline}</h3>`
+      return `<h3 data-node-type="${node.type}" data-slice-id="heading:${path}">${inline}</h3>`
     case 'list-item':
       return `<li data-node-type="${node.type}">${children}</li>`
     case 'ordered-list':
-      return `<ol data-node-type="${node.type}">${children}</ol>`
+      return `<ol data-keep-together="true" data-node-type="${node.type}" data-slice-id="keep-together:${path}">${children}</ol>`
     case 'paragraph':
       return `<p data-node-type="${node.type}">${inline}</p>`
     case 'text':
@@ -146,10 +146,10 @@ function renderRichTextSection(
   handlers: RichTextEditingHandlers,
 ) {
   return (
-    <section className="oneimg-section oneimg-rich-text-section" data-block-id={section.id} data-block-kind="rich-text" key={section.id}>
+    <section className="oneimg-section oneimg-rich-text-section" data-block-id={section.id} data-block-kind="rich-text" data-slice-boundary="section" key={section.id}>
       <div
         className="oneimg-rich-text"
-        dangerouslySetInnerHTML={{ __html: section.content.children.map(renderRichTextNodeHtml).join('') }}
+        dangerouslySetInnerHTML={{ __html: section.content.children.map((node, index) => renderRichTextNodeHtml(node, `${section.id}.${index}`)).join('') }}
         {...editableProps(mode, section.id, handlers)}
       />
     </section>
@@ -158,8 +158,8 @@ function renderRichTextSection(
 
 function renderChecklistSection(section: Extract<CanonicalSection, { kind: 'checklist' }>) {
   return (
-    <section className="oneimg-section oneimg-checklist-section" data-block-id={section.id} data-block-kind="checklist" key={section.id}>
-      <ul className="oneimg-checklist">
+    <section className="oneimg-section oneimg-checklist-section" data-block-id={section.id} data-block-kind="checklist" data-slice-boundary="section" key={section.id}>
+      <ul className="oneimg-checklist" data-keep-together="true" data-slice-id={`${section.id}:items`}>
         {section.items.map(item => (
           <li data-item-id={item.id} key={item.id}>
             <input aria-label={item.text} checked={item.checked} disabled readOnly type="checkbox" />
@@ -173,8 +173,8 @@ function renderChecklistSection(section: Extract<CanonicalSection, { kind: 'chec
 
 function renderDataTableSection(section: Extract<CanonicalSection, { kind: 'data-table' }>) {
   return (
-    <section className="oneimg-section oneimg-data-table-section" data-block-id={section.id} data-block-kind="data-table" key={section.id}>
-      <table className="oneimg-data-table">
+    <section className="oneimg-section oneimg-data-table-section" data-block-id={section.id} data-block-kind="data-table" data-slice-boundary="section" key={section.id}>
+      <table className="oneimg-data-table" data-keep-together="true" data-slice-id={`${section.id}:table`}>
         <thead>
           <tr>
             {section.columns.map(column => <th key={column.id} scope="col">{column.label}</th>)}
@@ -215,22 +215,22 @@ function renderSection(
   switch (section.kind) {
     case 'hero':
       return (
-        <section className="oneimg-section oneimg-hero" data-block-id={section.id} key={section.id}>
+        <section className="oneimg-section oneimg-hero" data-block-id={section.id} data-slice-boundary="section" key={section.id}>
           <div className="oneimg-hero-copy">
             <p className="oneimg-eyebrow">{section.eyebrow}</p>
-            <h1 className="oneimg-title">{section.title}</h1>
+            <h1 className="oneimg-title" data-node-type="heading" data-slice-id={`${section.id}:title`}>{section.title}</h1>
             <p className="oneimg-lede">{section.body}</p>
           </div>
         </section>
       )
     case 'feature-grid':
       return (
-        <section className="oneimg-section oneimg-grid-section" data-block-id={section.id} key={section.id}>
+        <section className="oneimg-section oneimg-grid-section" data-block-id={section.id} data-slice-boundary="section" key={section.id}>
           <p className="oneimg-eyebrow">{section.label}</p>
-          <div className="oneimg-grid" data-layout="grid" data-surface="rounded">
+          <div className="oneimg-grid" data-keep-together="true" data-layout="grid" data-slice-id={`${section.id}:grid`} data-surface="rounded">
             {section.items.map(item => (
               <article className="oneimg-feature" data-block-id={item.id} key={item.id}>
-                <h2 className="oneimg-feature-title">{item.title}</h2>
+                <h2 className="oneimg-feature-title" data-node-type="heading" data-slice-id={`${item.id}:title`}>{item.title}</h2>
                 <p className="oneimg-feature-body">{item.body}</p>
               </article>
             ))}
@@ -240,7 +240,7 @@ function renderSection(
     case 'media': {
       const image = resources.get(section.image.resourceId)
       return (
-        <section className="oneimg-section oneimg-media" data-block-id={section.id} data-layout="flex" key={section.id}>
+        <section className="oneimg-section oneimg-media" data-block-id={section.id} data-layout="flex" data-slice-boundary="section" key={section.id}>
           <figure className="oneimg-media-figure">
             {/* Canonical export serializes this native image element and its Blob-backed source. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -255,7 +255,7 @@ function renderSection(
           </figure>
           <div className="oneimg-media-copy">
             <p className="oneimg-eyebrow">{section.label}</p>
-            <h2 className="oneimg-media-title">{section.title}</h2>
+            <h2 className="oneimg-media-title" data-node-type="heading" data-slice-id={`${section.id}:title`}>{section.title}</h2>
             <p className="oneimg-media-body">{section.body}</p>
           </div>
         </section>
@@ -269,9 +269,9 @@ function renderSection(
       return renderDataTableSection(section)
     case 'summary':
       return (
-        <section className="oneimg-section oneimg-summary" data-block-id={section.id} key={section.id}>
+        <section className="oneimg-section oneimg-summary" data-block-id={section.id} data-slice-boundary="section" key={section.id}>
           <div className="oneimg-summary-copy">
-            <h2 className="oneimg-summary-title">{section.title}</h2>
+            <h2 className="oneimg-summary-title" data-node-type="heading" data-slice-id={`${section.id}:title`}>{section.title}</h2>
             <p className="oneimg-summary-body">{section.body}</p>
           </div>
           <ul className="oneimg-facts">
@@ -281,9 +281,9 @@ function renderSection(
       )
     case 'unknown-block':
       return (
-        <section className="oneimg-section oneimg-unknown-block" data-block-id={section.id} data-block-kind="unknown" key={section.id}>
+        <section className="oneimg-section oneimg-unknown-block" data-block-id={section.id} data-block-kind="unknown" data-slice-boundary="section" key={section.id}>
           <p className="oneimg-eyebrow">保留内容</p>
-          <h2>暂不支持的内容</h2>
+          <h2 data-node-type="heading" data-slice-id={`${section.id}:fallback-heading`}>暂不支持的内容</h2>
           <p>类型 {section.originalKind}{section.originalVersion ? ` · ${section.originalVersion}` : ''} 将保留在文档中。</p>
           <pre className="oneimg-unknown-fallback">{section.fallbackText}</pre>
         </section>

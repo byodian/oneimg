@@ -35,6 +35,12 @@ The Studio now holds Local Export behind the Render Ready and Preflight gates. R
 
 The delivered probe covers the current certified SVG foreign-object transport and is cached per browser capability key. Bounded pagination, multi-Page output, and complete Scene-specific slot inference remain explicitly deferred.
 
+## Slice 11 — Semantic Slice Export Bundle
+
+The Continuous Page now derives output-only Semantic Slices from the existing Canonical composition. Section, heading, Block, and explicit Keep Together candidates are considered in the same Reference Viewport coordinate space; Keep Together protects its measured start/end range, and only a budget-constrained visual fallback creates a non-semantic boundary. The Studio shows the expected Slice count and boundary markers before export without adding those markers to the exported Render Root. Export Plans carry layout/resource fingerprints so cached output is validated against the current inert composition before reuse.
+
+Oversized local output produces an ordered ZIP Bundle from the same bounded Segmented Render coordinates. The Bundle uses stable names such as `oneimg-slice-001.png`, retains each final PNG for individual Slice download, and packages through a cancellable, backpressure-aware stream before the current browser-download Blob sink is materialized. Canceling packaging or a Slice export does not mutate or discard the active Draft. Multiple editable Pages, bounded pagination, and other output formats remain later slices.
+
 ## Verification
 
 `tests/scenarios/studio.spec.ts` covers a cold start with no Recent, focus in the Canonical Render Root, first meaningful input, semantic commit and durable receipt, accessible export discovery, reload restoration, Clean Preview preserving the same root and Document identity, three real-content Template Family previews, complete-catalog access, independent presentation choices, and persistence of those choices across later edits.
