@@ -28,7 +28,7 @@ export const canonicalStylePack = {
     box-sizing: border-box;
   }
 
-  [data-oneimg-render-root] :where(article, section, div, header, footer, figure, figcaption, h1, h2, h3, p, ul, li, span) {
+  [data-oneimg-render-root] :where(article, section, div, header, footer, figure, figcaption, h1, h2, h3, p, ul, li, span, pre, table, thead, tbody, tr, th, td) {
     margin: 0;
     padding: 0;
   }
@@ -278,6 +278,26 @@ export const canonicalStylePack = {
     padding: 14px 18px;
   }
 
+  [data-oneimg-render-root] .oneimg-rich-text pre {
+    background: var(--oneimg-foreground);
+    border-radius: 12px;
+    color: var(--oneimg-background);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 14px;
+    line-height: 1.6;
+    margin-top: 22px;
+    overflow-x: auto;
+    padding: 16px 18px;
+    white-space: pre-wrap;
+  }
+
+  [data-oneimg-render-root] .oneimg-rich-text pre code {
+    background: transparent;
+    color: inherit;
+    display: block;
+    padding: 0;
+  }
+
   [data-oneimg-render-root] .oneimg-rich-text :where(code) {
     background: var(--oneimg-accent-soft);
     border-radius: 6px;
@@ -310,6 +330,64 @@ export const canonicalStylePack = {
   [data-oneimg-render-root] .oneimg-empty-editor p:empty::before {
     color: color-mix(in srgb, var(--oneimg-foreground) 45%, transparent);
     content: '粘贴文字，或开始输入';
+  }
+
+  [data-oneimg-render-root] .oneimg-checklist-section,
+  [data-oneimg-render-root] .oneimg-data-table-section {
+    background: var(--oneimg-surface);
+    border-bottom: 1px solid color-mix(in srgb, var(--oneimg-foreground) 8%, transparent);
+    padding: 34px 48px;
+  }
+
+  [data-oneimg-render-root] .oneimg-checklist {
+    display: grid;
+    gap: 12px;
+    margin: 0 auto;
+    max-width: 544px;
+    padding: 0;
+  }
+
+  [data-oneimg-render-root] .oneimg-checklist li {
+    align-items: flex-start;
+    color: var(--oneimg-foreground);
+    display: flex;
+    font-size: 17px;
+    gap: 12px;
+    line-height: 1.65;
+  }
+
+  [data-oneimg-render-root] .oneimg-checklist input {
+    accent-color: var(--oneimg-accent);
+    flex: 0 0 auto;
+    height: 18px;
+    margin-top: 5px;
+    width: 18px;
+  }
+
+  [data-oneimg-render-root] .oneimg-data-table {
+    border-collapse: collapse;
+    margin: 0 auto;
+    max-width: 544px;
+    width: 100%;
+  }
+
+  [data-oneimg-render-root] .oneimg-data-table :where(th, td) {
+    border: 1px solid color-mix(in srgb, var(--oneimg-foreground) 14%, transparent);
+    color: var(--oneimg-foreground);
+    font-size: 15px;
+    line-height: 1.5;
+    padding: 11px 13px;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  [data-oneimg-render-root] .oneimg-data-table th {
+    background: var(--oneimg-accent-soft);
+    font-weight: 700;
+  }
+
+  [data-oneimg-render-root] .oneimg-data-table td {
+    color: var(--oneimg-ink-soft);
   }
 
   [data-oneimg-render-root] .oneimg-unknown-block {

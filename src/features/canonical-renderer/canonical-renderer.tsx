@@ -1,4 +1,4 @@
-import type { CSSProperties, FormEvent, KeyboardEvent, ReactNode } from 'react'
+import type { CSSProperties, ClipboardEvent, FormEvent, KeyboardEvent, ReactNode } from 'react'
 import type { CanonicalRenderSnapshot, CanonicalSection } from './model'
 import type { ResolvedResourceSet } from './resource-resolver'
 import { canonicalStylePack } from './style-pack'
@@ -9,12 +9,13 @@ type CanonicalCssProperties = CSSProperties & Record<`--oneimg-${string}`, strin
 export interface CanonicalRendererProps {
   readonly onRichTextBlur?: (blockId: string | undefined, text: string) => void
   readonly onRichTextInput?: (blockId: string | undefined, text: string) => void
+  readonly onRichTextPaste?: (blockId: string | undefined, payload: { readonly html: string; readonly text: string }) => boolean
   readonly snapshot: CanonicalRenderSnapshot
   readonly resources: ResolvedResourceSet
   readonly mode: 'edit' | 'preview' | 'export'
 }
 
-type RichTextEditingHandlers = Pick<CanonicalRendererProps, 'onRichTextBlur' | 'onRichTextInput'>
+type RichTextEditingHandlers = Pick<CanonicalRendererProps, 'onRichTextBlur' | 'onRichTextInput' | 'onRichTextPaste'>
 
 function readEditableText(event: FormEvent<HTMLElement>) {
   return event.currentTarget.innerText.replaceAll('\r\n', '\n')
@@ -64,6 +65,8 @@ function renderRichTextNode(node: RichTextNode, key: string): ReactNode {
       return <blockquote data-node-type={node.type} key={key}>{children}</blockquote>
     case 'bullet-list':
       return <ul data-node-type={node.type} key={key}>{children}</ul>
+    case 'code-block':
+      return <pre data-node-type={node.type} key={key}><code>{inline}</code></pre>
     case 'heading':
       if (node.level === 1) {
         return <h1 data-node-type={node.type} key={key}>{inline}</h1>
@@ -78,6 +81,8 @@ function renderRichTextNode(node: RichTextNode, key: string): ReactNode {
       return <ol data-node-type={node.type} key={key}>{children}</ol>
     case 'paragraph':
       return <p data-node-type={node.type} key={key}>{inline}</p>
+    case 'text':
+      return inline
   }
 }
 
@@ -96,6 +101,20 @@ function editableProps(
       ? (event: FormEvent<HTMLElement>) => handlers.onRichTextInput?.(blockId, readEditableText(event))
       : undefined,
     onKeyDown: editable ? handleEditableKeyDown : undefined,
+    onPaste: editable
+      ? (event: ClipboardEvent<HTMLElement>) => {
+          if (handlers.onRichTextPaste === undefined) {
+            return
+          }
+          const handled = handlers.onRichTextPaste(blockId, {
+            html: event.clipboardData.getData('text/html'),
+            text: event.clipboardData.getData('text/plain'),
+          })
+          if (handled) {
+            event.preventDefault()
+          }
+        }
+      : undefined,
     suppressContentEditableWarning: true,
   } as const
   if (!editable) {
@@ -115,10 +134,46 @@ function renderRichTextSection(
   handlers: RichTextEditingHandlers,
 ) {
   return (
-    <section className="oneimg-section oneimg-rich-text-section" data-block-id={section.id} key={section.id}>
+    <section className="oneimg-section oneimg-rich-text-section" data-block-id={section.id} data-block-kind="rich-text" key={section.id}>
       <div className="oneimg-rich-text" {...editableProps(mode, section.id, handlers)}>
         {section.content.children.map((node, index) => renderRichTextNode(node, `${section.id}-${index}`))}
       </div>
+    </section>
+  )
+}
+
+function renderChecklistSection(section: Extract<CanonicalSection, { kind: 'checklist' }>) {
+  return (
+    <section className="oneimg-section oneimg-checklist-section" data-block-id={section.id} data-block-kind="checklist" key={section.id}>
+      <ul className="oneimg-checklist">
+        {section.items.map(item => (
+          <li data-item-id={item.id} key={item.id}>
+            <input aria-label={item.text} checked={item.checked} readOnly type="checkbox" />
+            <span>{item.text}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+function renderDataTableSection(section: Extract<CanonicalSection, { kind: 'data-table' }>) {
+  return (
+    <section className="oneimg-section oneimg-data-table-section" data-block-id={section.id} data-block-kind="data-table" key={section.id}>
+      <table className="oneimg-data-table">
+        <thead>
+          <tr>
+            {section.columns.map(column => <th key={column.id} scope="col">{column.label}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {section.rows.map(row => (
+            <tr data-item-id={row.id} key={row.id}>
+              {row.cells.map((cell, cellIndex) => <td key={`${row.id}:${cellIndex}`}>{cell}</td>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </section>
   )
 }
@@ -194,6 +249,10 @@ function renderSection(
     }
     case 'rich-text':
       return renderRichTextSection(section, mode, handlers)
+    case 'checklist':
+      return renderChecklistSection(section)
+    case 'data-table':
+      return renderDataTableSection(section)
     case 'summary':
       return (
         <section className="oneimg-section oneimg-summary" data-block-id={section.id} key={section.id}>
@@ -208,7 +267,7 @@ function renderSection(
       )
     case 'unknown-block':
       return (
-        <section className="oneimg-section oneimg-unknown-block" data-block-id={section.id} key={section.id}>
+        <section className="oneimg-section oneimg-unknown-block" data-block-id={section.id} data-block-kind="unknown" key={section.id}>
           <p className="oneimg-eyebrow">保留内容</p>
           <h2>暂不支持的内容</h2>
           <p>类型 {section.originalKind}{section.originalVersion ? ` · ${section.originalVersion}` : ''} 将保留在文档中。</p>
@@ -224,6 +283,7 @@ export function getCanonicalOwnedCss(resources: ResolvedResourceSet) {
 export function CanonicalRenderer({
   onRichTextBlur,
   onRichTextInput,
+  onRichTextPaste,
   snapshot,
   resources,
   mode,
@@ -260,9 +320,9 @@ export function CanonicalRenderer({
         section,
         resources,
         mode,
-        { onRichTextBlur, onRichTextInput },
+        { onRichTextBlur, onRichTextInput, onRichTextPaste },
       ))}
-      {snapshot.document.sections.length === 0 && renderEmptyEditor(mode, { onRichTextBlur, onRichTextInput })}
+      {snapshot.document.sections.length === 0 && renderEmptyEditor(mode, { onRichTextBlur, onRichTextInput, onRichTextPaste })}
     </article>
   )
 }

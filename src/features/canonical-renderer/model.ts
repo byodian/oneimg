@@ -1,4 +1,9 @@
-import type { RichTextDocument } from '@/features/document-core'
+import type {
+  ChecklistItem,
+  DataTableColumn,
+  DataTableRow,
+  RichTextDocument,
+} from '@/features/document-core'
 
 export type CanonicalResourceId = string
 
@@ -65,6 +70,19 @@ export interface RichTextSection {
   readonly kind: 'rich-text'
 }
 
+export interface ChecklistSection {
+  readonly id: string
+  readonly items: readonly ChecklistItem[]
+  readonly kind: 'checklist'
+}
+
+export interface DataTableSection {
+  readonly columns: readonly DataTableColumn[]
+  readonly id: string
+  readonly kind: 'data-table'
+  readonly rows: readonly DataTableRow[]
+}
+
 export interface UnknownBlockSection {
   readonly id: string
   readonly kind: 'unknown-block'
@@ -75,6 +93,8 @@ export interface UnknownBlockSection {
 export type CanonicalSection =
   | HeroSection
   | FeatureGridSection
+  | ChecklistSection
+  | DataTableSection
   | MediaSection
   | RichTextSection
   | SummarySection

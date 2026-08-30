@@ -42,7 +42,7 @@ export interface RichTextNode {
   readonly level?: 1 | 2 | 3
   readonly marks?: readonly RichTextMark[]
   readonly text?: string
-  readonly type: 'blockquote' | 'bullet-list' | 'heading' | 'list-item' | 'ordered-list' | 'paragraph'
+  readonly type: 'blockquote' | 'bullet-list' | 'code-block' | 'heading' | 'list-item' | 'ordered-list' | 'paragraph' | 'text'
 }
 
 export interface RichTextDocument {
@@ -57,6 +57,37 @@ export interface RichTextBlock {
   readonly version: 1
 }
 
+export interface ChecklistItem {
+  readonly checked: boolean
+  readonly id: string
+  readonly text: string
+}
+
+export interface ChecklistBlock {
+  readonly id: string
+  readonly items: readonly ChecklistItem[]
+  readonly kind: 'checklist'
+  readonly version: 1
+}
+
+export interface DataTableColumn {
+  readonly id: string
+  readonly label: string
+}
+
+export interface DataTableRow {
+  readonly cells: readonly string[]
+  readonly id: string
+}
+
+export interface DataTableBlock {
+  readonly columns: readonly DataTableColumn[]
+  readonly id: string
+  readonly kind: 'data-table'
+  readonly rows: readonly DataTableRow[]
+  readonly version: 1
+}
+
 export interface UnknownBlock {
   readonly id: string
   readonly kind: 'unknown'
@@ -66,7 +97,7 @@ export interface UnknownBlock {
   readonly version: 1
 }
 
-export type Block = RichTextBlock | UnknownBlock
+export type Block = ChecklistBlock | DataTableBlock | RichTextBlock | UnknownBlock
 
 export interface DocumentRevision {
   readonly blockVersion: 'block-catalog@1'

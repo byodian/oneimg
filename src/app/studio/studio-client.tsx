@@ -9,6 +9,7 @@ import {
 import { waitForCanonicalRenderReady } from '@/features/canonical-renderer/render-ready'
 import {
   type DocumentCommitResult,
+  type DocumentHistoryResult,
   type DocumentRevision,
   type DocumentSession,
   createDocumentSession,
@@ -21,8 +22,10 @@ import {
   createRichTextDocumentFromPlainText,
   generalLongImageResourceDefinitions,
   richTextDocumentHasMeaningfulText,
+  richTextDocumentToEditableText,
   updateRichTextDocumentText,
 } from '@/features/general-long-image'
+import { parseSmartPaste } from '@/features/smart-paste'
 import { createLocalSvgAdapter } from '@/features/local-export/local-svg-adapter'
 import {
   isRenderAbortError,
@@ -96,7 +99,13 @@ function findBlock(revision: DocumentRevision, blockId: string | undefined) {
   return revision.pages.flatMap(page => page.blocks).find(block => block.id === blockId)
 }
 
-function isCommitted(result: DocumentCommitResult): result is Extract<DocumentCommitResult, { status: 'committed' }> {
+function normalizeEditableText(text: string) {
+  return text.replaceAll('\r\n', '\n').replaceAll('\r', '\n').replace(/\n+/g, '\n').trim()
+}
+
+function isCommitted(
+  result: DocumentCommitResult | DocumentHistoryResult,
+): result is Extract<DocumentCommitResult, { status: 'committed' }> {
   return result.status === 'committed'
 }
 
@@ -414,6 +423,9 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
     if (!hasText && blockId !== undefined && existingBlock !== undefined) {
       result = currentSession.commit({ blockId, type: 'remove-block' }, { expectedRevision: currentRevision.revision })
     } else if (hasText && blockId !== undefined && existingBlock?.kind === 'rich-text') {
+      if (normalizeEditableText(richTextDocumentToEditableText(existingBlock.content)) === normalizeEditableText(text)) {
+        return
+      }
       const content = updateRichTextDocumentText(existingBlock.content, text)
       result = currentSession.commit({
         block: createRichTextBlock(blockId, content),
@@ -435,6 +447,81 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
     if (!isCommitted(result)) {
       setError(result.message)
       setPhase('unsaved')
+      return
+    }
+    setError(undefined)
+    setRevision(result.revision)
+    setPhase('saving')
+    persistCommit(result.revision, result.transaction)
+  }
+
+  function commitPaste(
+    blockId: string | undefined,
+    payload: { readonly html: string; readonly text: string },
+  ) {
+    const currentSession = session.current
+    const currentRevision = revision
+    if (!currentSession || currentRevision === undefined || conflictDraft !== undefined || conflictPreviewRevision !== undefined) {
+      return false
+    }
+
+    const parsed = parseSmartPaste(payload, {
+      createBlockId: (kind, index) => `${currentRevision.id}:paste-${currentRevision.revision + 1}-${kind}-${index + 1}`,
+    })
+    if (parsed.blocks.length === 0) {
+      return false
+    }
+
+    const location = blockId === undefined
+      ? undefined
+      : currentRevision.pages.reduce<{ pageId: string; index: number } | undefined>((found, page) => {
+        if (found !== undefined) {
+          return found
+        }
+        const index = page.blocks.findIndex(block => block.id === blockId)
+        return index < 0 ? undefined : { index, pageId: page.id }
+      }, undefined)
+    const page = location === undefined
+      ? currentRevision.pages[0]!
+      : currentRevision.pages.find(candidate => candidate.id === location.pageId)!
+    const index = location === undefined ? page.blocks.length : location.index + 1
+    const result = currentSession.commit({
+      blocks: parsed.blocks,
+      index,
+      pageId: page.id,
+      selection: {
+        blockId: parsed.blocks.at(-1)!.id,
+        pageId: page.id,
+      },
+      type: 'insert-blocks',
+    }, { expectedRevision: currentRevision.revision })
+
+    if (!isCommitted(result)) {
+      setError(result.message)
+      setPhase('unsaved')
+      return true
+    }
+    setError(undefined)
+    setRevision(result.revision)
+    setPhase('saving')
+    persistCommit(result.revision, result.transaction)
+    return true
+  }
+
+  function moveHistory(direction: 'redo' | 'undo') {
+    const currentSession = session.current
+    const currentRevision = revision
+    if (!currentSession || currentRevision === undefined || conflictDraft !== undefined || conflictPreviewRevision !== undefined) {
+      return
+    }
+    const result = direction === 'undo'
+      ? currentSession.undo({ expectedRevision: currentRevision.revision })
+      : currentSession.redo({ expectedRevision: currentRevision.revision })
+    if (!isCommitted(result)) {
+      if (result.status === 'rejected') {
+        setError(result.message)
+        setPhase('unsaved')
+      }
       return
     }
     setError(undefined)
@@ -533,6 +620,24 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
             </div>
             <div className="flex items-center gap-2">
               <button
+                aria-label="撤销"
+                className="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={!session.current?.canUndo() || conflictDraft !== undefined || conflictPreviewRevision !== undefined || phase === 'exporting'}
+                onClick={() => moveHistory('undo')}
+                type="button"
+              >
+                撤销
+              </button>
+              <button
+                aria-label="重做"
+                className="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={!session.current?.canRedo() || conflictDraft !== undefined || conflictPreviewRevision !== undefined || phase === 'exporting'}
+                onClick={() => moveHistory('redo')}
+                type="button"
+              >
+                重做
+              </button>
+              <button
                 aria-pressed={cleanPreview}
                 className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm"
                 onClick={() => setCleanPreview(true)}
@@ -627,6 +732,7 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
                 setPhase('editing')
               }
             }}
+            onRichTextPaste={(blockId, payload) => commitPaste(blockId, payload)}
             resources={resources}
             snapshot={snapshot}
           />

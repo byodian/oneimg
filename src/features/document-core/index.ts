@@ -1,5 +1,10 @@
 import type {
   Block,
+  ChecklistBlock,
+  ChecklistItem,
+  DataTableBlock,
+  DataTableColumn,
+  DataTableRow,
   DocumentPresentation,
   DocumentRevision,
   JsonValue,
@@ -209,6 +214,36 @@ export function createRichTextBlock(
   return freezeDeep(block)
 }
 
+export function createChecklistBlock(
+  id: string,
+  items: readonly ChecklistItem[],
+): ChecklistBlock {
+  const block = {
+    id,
+    items: cloneValue(items),
+    kind: 'checklist' as const,
+    version: 1 as const,
+  }
+  validateBlock(block)
+  return freezeDeep(block)
+}
+
+export function createDataTableBlock(
+  id: string,
+  columns: readonly DataTableColumn[],
+  rows: readonly DataTableRow[],
+): DataTableBlock {
+  const block = {
+    columns: cloneValue(columns),
+    id,
+    kind: 'data-table' as const,
+    rows: cloneValue(rows),
+    version: 1 as const,
+  }
+  validateBlock(block)
+  return freezeDeep(block)
+}
+
 export interface CreateUnknownBlockOptions {
   readonly id: string
   readonly originalKind: string
@@ -280,6 +315,13 @@ export function isMeaningfulDocumentRevision(revision: DocumentRevision): boolea
   return revision.pages.some(page => page.blocks.some((block) => {
     if (block.kind === 'unknown') {
       return true
+    }
+    if (block.kind === 'checklist') {
+      return block.items.some(item => item.text.trim().length > 0)
+    }
+    if (block.kind === 'data-table') {
+      return block.columns.some(column => column.label.trim().length > 0)
+        || block.rows.some(row => row.cells.some(cell => cell.trim().length > 0))
     }
     return richTextHasMeaningfulText(block.content)
   }))
@@ -661,6 +703,14 @@ function validateBlock(value: unknown): asserts value is Block {
     }
     return
   }
+  if (value.kind === 'checklist') {
+    validateChecklistBlock(value)
+    return
+  }
+  if (value.kind === 'data-table') {
+    validateDataTableBlock(value)
+    return
+  }
   if (value.kind === 'unknown') {
     if (value.version !== 1 || typeof value.originalKind !== 'string' || value.originalKind.length === 0) {
       throw new DocumentCoreError('invalid-block', 'Unknown Block metadata is invalid')
@@ -689,10 +739,12 @@ function validateRichTextNode(value: unknown): asserts value is RichTextNode {
   const allowedTypes = new Set([
     'blockquote',
     'bullet-list',
+    'code-block',
     'heading',
     'list-item',
     'ordered-list',
     'paragraph',
+    'text',
   ])
   if (!allowedTypes.has(value.type)) {
     throw new DocumentCoreError('invalid-block', `Rich Text node ${String(value.type)} is unsupported`)
@@ -724,9 +776,75 @@ function validateRichTextNode(value: unknown): asserts value is RichTextNode {
   if (value.type === 'heading' && value.level === undefined) {
     throw new DocumentCoreError('invalid-block', 'Heading requires a level')
   }
+  if (value.type === 'code-block' && value.children !== undefined) {
+    throw new DocumentCoreError('invalid-block', 'Code Block cannot contain child nodes')
+  }
+  if (value.type === 'text' && (typeof value.text !== 'string' || value.text.length === 0)) {
+    throw new DocumentCoreError('invalid-block', 'Text node requires text')
+  }
   if (value.type.endsWith('list') || value.type === 'list-item') {
     if (!Array.isArray(value.children)) {
       throw new DocumentCoreError('invalid-block', 'List nodes require children')
+    }
+  }
+}
+
+function validateChecklistBlock(value: Record<string, any>) {
+  if (value.version !== 1 || !Array.isArray(value.items) || value.items.length === 0) {
+    throw new DocumentCoreError('invalid-block', 'Checklist metadata is invalid')
+  }
+  const itemIds = new Set<string>()
+  for (const item of value.items) {
+    if (!isRecord(item) || typeof item.id !== 'string' || item.id.length === 0) {
+      throw new DocumentCoreError('invalid-block', 'Checklist item id is invalid')
+    }
+    if (itemIds.has(item.id)) {
+      throw new DocumentCoreError('duplicate-id', `Checklist item id ${item.id} is repeated`)
+    }
+    itemIds.add(item.id)
+    if (typeof item.text !== 'string' || item.text.trim().length === 0) {
+      throw new DocumentCoreError('invalid-block', 'Checklist item text must be meaningful')
+    }
+    if (typeof item.checked !== 'boolean') {
+      throw new DocumentCoreError('invalid-block', 'Checklist item state is invalid')
+    }
+  }
+}
+
+function validateDataTableBlock(value: Record<string, any>) {
+  if (value.version !== 1 || !Array.isArray(value.columns) || value.columns.length === 0) {
+    throw new DocumentCoreError('invalid-block', 'Data Table columns are invalid')
+  }
+  if (!Array.isArray(value.rows) || value.rows.length === 0) {
+    throw new DocumentCoreError('invalid-block', 'Data Table rows are invalid')
+  }
+  const columnIds = new Set<string>()
+  for (const column of value.columns) {
+    if (!isRecord(column) || typeof column.id !== 'string' || column.id.length === 0) {
+      throw new DocumentCoreError('invalid-block', 'Data Table column id is invalid')
+    }
+    if (columnIds.has(column.id)) {
+      throw new DocumentCoreError('duplicate-id', `Data Table column id ${column.id} is repeated`)
+    }
+    columnIds.add(column.id)
+    if (typeof column.label !== 'string') {
+      throw new DocumentCoreError('invalid-block', 'Data Table column label must be a string')
+    }
+  }
+  const rowIds = new Set<string>()
+  for (const row of value.rows) {
+    if (!isRecord(row) || typeof row.id !== 'string' || row.id.length === 0) {
+      throw new DocumentCoreError('invalid-block', 'Data Table row id is invalid')
+    }
+    if (rowIds.has(row.id)) {
+      throw new DocumentCoreError('duplicate-id', `Data Table row id ${row.id} is repeated`)
+    }
+    rowIds.add(row.id)
+    if (!Array.isArray(row.cells) || row.cells.length !== value.columns.length) {
+      throw new DocumentCoreError('invalid-block', 'Data Table row cells do not match its columns')
+    }
+    if (row.cells.some(cell => typeof cell !== 'string')) {
+      throw new DocumentCoreError('invalid-block', 'Data Table cells must be strings')
     }
   }
 }

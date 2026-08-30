@@ -83,6 +83,21 @@ function blockToSection(block: Block) {
       kind: 'rich-text' as const,
     }
   }
+  if (block.kind === 'checklist') {
+    return {
+      id: block.id,
+      items: block.items,
+      kind: 'checklist' as const,
+    }
+  }
+  if (block.kind === 'data-table') {
+    return {
+      columns: block.columns,
+      id: block.id,
+      kind: 'data-table' as const,
+      rows: block.rows,
+    }
+  }
   return {
     id: block.id,
     kind: 'unknown-block' as const,
@@ -129,6 +144,10 @@ export function updateRichTextDocumentText(
   }
 }
 
+export function richTextDocumentToEditableText(document: RichTextDocument) {
+  return document.children.map(node => richTextNodeToEditableText(node)).join('\n')
+}
+
 export function richTextDocumentHasMeaningfulText(document: RichTextDocument) {
   return collectRichTextText(document.children).trim().length > 0
 }
@@ -138,4 +157,15 @@ function collectRichTextText(nodes: readonly RichTextNode[]): string {
     node.text ?? '',
     ...(node.children === undefined ? [] : [collectRichTextText(node.children)]),
   ].join('')).join('')
+}
+
+function richTextNodeToEditableText(node: RichTextNode): string {
+  if (node.text !== undefined) {
+    return node.text
+  }
+  if (node.children === undefined) {
+    return ''
+  }
+  const separator = node.type === 'paragraph' || node.type === 'heading' ? '' : '\n'
+  return node.children.map(child => richTextNodeToEditableText(child)).join(separator)
 }
