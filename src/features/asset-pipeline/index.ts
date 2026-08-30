@@ -1,7 +1,6 @@
 import * as ExifReader from 'exifreader'
 import {
   abortableRenderPromise,
-  createRenderAbortError,
   throwIfRenderAborted,
 } from '@/features/rendering/cancellation'
 
@@ -582,8 +581,4 @@ export function createBrowserAssetPipeline(options: AssetPipelineOptions = {}): 
 
 export function isSupportedImageMimeType(value: string): value is SupportedImageMimeType {
   return isSupportedMimeType(value)
-}
-
-export function createAssetPipelineAbortError() {
-  return createRenderAbortError()
 }

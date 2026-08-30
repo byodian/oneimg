@@ -16,6 +16,7 @@ import {
   type AssetRecord,
   createBrowserAssetPipeline,
 } from '@/features/asset-pipeline'
+import { MediaGroupEditor } from '@/features/asset-pipeline/media-group-editor'
 import {
   type DocumentCommitResult,
   type DocumentRevision,
@@ -37,26 +38,8 @@ import {
   readPreflightImageObservations,
 } from '@/features/export-engine'
 
-type AdjustmentDraft = {
-  readonly blockId: string
-  readonly item: MediaItem
-}
-
 function isCommitted(result: DocumentCommitResult): result is Extract<DocumentCommitResult, { status: 'committed' }> {
   return result.status === 'committed'
-}
-
-function updateAdjustment(
-  adjustment: AdjustmentDraft,
-  changes: Partial<MediaItem>,
-): AdjustmentDraft {
-  return {
-    ...adjustment,
-    item: {
-      ...adjustment.item,
-      ...changes,
-    },
-  }
 }
 
 function getMediaGroup(revision: DocumentRevision) {
@@ -77,25 +60,8 @@ export function AssetPipelineScenario() {
   const [resources, setResources] = useState<ResolvedResourceSet>()
   const [readiness, setReadiness] = useState<CanonicalRenderReadiness>()
   const [imageObservations, setImageObservations] = useState<ReturnType<typeof readPreflightImageObservations>>([])
-  const [adjustment, setAdjustment] = useState<AdjustmentDraft>()
-  const [textDrafts, setTextDrafts] = useState<Record<string, { alternativeText: string; caption: string }>>({})
   const [lastTransactionType, setLastTransactionType] = useState<string>()
   const [error, setError] = useState<string>()
-
-  useEffect(() => {
-    if (adjustment === undefined) {
-      return
-    }
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') {
-        return
-      }
-      event.preventDefault()
-      setAdjustment(undefined)
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [adjustment])
 
   const assetMap = useMemo(() => new Map(assets.map(asset => [asset.id, asset])), [assets])
   const snapshot = useMemo<CanonicalRenderSnapshot>(
@@ -269,12 +235,39 @@ export function AssetPipelineScenario() {
     }
   }
 
-  function commitMediaItem(item: MediaItem, blockId: string, selection?: { readonly itemId?: string }) {
+  async function relinkFile(itemId: string, file: File) {
+    setError(undefined)
+    try {
+      const imported = await pipeline.ingest(file)
+      const current = session.current!.getRevision()
+      const currentGroup = getMediaGroup(current)
+      const item = currentGroup?.kind === 'media-group'
+        ? currentGroup.items.find(candidate => candidate.id === itemId)
+        : undefined
+      if (item === undefined) {
+        throw new Error(`Media Item ${itemId} was not found`)
+      }
+      if (!commitMediaItem({ ...item, assetId: imported.asset.id })) {
+        throw new Error('资源重新链接未提交')
+      }
+      setAssets(pipeline.list())
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason))
+    }
+  }
+
+  function commitMediaItem(item: MediaItem) {
     const current = session.current!.getRevision()
+    const currentGroup = getMediaGroup(current)
+    if (currentGroup?.kind !== 'media-group' || currentGroup.items.every(candidate => candidate.id !== item.id)) {
+      setError(`Media Item ${item.id} was not found`)
+      return false
+    }
     const commit = session.current!.commit({
-      blockId,
+      blockId: currentGroup.id,
       changes: {
         alternativeText: item.alternativeText,
+        assetId: item.assetId,
         caption: item.caption,
         featured: item.featured,
         fit: item.fit,
@@ -282,8 +275,8 @@ export function AssetPipelineScenario() {
         rotation: item.rotation,
         zoom: item.zoom,
       },
-      itemId: selection?.itemId ?? item.id,
-      selection: { blockId },
+      itemId: item.id,
+      selection: { blockId: currentGroup.id },
       type: 'update-media-item',
     }, { expectedRevision: current.revision })
     if (!isCommitted(commit)) {
@@ -295,34 +288,6 @@ export function AssetPipelineScenario() {
     return true
   }
 
-  function saveText(item: MediaItem, blockId: string) {
-    const draft = textDrafts[item.id] ?? {
-      alternativeText: item.alternativeText ?? '',
-      caption: item.caption ?? '',
-    }
-    const updated = {
-      ...item,
-      alternativeText: draft.alternativeText.trim() === '' ? undefined : draft.alternativeText,
-      caption: draft.caption.trim() === '' ? undefined : draft.caption,
-    }
-    if (commitMediaItem(updated, blockId)) {
-      setTextDrafts(current => ({ ...current, [item.id]: draft }))
-    }
-  }
-
-  function startAdjustment(item: MediaItem, blockId: string) {
-    setAdjustment({ blockId, item: { ...item, focalPoint: { ...item.focalPoint } } })
-  }
-
-  function applyAdjustment() {
-    if (adjustment === undefined) {
-      return
-    }
-    if (commitMediaItem(adjustment.item, adjustment.blockId)) {
-      setAdjustment(undefined)
-    }
-  }
-
   return (
     <main className="min-h-screen bg-slate-100 px-6 py-8 text-slate-900">
       <div className="mx-auto flex max-w-[760px] flex-col gap-4">
@@ -330,107 +295,19 @@ export function AssetPipelineScenario() {
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Asset Pipeline · Issue #38</p>
           <h1 className="mt-2 text-2xl font-semibold">导入图片并生成保真 MediaGroup</h1>
           <p className="mt-2 text-sm text-slate-600">原始文件保留在本地，预览和导出只读取同一个规范化 Render Source。</p>
-          <label className="mt-4 block rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm font-medium">
-            <span className="block">选择 JPEG、PNG 或 WebP</span>
-            <input
-              accept="image/jpeg,image/png,image/webp"
-              className="mt-2 block w-full text-sm"
-              data-testid="asset-input"
-              multiple
-              onChange={(event) => {
-                const files = Array.from(event.currentTarget.files ?? [])
-                event.currentTarget.value = ''
-                importFiles(files).catch(() => undefined)
-              }}
-              type="file"
-            />
-          </label>
         </header>
 
         {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700" data-testid="asset-error">{error}</p>}
 
-        {mediaGroup?.kind === 'media-group' && (
-          <section className="rounded-2xl bg-white p-4 shadow-sm" data-testid="media-inspector">
-            <h2 className="text-base font-semibold">图片项</h2>
-            <ul className="mt-3 grid gap-3">
-              {mediaGroup.items.map((item, index) => {
-                const textDraft = textDrafts[item.id] ?? {
-                  alternativeText: item.alternativeText ?? '',
-                  caption: item.caption ?? '',
-                }
-                return (
-                  <li className="rounded-xl border border-slate-200 p-3" key={item.id}>
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-sm font-medium">图片 {index + 1}</span>
-                      <span className="text-xs text-slate-500">{item.featured ? 'Featured' : '按导入顺序'}</span>
-                    </div>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                      <label className="text-xs text-slate-600">
-                        Caption
-                        <input
-                          aria-label={`Caption ${index + 1}`}
-                          className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm text-slate-900"
-                          onChange={event => setTextDrafts(current => ({
-                            ...current,
-                            [item.id]: { ...textDraft, caption: event.target.value },
-                          }))}
-                          value={textDraft.caption}
-                        />
-                      </label>
-                      <label className="text-xs text-slate-600">
-                        Alternative Text
-                        <input
-                          aria-label={`Alternative Text ${index + 1}`}
-                          className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm text-slate-900"
-                          onChange={event => setTextDrafts(current => ({
-                            ...current,
-                            [item.id]: { ...textDraft, alternativeText: event.target.value },
-                          }))}
-                          value={textDraft.alternativeText}
-                        />
-                      </label>
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <button className="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-medium" onClick={() => saveText(item, mediaGroup.id)} type="button">保存图片文本</button>
-                      <button className="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-medium" onClick={() => startAdjustment(item, mediaGroup.id)} type="button">调整图片 {index + 1}</button>
-                    </div>
-                  </li>
-                )
-              })}
-            </ul>
-          </section>
-        )}
-
-        {adjustment && (
-          <section className="rounded-2xl border border-indigo-200 bg-indigo-50 p-4" data-testid="media-adjustment">
-            <h2 className="text-base font-semibold">调整图片</h2>
-            <div className="mt-3 grid gap-3 sm:grid-cols-3">
-              <label className="text-xs text-slate-700">
-                焦点横向
-                <input aria-label="焦点横向" className="mt-1 w-full" max="1" min="0" onChange={event => setAdjustment(updateAdjustment(adjustment, { focalPoint: { ...adjustment.item.focalPoint, x: Number(event.target.value) } }))} step="0.01" type="range" value={adjustment.item.focalPoint.x} />
-              </label>
-              <label className="text-xs text-slate-700">
-                焦点纵向
-                <input aria-label="焦点纵向" className="mt-1 w-full" max="1" min="0" onChange={event => setAdjustment(updateAdjustment(adjustment, { focalPoint: { ...adjustment.item.focalPoint, y: Number(event.target.value) } }))} step="0.01" type="range" value={adjustment.item.focalPoint.y} />
-              </label>
-              <label className="text-xs text-slate-700">
-                缩放意图
-                <input aria-label="缩放意图" className="mt-1 w-full" max="4" min="1" onChange={event => setAdjustment(updateAdjustment(adjustment, { zoom: Number(event.target.value) }))} step="0.1" type="range" value={adjustment.item.zoom} />
-              </label>
-            </div>
-            <label className="mt-3 block text-xs text-slate-700">
-              适配方式
-              <select aria-label="适配方式" className="mt-1 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm" onChange={event => setAdjustment(updateAdjustment(adjustment, { fit: event.target.value as MediaItem['fit'] }))} value={adjustment.item.fit}>
-                <option value="cover">Cover</option>
-                <option value="contain">Contain</option>
-              </select>
-            </label>
-            <div className="mt-3 flex gap-2">
-              <button className="rounded-full bg-indigo-700 px-3 py-1.5 text-xs font-semibold text-white" onClick={applyAdjustment} type="button">完成调整</button>
-              <button className="rounded-full border border-indigo-300 bg-white px-3 py-1.5 text-xs font-medium" onClick={() => setAdjustment(undefined)} type="button">取消调整</button>
-            </div>
-          </section>
-        )}
+        <MediaGroupEditor
+          items={mediaItems}
+          onImportFiles={importFiles}
+          onRelinkItem={relinkFile}
+          onUpdateItem={commitMediaItem}
+          unresolvedItemIds={mediaItems
+            .filter(item => assetMap.get(item.assetId)?.status !== 'ready')
+            .map(item => item.id)}
+        />
 
         <section className="relative overflow-hidden rounded-2xl shadow-[0_20px_60px_rgba(24,32,57,0.14)]" data-testid="asset-preview">
           {renderResources === undefined

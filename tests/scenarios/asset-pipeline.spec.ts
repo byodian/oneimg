@@ -22,10 +22,10 @@ type GeneratedImageOptions = {
 }
 
 async function importGeneratedImages(page: Page, options: readonly GeneratedImageOptions[]) {
-  const input = page.getByTestId('asset-input')
+  const input = page.getByTestId('studio-asset-input')
   await expect(input).toBeAttached()
   await page.evaluate(async (imageOptions) => {
-    const input = document.querySelector<HTMLInputElement>('[data-testid="asset-input"]')
+    const input = document.querySelector<HTMLInputElement>('[data-testid="studio-asset-input"]')
     if (input === null) {
       throw new Error('Asset input is not mounted')
     }
@@ -117,10 +117,10 @@ test.describe('Asset Pipeline and MediaGroup contract', () => {
     await expect(page.getByTestId('media-item-1')).toBeVisible()
     await expect(page.getByTestId('media-item-1').getByText('red-blue.jpg')).toHaveCount(0)
     await page.getByRole('button', { name: '调整图片 1' }).click()
-    await expect(page.getByTestId('media-adjustment')).toBeVisible()
+    await expect(page.getByTestId('studio-media-adjustment')).toBeVisible()
     await page.getByLabel('焦点横向').fill('0.8')
     await page.getByLabel('焦点横向').press('Escape')
-    await expect(page.getByTestId('media-adjustment')).toHaveCount(0)
+    await expect(page.getByTestId('studio-media-adjustment')).toHaveCount(0)
     expect((await readResult(page)).transactionCount).toBe(initialResult.transactionCount)
 
     await page.getByRole('button', { name: '调整图片 1' }).click()
