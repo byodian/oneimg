@@ -20,11 +20,19 @@ import {
   type DocumentHistoryResult,
   type DocumentRevision,
   type DocumentSession,
+  type MediaItem,
   createDocumentSession,
+  createMediaGroupBlock,
+  createMediaItem,
   createRichTextBlock,
   createUntouchedDocumentRevision,
   isMeaningfulDocumentRevision,
 } from '@/features/document-core'
+import {
+  type AssetRecord,
+  createBrowserAssetPipeline,
+} from '@/features/asset-pipeline'
+import { MediaGroupEditor } from '@/features/asset-pipeline/media-group-editor'
 import {
   createGeneralLongImageSnapshot,
   createRichTextDocumentFromPlainText,
@@ -131,6 +139,11 @@ function findBlock(revision: DocumentRevision, blockId: string | undefined) {
   return revision.pages.flatMap(page => page.blocks).find(block => block.id === blockId)
 }
 
+function findMediaGroup(revision: DocumentRevision) {
+  const block = revision.pages.flatMap(page => page.blocks).find(candidate => candidate.kind === 'media-group')
+  return block?.kind === 'media-group' ? block : undefined
+}
+
 function normalizeEditableText(text: string) {
   return text.replaceAll('\r\n', '\n').replaceAll('\r', '\n').replace(/\n+/g, '\n').trim()
 }
@@ -235,15 +248,10 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
     ),
     [],
   )
-  const resolver = useMemo(
-    () => createBrowserResourceResolver(generalLongImageResourceDefinitions),
-    [],
-  )
-  const exportEngine = useMemo(
-    () => createStudioExportEngine(),
-    [],
-  )
+  const assetPipeline = useMemo(() => createBrowserAssetPipeline(), [])
   const [revision, setRevision] = useState<DocumentRevision>()
+  const [assets, setAssets] = useState<readonly AssetRecord[]>([])
+  const [assetImporting, setAssetImporting] = useState(false)
   const [durableRevision, setDurableRevision] = useState(0)
   const [pendingCommitRevision, setPendingCommitRevision] = useState<number>()
   const [recentCount, setRecentCount] = useState(0)
@@ -276,6 +284,34 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
   const [exportArtifact, setExportArtifact] = useState<LocalPngArtifact>()
   const [lastExport, setLastExport] = useState<StudioExportReceipt>()
 
+  const assetMap = useMemo(() => new Map(assets.map(asset => [asset.id, asset])), [assets])
+  const resourceDefinitions = useMemo(() => [
+    ...generalLongImageResourceDefinitions,
+    ...assets.flatMap((asset) => {
+      if (asset.status !== 'ready') {
+        return []
+      }
+      const source = assetPipeline.createRenderSourceDefinition(asset.id)
+      return [{
+        id: source.id,
+        kind: 'image' as const,
+        mimeType: source.mimeType,
+        source: {
+          create: source.create,
+          type: 'blob' as const,
+        },
+      }]
+    }),
+  ], [assetPipeline, assets])
+  const resolver = useMemo(
+    () => createBrowserResourceResolver(resourceDefinitions),
+    [resourceDefinitions],
+  )
+  const exportEngine = useMemo(
+    () => createStudioExportEngine(resourceDefinitions),
+    [resourceDefinitions],
+  )
+
   const displayedRevision = conflictPreviewRevision ?? revision
   const snapshot = useMemo(
     () => {
@@ -283,12 +319,12 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
         return undefined
       }
       try {
-        return createGeneralLongImageSnapshot(displayedRevision)
+        return createGeneralLongImageSnapshot(displayedRevision, { assets: assetMap })
       } catch {
         return undefined
       }
     },
-    [displayedRevision],
+    [assetMap, displayedRevision],
   )
   const contentError = displayedRevision !== undefined && snapshot === undefined ? 'invalid-document' : undefined
   const resourceSnapshot = useRef(snapshot)
@@ -312,6 +348,7 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
       return false
     }
   }, [revision])
+  const mediaGroup = revision === undefined ? undefined : findMediaGroup(revision)
 
   const preflight = useMemo(() => evaluateExportPreflight({
     contentError,
@@ -750,6 +787,163 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
     persistCommit(result.revision, result.transaction)
   }
 
+  async function importFiles(files: readonly File[]) {
+    const currentSession = session.current
+    const currentRevision = currentSession?.getRevision()
+    if (
+      files.length === 0
+      || currentSession === undefined
+      || currentRevision === undefined
+      || conflictDraft !== undefined
+      || conflictPreviewRevision !== undefined
+      || assetImporting
+    ) {
+      return
+    }
+
+    const currentGroup = findMediaGroup(currentRevision)
+    const currentItems = currentGroup?.items ?? []
+    if (files.length > 9 - currentItems.length) {
+      setError('一个 Media Group 最多保留 9 张图片；本次导入没有提交。')
+      return
+    }
+
+    setAssetImporting(true)
+    setError(undefined)
+    try {
+      const imported = await assetPipeline.ingestMany(files)
+      const nextRevision = currentSession.getRevision()
+      const nextGroup = findMediaGroup(nextRevision)
+      const nextItems = nextGroup?.items ?? []
+      if (imported.entries.length > 9 - nextItems.length) {
+        throw new Error('一个 Media Group 最多保留 9 张图片；本次导入没有提交。')
+      }
+      const existingItemIds = new Set(nextItems.map(item => item.id))
+      let nextItemNumber = nextItems.length + 1
+      const importedItems = imported.entries.map((entry, index) => {
+        let id = `media-item-${nextItemNumber}`
+        nextItemNumber += 1
+        while (existingItemIds.has(id)) {
+          id = `media-item-${nextItemNumber}`
+          nextItemNumber += 1
+        }
+        existingItemIds.add(id)
+        return createMediaItem({
+          assetId: entry.asset.id,
+          featured: nextItems.length === 0 && index === 0,
+          id,
+        })
+      })
+      const block = createMediaGroupBlock({
+        ...(nextGroup === undefined ? {} : { arrangement: nextGroup.arrangement }),
+        id: nextGroup?.id ?? 'block:asset-media-group',
+        items: [...nextItems, ...importedItems],
+      })
+      const result = nextGroup === undefined
+        ? currentSession.commit({
+          block,
+          index: nextRevision.pages[0]!.blocks.length,
+          pageId: nextRevision.pages[0]!.id,
+          type: 'insert-block',
+        }, { expectedRevision: nextRevision.revision })
+        : currentSession.commit({ block, blockId: nextGroup.id, type: 'replace-block' }, {
+          expectedRevision: nextRevision.revision,
+        })
+      if (!isCommitted(result)) {
+        throw new Error(result.message)
+      }
+      setAssets(assetPipeline.list())
+      setRevision(result.revision)
+      setPhase('saving')
+      persistCommit(result.revision, result.transaction)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason))
+      setPhase('editing')
+    } finally {
+      setAssetImporting(false)
+    }
+  }
+
+  async function relinkFile(itemId: string, file: File) {
+    const currentSession = session.current
+    const currentRevision = currentSession?.getRevision()
+    const currentGroup = currentRevision === undefined ? undefined : findMediaGroup(currentRevision)
+    if (
+      currentSession === undefined
+      || currentRevision === undefined
+      || currentGroup === undefined
+      || currentGroup.items.every(item => item.id !== itemId)
+      || conflictDraft !== undefined
+      || conflictPreviewRevision !== undefined
+      || assetImporting
+    ) {
+      return
+    }
+
+    setAssetImporting(true)
+    setError(undefined)
+    try {
+      const imported = await assetPipeline.ingest(file)
+      const nextGroup = findMediaGroup(currentSession.getRevision())
+      const item = nextGroup?.items.find(candidate => candidate.id === itemId)
+      if (item === undefined) {
+        throw new Error(`Media Item ${itemId} was not found`)
+      }
+      if (!commitMediaItem({ ...item, assetId: imported.asset.id })) {
+        throw new Error('资源重新链接未提交')
+      }
+      setAssets(assetPipeline.list())
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason))
+      setPhase('editing')
+    } finally {
+      setAssetImporting(false)
+    }
+  }
+
+  function commitMediaItem(item: MediaItem) {
+    const currentSession = session.current
+    const currentRevision = currentSession?.getRevision()
+    const currentGroup = currentRevision === undefined ? undefined : findMediaGroup(currentRevision)
+    if (
+      currentSession === undefined
+      || currentRevision === undefined
+      || currentGroup === undefined
+      || conflictDraft !== undefined
+      || conflictPreviewRevision !== undefined
+      || currentGroup.items.every(candidate => candidate.id !== item.id)
+    ) {
+      return false
+    }
+
+    const result = currentSession.commit({
+      blockId: currentGroup.id,
+      changes: {
+        alternativeText: item.alternativeText,
+        assetId: item.assetId,
+        caption: item.caption,
+        featured: item.featured,
+        fit: item.fit,
+        focalPoint: item.focalPoint,
+        rotation: item.rotation,
+        zoom: item.zoom,
+      },
+      itemId: item.id,
+      selection: { blockId: currentGroup.id },
+      type: 'update-media-item',
+    }, { expectedRevision: currentRevision.revision })
+    if (!isCommitted(result)) {
+      setError(result.message)
+      setPhase('unsaved')
+      return false
+    }
+    setError(undefined)
+    setRevision(result.revision)
+    setPhase('saving')
+    persistCommit(result.revision, result.transaction)
+    return true
+  }
+
   function commitPresentation(change: Parameters<typeof updateGeneralLongImagePresentation>[1]) {
     const currentSession = session.current
     const currentRevision = revision
@@ -834,6 +1028,15 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
       setRenderReadiness(undefined)
       setRenderReadyRetryVersion(version => version + 1)
       return
+    }
+
+    if (action.kind === 'relink-resource' && action.resourceId !== undefined) {
+      const input = Array.from(document.querySelectorAll<HTMLInputElement>('[data-testid^="studio-relink-input-"]'))
+        .find(candidate => candidate.dataset.assetId === action.resourceId)
+      if (input !== undefined) {
+        input.click()
+        return
+      }
     }
 
     if (action.resourceId !== undefined) {
@@ -1122,6 +1325,18 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
         </div>
 
         {error && <p data-testid="studio-error" className="m-0 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+        {!cleanPreview && (
+          <MediaGroupEditor
+            disabled={assetImporting || phase === 'exporting' || conflictDraft !== undefined || conflictPreviewRevision !== undefined}
+            items={mediaGroup?.items ?? []}
+            onImportFiles={importFiles}
+            onRelinkItem={relinkFile}
+            onUpdateItem={commitMediaItem}
+            unresolvedItemIds={mediaGroup?.items
+              .filter(item => assetMap.get(item.assetId)?.status !== 'ready')
+              .map(item => item.id)}
+          />
+        )}
         {pendingCommitRevision !== undefined && phase === 'unsaved' && (
           <div className="flex items-center justify-between gap-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-950" data-testid="studio-save-recovery">
             <p className="m-0">第 {pendingCommitRevision} 个版本还没有保存到本地。</p>

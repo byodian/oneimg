@@ -3,6 +3,10 @@ import type {
   DataTableColumn,
   DataTableRow,
   Density,
+  MediaArrangement,
+  MediaFit,
+  MediaRotation,
+  NormalizedPoint,
   PageFormat,
   RichTextDocument,
 } from '@/features/document-core'
@@ -69,6 +73,32 @@ export interface MediaSection {
   }
 }
 
+export interface CanonicalMediaItem {
+  readonly alternativeText?: string
+  readonly assetId: string
+  readonly caption?: string
+  readonly featured: boolean
+  readonly fit: MediaFit
+  readonly focalPoint: NormalizedPoint
+  readonly id: string
+  readonly intrinsicDimensions?: {
+    readonly height: number
+    readonly width: number
+  }
+  readonly resourceId?: CanonicalResourceId
+  readonly rotation: MediaRotation
+  readonly status: 'ready' | 'unresolved'
+  readonly zoom: number
+}
+
+export interface MediaGroupSection {
+  readonly arrangement: MediaArrangement
+  readonly caption?: string
+  readonly id: string
+  readonly items: readonly CanonicalMediaItem[]
+  readonly kind: 'media-group'
+}
+
 export interface SummarySection {
   readonly id: string
   readonly kind: 'summary'
@@ -109,6 +139,7 @@ export type CanonicalSection =
   | FeatureGridSection
   | ChecklistSection
   | DataTableSection
+  | MediaGroupSection
   | MediaSection
   | RichTextSection
   | SummarySection
@@ -126,6 +157,7 @@ export interface CanonicalRenderSnapshot {
   readonly stylePackId: string
   readonly localCapability: CanonicalLocalCapability
   readonly sensitive?: boolean
+  readonly unresolvedResourceIds?: readonly CanonicalResourceId[]
   readonly locale: string
   readonly direction: 'ltr' | 'rtl'
   readonly referenceViewport: ReferenceViewport
@@ -141,6 +173,13 @@ export function collectSnapshotResourceIds(snapshot: CanonicalRenderSnapshot) {
   for (const section of snapshot.document.sections) {
     if (section.kind === 'media') {
       resourceIds.add(section.image.resourceId)
+    }
+    if (section.kind === 'media-group') {
+      for (const item of section.items) {
+        if (item.resourceId !== undefined && item.status === 'ready') {
+          resourceIds.add(item.resourceId)
+        }
+      }
     }
   }
 

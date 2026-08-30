@@ -52,6 +52,14 @@ An Unresolved Asset preserves its owning Media Item or other semantic reference,
 
 Relinking replaces the unavailable byte source while retaining semantic placement. If the dimensions or orientation differ, the Canonical Preview visibly recomputes the framing and becomes Render Ready before export. Removing the item is an ordinary reversible Document change, not an export-time omission.
 
+## Slice 12 implementation
+
+Issue #38 adds the first browser Asset Pipeline vertical slice. `BrowserAssetPipeline` content-addresses JPEG, PNG, and WebP input, keeps a private immutable copy of the Asset Original, and creates a full-resolution PNG Render Source after decoding. JPEG EXIF segments are removed from the decode copy before orientation is applied, so EXIF correction occurs exactly once; the Original remains unchanged. The resulting metadata records raw and normalized dimensions, top-left orientation, sRGB interpretation, and alpha treatment.
+
+Studio imports preserve file order in one Media Group and commit a multi-file selection as one Document transaction. The Document contains only Asset references and Media Item intent—Focal Point, zoom, fit, rotation, Featured state, Caption, and Alternative Text. The Canonical Renderer and the local SVG export adapter both resolve the same Render Source definition, so export does not read the original file or a preview-only Blob URL. A transient image adjustment can be canceled or committed as one transaction, and Escape cancels it without touching history.
+
+An invalid or missing source remains an Unresolved Asset in its Media Item position. Preflight exposes a relink action and blocks local export until every referenced item resolves; it never drops the item or promotes its filename to visible Caption. Asset Originals and the in-memory Render Sources belong to the active browser session in this slice. Durable Asset-store hydration on document restore and OneIMG Package asset portability remain owned by the later storage and package slices.
+
 ## Privacy and output metadata
 
 Asset Originals, Render Sources, derivatives, filenames, metadata, and local content digests stay on device unless a specific remote operation is authorized. High-Fidelity Export transfers only the Render Sources and semantic metadata referenced by its minimal Export Snapshot, using opaque Job identifiers.

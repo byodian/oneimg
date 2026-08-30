@@ -8,6 +8,7 @@ import type {
   RichTextDocument,
   RichTextNode,
 } from '@/features/document-core'
+import type { AssetRecord } from '@/features/asset-pipeline'
 import type { BrowserResourceDefinition } from '@/features/canonical-renderer/resource-resolver'
 import type {
   CanonicalLocalCapability,
@@ -414,11 +415,19 @@ export const generalLongImageResourceDefinitions = [
   fontResource(119),
 ] as const satisfies readonly BrowserResourceDefinition[]
 
+export interface GeneralLongImageSnapshotOptions {
+  readonly assets?: ReadonlyMap<string, AssetRecord>
+}
+
 export function createGeneralLongImageSnapshot(
   revision: DocumentRevision,
+  options: GeneralLongImageSnapshotOptions = {},
 ): CanonicalRenderSnapshot {
   validateDocumentRevision(revision)
-  const sections = revision.pages.flatMap(page => page.blocks.map(blockToSection))
+  const sections = revision.pages.flatMap(page => page.blocks.map(block => blockToSection(block, options.assets)))
+  const unresolvedResourceIds = Array.from(new Set(sections.flatMap(section => section.kind !== 'media-group'
+    ? []
+    : section.items.filter(item => item.status === 'unresolved').map(item => item.assetId))))
   const page = revision.pages[0]!
   const resolvedPresentation = resolveGeneralLongImagePresentation({
     ...revision.presentation,
@@ -442,11 +451,12 @@ export function createGeneralLongImageSnapshot(
     snapshotId: `general-long-image:${revision.id}:r${revision.revision}`,
     stylePackId: GENERAL_LONG_IMAGE_STYLE_PACK_ID,
     theme: resolvedPresentation.theme.theme,
+    ...(unresolvedResourceIds.length === 0 ? {} : { unresolvedResourceIds }),
     ...(revision.presentation.sensitive === undefined ? {} : { sensitive: revision.presentation.sensitive }),
   }
 }
 
-function blockToSection(block: Block) {
+function blockToSection(block: Block, assets?: ReadonlyMap<string, AssetRecord>) {
   if (block.kind === 'rich-text') {
     return {
       content: block.content,
@@ -467,6 +477,35 @@ function blockToSection(block: Block) {
       id: block.id,
       kind: 'data-table' as const,
       rows: block.rows,
+    }
+  }
+  if (block.kind === 'media-group') {
+    return {
+      arrangement: block.arrangement,
+      ...(block.caption === undefined ? {} : { caption: block.caption }),
+      id: block.id,
+      items: block.items.map((item) => {
+        const asset = assets?.get(item.assetId)
+        return {
+          assetId: item.assetId,
+          featured: item.featured,
+          fit: item.fit,
+          focalPoint: item.focalPoint,
+          id: item.id,
+          ...(item.alternativeText === undefined ? {} : { alternativeText: item.alternativeText }),
+          ...(item.caption === undefined ? {} : { caption: item.caption }),
+          ...(asset?.status === 'ready'
+            ? {
+                intrinsicDimensions: asset.renderSource.metadata.intrinsicDimensions,
+                resourceId: asset.renderSource.id,
+              }
+            : {}),
+          rotation: item.rotation,
+          status: asset?.status === 'ready' ? 'ready' as const : 'unresolved' as const,
+          zoom: item.zoom,
+        }
+      }),
+      kind: 'media-group' as const,
     }
   }
   return {

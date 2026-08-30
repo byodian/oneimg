@@ -81,6 +81,8 @@ Cropping is direct and non-destructive on the Canonical Preview. Entering “调
 
 OneIMG stores Focal Point, zoom intent, and fit so a different Template or Page Format can compute a safe crop from the Render Source. The available treatment actions are Complete, Cancel, Reset, Replace, Delete, set Featured, switch Cover/Contain, and correct rotation in 90-degree increments.
 
+Issue #38's first Studio implementation exposes the constrained Media Group inspector: JPEG, PNG, and WebP files can be added in order; Caption and Alternative Text are edited independently; and Focal Point, zoom, and fit changes are staged until Complete or Cancel. A damaged import remains visible as an Unresolved Asset and keeps export blocked. The inspector's re-link path changes only the Asset reference, preserving the Media Item identity and its authored text.
+
 Filters, retouching, perspective correction, decorative masks without Template support, and destructive pixel edits are outside the product boundary. Replace preserves the Media Item's semantic position and text unless the user explicitly resets them.
 
 ## Captions and accessibility text

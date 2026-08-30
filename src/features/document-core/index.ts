@@ -9,6 +9,12 @@ import type {
   DocumentPresentation,
   DocumentRevision,
   JsonValue,
+  MediaArrangement,
+  MediaFit,
+  MediaGroupBlock,
+  MediaItem,
+  MediaRotation,
+  NormalizedPoint,
   Page,
   PageFormat,
   RichTextBlock,
@@ -116,6 +122,15 @@ export interface SetDocumentNameIntent extends IntentBase {
   readonly type: 'set-document-name'
 }
 
+export type MediaItemChanges = Partial<Pick<MediaItem, 'alternativeText' | 'assetId' | 'caption' | 'featured' | 'fit' | 'focalPoint' | 'rotation' | 'zoom'>>
+
+export interface UpdateMediaItemIntent extends IntentBase {
+  readonly blockId: string
+  readonly changes: MediaItemChanges
+  readonly itemId: string
+  readonly type: 'update-media-item'
+}
+
 export type DocumentIntent =
   | InsertBlockIntent
   | InsertBlocksIntent
@@ -124,6 +139,7 @@ export type DocumentIntent =
   | ReplaceBlockIntent
   | SetDocumentNameIntent
   | SetPresentationIntent
+  | UpdateMediaItemIntent
 
 export interface EditTransaction {
   readonly documentId: string
@@ -247,6 +263,56 @@ export function createDataTableBlock(
   return freezeDeep(block)
 }
 
+export interface CreateMediaItemOptions {
+  readonly alternativeText?: string
+  readonly assetId: string
+  readonly caption?: string
+  readonly featured?: boolean
+  readonly fit?: MediaFit
+  readonly focalPoint?: NormalizedPoint
+  readonly id: string
+  readonly rotation?: MediaRotation
+  readonly zoom?: number
+}
+
+export function createMediaItem(options: CreateMediaItemOptions): MediaItem {
+  const item = {
+    alternativeText: options.alternativeText,
+    assetId: options.assetId,
+    caption: options.caption,
+    featured: options.featured ?? false,
+    fit: options.fit ?? 'cover',
+    focalPoint: cloneValue(options.focalPoint ?? { x: 0.5, y: 0.5 }),
+    id: options.id,
+    rotation: options.rotation ?? 0,
+    zoom: options.zoom ?? 1,
+  }
+  const normalized = removeUndefinedProperties(item)
+  validateMediaItem(normalized)
+  return freezeDeep(normalized)
+}
+
+export interface CreateMediaGroupBlockOptions {
+  readonly arrangement?: MediaArrangement
+  readonly caption?: string
+  readonly id: string
+  readonly items: readonly MediaItem[]
+}
+
+export function createMediaGroupBlock(options: CreateMediaGroupBlockOptions): MediaGroupBlock {
+  const block = {
+    arrangement: options.arrangement ?? 'auto',
+    caption: options.caption,
+    id: options.id,
+    items: cloneValue(options.items),
+    kind: 'media-group' as const,
+    version: 1 as const,
+  }
+  const normalized = removeUndefinedProperties(block)
+  validateBlock(normalized)
+  return freezeDeep(normalized)
+}
+
 export interface CreateUnknownBlockOptions {
   readonly id: string
   readonly originalKind: string
@@ -327,6 +393,9 @@ export function isMeaningfulDocumentRevision(revision: DocumentRevision): boolea
     if (block.kind === 'data-table') {
       return block.columns.some(column => column.label.trim().length > 0)
         || block.rows.some(row => row.cells.some(cell => cell.trim().length > 0))
+    }
+    if (block.kind === 'media-group') {
+      return block.items.length > 0
     }
     return richTextHasMeaningfulText(block.content)
   }))
@@ -512,6 +581,8 @@ function applyIntent(current: DocumentRevision, intent: DocumentIntent): Documen
         throw new DocumentCoreError('invalid-intention', 'Document name must be a string')
       }
       return { ...next, documentName: intent.documentName }
+    case 'update-media-item':
+      return applyUpdateMediaItem(next, intent)
     default:
       return assertNever(intent)
   }
@@ -592,6 +663,47 @@ function applyRemoveBlock(current: DocumentRevision, blockId: string): DocumentR
   })
   if (!removed) {
     throw new DocumentCoreError('not-found', `Block ${blockId} was not found`)
+  }
+  return { ...current, pages }
+}
+
+function applyUpdateMediaItem(
+  current: DocumentRevision,
+  intent: Pick<UpdateMediaItemIntent, 'blockId' | 'changes' | 'itemId'>,
+): DocumentRevision {
+  let updated = false
+  let foundBlock = false
+  const pages = current.pages.map(page => ({
+    ...page,
+    blocks: page.blocks.map((block) => {
+      if (block.id !== intent.blockId) {
+        return block
+      }
+      foundBlock = true
+      if (block.kind !== 'media-group') {
+        throw new DocumentCoreError('invalid-intention', `Block ${intent.blockId} is not a Media Group`)
+      }
+      const itemIndex = block.items.findIndex(item => item.id === intent.itemId)
+      if (itemIndex < 0) {
+        throw new DocumentCoreError('not-found', `Media Item ${intent.itemId} was not found`)
+      }
+      const nextItems = block.items.map((item, index) => index === itemIndex
+        ? removeUndefinedProperties({ ...item, ...cloneValue(intent.changes) })
+        : item)
+      const nextBlock = {
+        ...block,
+        items: nextItems,
+      }
+      validateBlock(nextBlock)
+      updated = true
+      return nextBlock
+    }),
+  }))
+  if (!foundBlock) {
+    throw new DocumentCoreError('not-found', `Block ${intent.blockId} was not found`)
+  }
+  if (!updated) {
+    throw new DocumentCoreError('not-found', `Media Item ${intent.itemId} was not found`)
   }
   return { ...current, pages }
 }
@@ -723,6 +835,10 @@ function validateBlock(
   }
   if (value.kind === 'data-table') {
     validateDataTableBlock(value)
+    return
+  }
+  if (value.kind === 'media-group') {
+    validateMediaGroupBlock(value)
     return
   }
   if (value.kind === 'unknown') {
@@ -863,6 +979,70 @@ function validateDataTableBlock(value: Record<string, any>) {
   }
 }
 
+function validateMediaGroupBlock(value: Record<string, any>) {
+  if (value.version !== 1 || !Array.isArray(value.items) || value.items.length < 1 || value.items.length > 9) {
+    throw new DocumentCoreError('invalid-block', 'Media Group must contain between one and nine items')
+  }
+  if (!['auto', 'balanced', 'featured', 'margin-album', 'sequence'].includes(value.arrangement)) {
+    throw new DocumentCoreError('invalid-block', 'Media Group arrangement is invalid')
+  }
+  if (value.caption !== undefined && typeof value.caption !== 'string') {
+    throw new DocumentCoreError('invalid-block', 'Media Group caption must be a string')
+  }
+  const itemIds = new Set<string>()
+  let featuredCount = 0
+  for (const item of value.items) {
+    validateMediaItem(item)
+    if (itemIds.has(item.id)) {
+      throw new DocumentCoreError('duplicate-id', `Media Item id ${item.id} is repeated`)
+    }
+    itemIds.add(item.id)
+    if (item.featured) {
+      featuredCount += 1
+    }
+  }
+  if (featuredCount > 1) {
+    throw new DocumentCoreError('invalid-block', 'Media Group can feature at most one item')
+  }
+}
+
+function validateMediaItem(value: unknown): asserts value is MediaItem {
+  if (!isRecord(value)) {
+    throw new DocumentCoreError('invalid-block', 'Media Item must be an object')
+  }
+  assertNonEmptyString(value.id, 'Media Item id')
+  assertNonEmptyString(value.assetId, 'Media Item Asset reference')
+  if (value.caption !== undefined && typeof value.caption !== 'string') {
+    throw new DocumentCoreError('invalid-block', 'Media Item caption must be a string')
+  }
+  if (value.alternativeText !== undefined && typeof value.alternativeText !== 'string') {
+    throw new DocumentCoreError('invalid-block', 'Media Item Alternative Text must be a string')
+  }
+  if (typeof value.featured !== 'boolean') {
+    throw new DocumentCoreError('invalid-block', 'Media Item Featured state is invalid')
+  }
+  if (value.fit !== 'cover' && value.fit !== 'contain') {
+    throw new DocumentCoreError('invalid-block', 'Media Item fit is invalid')
+  }
+  if (!isRecord(value.focalPoint)
+    || typeof value.focalPoint.x !== 'number'
+    || typeof value.focalPoint.y !== 'number'
+    || !Number.isFinite(value.focalPoint.x)
+    || !Number.isFinite(value.focalPoint.y)
+    || value.focalPoint.x < 0
+    || value.focalPoint.x > 1
+    || value.focalPoint.y < 0
+    || value.focalPoint.y > 1) {
+    throw new DocumentCoreError('invalid-block', 'Media Item Focal Point must use normalized coordinates')
+  }
+  if (value.rotation !== 0 && value.rotation !== 90 && value.rotation !== 180 && value.rotation !== 270) {
+    throw new DocumentCoreError('invalid-block', 'Media Item rotation must be a right angle')
+  }
+  if (typeof value.zoom !== 'number' || !Number.isFinite(value.zoom) || value.zoom < 1 || value.zoom > 4) {
+    throw new DocumentCoreError('invalid-block', 'Media Item zoom must be between 1 and 4')
+  }
+}
+
 function validateRichTextMark(value: unknown): asserts value is RichTextMark {
   if (!isRecord(value) || typeof value.type !== 'string') {
     throw new DocumentCoreError('invalid-block', 'Rich Text mark is invalid')
@@ -891,6 +1071,12 @@ function assertNonEmptyString(value: unknown, label: string): asserts value is s
 
 function assertNever(value: never): never {
   throw new DocumentCoreError('invalid-intention', `Unsupported editing intention ${String(value)}`)
+}
+
+function removeUndefinedProperties<T extends Record<string, unknown>>(value: T): T {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, child]) => child !== undefined),
+  ) as T
 }
 
 function isRecord(value: unknown): value is Record<string, any> {

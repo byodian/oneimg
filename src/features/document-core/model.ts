@@ -89,6 +89,36 @@ export interface DataTableBlock {
   readonly version: 1
 }
 
+export type MediaArrangement = 'auto' | 'balanced' | 'featured' | 'margin-album' | 'sequence'
+export type MediaFit = 'contain' | 'cover'
+export type MediaRotation = 0 | 90 | 180 | 270
+
+export interface NormalizedPoint {
+  readonly x: number
+  readonly y: number
+}
+
+export interface MediaItem {
+  readonly alternativeText?: string
+  readonly assetId: string
+  readonly caption?: string
+  readonly featured: boolean
+  readonly fit: MediaFit
+  readonly focalPoint: NormalizedPoint
+  readonly id: string
+  readonly rotation: MediaRotation
+  readonly zoom: number
+}
+
+export interface MediaGroupBlock {
+  readonly arrangement: MediaArrangement
+  readonly caption?: string
+  readonly id: string
+  readonly items: readonly MediaItem[]
+  readonly kind: 'media-group'
+  readonly version: 1
+}
+
 export interface UnknownBlock {
   readonly id: string
   readonly kind: 'unknown'
@@ -98,7 +128,7 @@ export interface UnknownBlock {
   readonly version: 1
 }
 
-export type Block = ChecklistBlock | DataTableBlock | RichTextBlock | UnknownBlock
+export type Block = ChecklistBlock | DataTableBlock | MediaGroupBlock | RichTextBlock | UnknownBlock
 
 export type BlockCatalogVersion = 'block-catalog@1' | 'block-catalog@2'
 

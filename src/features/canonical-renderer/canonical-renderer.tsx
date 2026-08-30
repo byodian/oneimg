@@ -1,6 +1,6 @@
 import type { CSSProperties, ClipboardEvent, FormEvent, KeyboardEvent } from 'react'
 import { memo, useLayoutEffect, useRef } from 'react'
-import type { CanonicalRenderSnapshot, CanonicalSection } from './model'
+import type { CanonicalMediaItem, CanonicalRenderSnapshot, CanonicalSection } from './model'
 import type { ResolvedResourceSet } from './resource-resolver'
 import { publishCanonicalPaginationDiagnostics } from './render-ready'
 import { canonicalStylePack } from './style-pack'
@@ -192,6 +192,70 @@ function renderDataTableSection(section: Extract<CanonicalSection, { kind: 'data
   )
 }
 
+function mediaItemStyle(item: CanonicalMediaItem): CSSProperties {
+  return {
+    objectFit: item.fit,
+    objectPosition: `${item.focalPoint.x * 100}% ${item.focalPoint.y * 100}%`,
+    transform: `rotate(${item.rotation}deg) scale(${item.zoom})`,
+    transformOrigin: `${item.focalPoint.x * 100}% ${item.focalPoint.y * 100}%`,
+  }
+}
+
+function renderMediaGroupSection(
+  section: Extract<CanonicalSection, { kind: 'media-group' }>,
+  resources: ResolvedResourceSet,
+) {
+  return (
+    <section className="oneimg-section oneimg-media-group-section" data-block-id={section.id} data-block-kind="media-group" data-slice-boundary="section" key={section.id}>
+      {section.caption && (
+        <div className="oneimg-media-group-header">
+          <p className="oneimg-media-group-caption">{section.caption}</p>
+        </div>
+      )}
+      <div className="oneimg-media-group" data-arrangement={section.arrangement} data-keep-together="true" data-slice-id={`${section.id}:items`}>
+        {section.items.map(item => (
+          <figure
+            className="oneimg-media-item"
+            data-asset-id={item.assetId}
+            data-featured={item.featured ? 'true' : undefined}
+            data-media-item-id={item.id}
+            data-media-status={item.status}
+            data-resource-id={item.resourceId}
+            data-testid={item.id}
+            key={item.id}
+          >
+            {item.status === 'ready' && item.resourceId !== undefined ? (
+              // Canonical export serializes this native image and the same normalized Render Source.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                alt={item.alternativeText ?? ''}
+                className="oneimg-media-item-image"
+                data-focal-point={`${item.focalPoint.x},${item.focalPoint.y}`}
+                data-resource-id={item.resourceId}
+                height={240}
+                src={resources.get(item.resourceId).objectUrl}
+                style={mediaItemStyle(item)}
+                width={320}
+              />
+            ) : (
+              <div
+                aria-label={`资源 ${item.assetId} 尚未解析`}
+                className="oneimg-unresolved-media"
+                data-unresolved-asset="true"
+                role="img"
+              >
+                <span>图片待恢复</span>
+                <small>{item.assetId}</small>
+              </div>
+            )}
+            {item.caption && <figcaption data-media-caption="true">{item.caption}</figcaption>}
+          </figure>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 function renderEmptyEditor(
   mode: CanonicalRendererProps['mode'],
   handlers: RichTextEditingHandlers,
@@ -267,6 +331,8 @@ function renderSection(
       return renderChecklistSection(section)
     case 'data-table':
       return renderDataTableSection(section)
+    case 'media-group':
+      return renderMediaGroupSection(section, resources)
     case 'summary':
       return (
         <section className="oneimg-section oneimg-summary" data-block-id={section.id} data-slice-boundary="section" key={section.id}>

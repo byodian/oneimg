@@ -90,7 +90,8 @@ function pushFinding(findings: PreflightFinding[], finding: PreflightFinding) {
 
 function resourceTargetId(snapshot: CanonicalRenderSnapshot | undefined, resourceId: string) {
   return snapshot?.document.sections.find(section => (
-    section.kind === 'media' && section.image.resourceId === resourceId
+    (section.kind === 'media' && section.image.resourceId === resourceId)
+      || (section.kind === 'media-group' && section.items.some(item => item.assetId === resourceId || item.resourceId === resourceId))
   ))?.id
 }
 
@@ -133,7 +134,10 @@ export function evaluateExportPreflight(input: ExportPreflightInput): ExportPref
     })
   }
 
-  const unresolvedResourceIds = Array.from(new Set(input.unresolvedResourceIds ?? []))
+  const unresolvedResourceIds = Array.from(new Set([
+    ...(input.unresolvedResourceIds ?? []),
+    ...(snapshot?.unresolvedResourceIds ?? []),
+  ]))
   if (unresolvedResourceIds.length > 0) {
     for (const resourceId of unresolvedResourceIds) {
       const targetId = resourceTargetId(snapshot, resourceId)
