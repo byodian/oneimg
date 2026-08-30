@@ -335,6 +335,146 @@ test.describe('Canonical Renderer local export contract', () => {
       && repeated.svgDataUrlBytes <= 512 * 1024
     ))).toBe(true)
   })
+
+  test('runs the production Export Engine against the full WYSIWYG fixture', async ({ page }) => {
+    await page.goto('/scenario/export-engine-wysiwyg')
+
+    const root = page.getByTestId('canonical-preview').locator('[data-oneimg-render-root]')
+    await expect(root).toBeVisible()
+    await expect(root).toHaveAttribute('data-render-ready', 'true')
+    await expect(root).toHaveAttribute('data-snapshot-id', 'canonical-wysiwyg-fixture-v1')
+    await expect(root).toHaveAttribute('data-style-pack', 'oneimg-foundation@3')
+    await expect(root.getByRole('heading', { name: '所见即所得' })).toBeVisible()
+    await expect(root.getByText('Canonical preview, local PNG.')).toBeVisible()
+    await expect(root.locator('section')).toHaveCount(5)
+    await expect(root.locator('.oneimg-unknown-block')).toContainText('类型 timeline')
+    await expect(root.locator('.oneimg-unknown-fallback')).toContainText('保留内容')
+    await expect(root.getByRole('img', { name: '蓝色山峰与橙色日光' })).toHaveJSProperty('naturalWidth', 904)
+    await expect(root.locator('[data-layout="grid"]')).toHaveCSS('display', 'grid')
+    await expect(root.locator('[data-layout="flex"]')).toHaveCSS('display', 'flex')
+    await expect(root.locator('[data-surface="rounded"]')).toHaveCSS('border-radius', '24px')
+    const previewPng = await root.screenshot({ animations: 'disabled' })
+    const downloadPromise = page.waitForEvent('download')
+    await page.getByRole('button', { name: '导出本地 PNG' }).click()
+    const download = await downloadPromise
+    const downloadPath = await download.path()
+    if (!downloadPath) {
+      throw new Error('Playwright did not expose the Export Engine PNG path')
+    }
+    const exportedPng = await readFile(downloadPath)
+    expect(download.suggestedFilename()).toBe('oneimg-canonical-wysiwyg-fixture-v1.png')
+
+    const diagnostics = JSON.parse(await page.getByTestId('export-diagnostics').textContent() ?? '{}') as {
+      adapterId: string
+      embeddedImageCount: number
+      exportFingerprint: string
+      geometry: Array<{ height: number; id: string; width: number; x: number; y: number }>
+      previewFingerprint: string
+      snapshotId: string
+      source: string
+    }
+    expect(diagnostics).toMatchObject({
+      adapterId: 'local-svg-foreign-object@1',
+      embeddedImageCount: 1,
+      snapshotId: 'canonical-wysiwyg-fixture-v1',
+      source: 'canonical-svg-foreign-object',
+    })
+    expect(diagnostics.exportFingerprint).toBe(diagnostics.previewFingerprint)
+
+    const previewGeometry = await root.evaluate((element) => {
+      const rootRect = element.getBoundingClientRect()
+      return Array.from(element.querySelectorAll<HTMLElement>('[data-block-id], [data-resource-id]'))
+        .map((block) => {
+          const rect = block.getBoundingClientRect()
+          return {
+            height: rect.height,
+            id: block.dataset.blockId ?? block.dataset.resourceId ?? '',
+            width: rect.width,
+            x: rect.left - rootRect.left,
+            y: rect.top - rootRect.top,
+          }
+        })
+    })
+    expect(diagnostics.geometry.map(geometry => geometry.id)).toEqual(previewGeometry.map(geometry => geometry.id))
+    for (let index = 0; index < previewGeometry.length; index += 1) {
+      const geometry = previewGeometry[index]
+      const exportedGeometry = diagnostics.geometry[index]
+      expect(Math.abs(exportedGeometry.x - geometry.x)).toBeLessThanOrEqual(1)
+      expect(Math.abs(exportedGeometry.y - geometry.y)).toBeLessThanOrEqual(1)
+      expect(Math.abs(exportedGeometry.width - geometry.width)).toBeLessThanOrEqual(1)
+      expect(Math.abs(exportedGeometry.height - geometry.height)).toBeLessThanOrEqual(1)
+    }
+
+    const comparison = await comparePngsInBrowser(page, previewPng, exportedPng)
+    expect(comparison.exportedWidth).toBe(comparison.previewWidth)
+    expect(comparison.exportedHeight).toBe(comparison.previewHeight)
+    expect(comparison.previewWidth).toBe(640)
+    // The structural assertions above are release-blocking; this calibrated
+    // pixel allowance covers Chromium's text/shadow antialiasing differences.
+    expect(comparison.materialPixelRatio).toBeLessThanOrEqual(0.05)
+    expect(comparison.meanChannelDelta).toBeLessThanOrEqual(4)
+    await expect(page.getByTestId('export-status')).toHaveText('已完成')
+    await expect(page.locator('[data-oneimg-inert-render-session]')).toHaveCount(0)
+  })
+
+  test('runs the segmented Page path through the production Export Engine', async ({ page }) => {
+    await page.goto('/scenario/export-engine-long')
+
+    const root = page.getByTestId('canonical-preview').locator('[data-oneimg-render-root]')
+    await expect(root).toBeVisible()
+    await expect(root).toHaveAttribute('data-render-ready', 'true')
+    await expect(root.locator('img')).toHaveCount(20)
+    const previewPng = await root.screenshot({ animations: 'disabled' })
+    const downloadPromise = page.waitForEvent('download')
+    await page.getByRole('button', { name: '导出本地 PNG' }).click()
+    const download = await downloadPromise
+    const downloadPath = await download.path()
+    if (!downloadPath) {
+      throw new Error('Playwright did not expose the segmented Export Engine path')
+    }
+    const exportedZip = await JSZip.loadAsync(await readFile(downloadPath))
+    expect(download.suggestedFilename()).toBe('oneimg-canonical-long-resource-fixture-v1.zip')
+    const diagnostics = JSON.parse(await page.getByTestId('export-diagnostics').textContent() ?? '{}') as {
+      format: string
+      segmentCount: number
+      segmented: boolean
+      segmentPlan: Array<{ height: number; y: number }>
+    }
+    const entries = Object.keys(exportedZip.files).filter(name => name.endsWith('.png')).sort()
+    expect(diagnostics).toMatchObject({ format: 'zip', segmented: true })
+    expect(diagnostics.segmentCount).toBeGreaterThan(1)
+    expect(entries).toHaveLength(diagnostics.segmentCount)
+    expect(diagnostics.segmentPlan).toHaveLength(diagnostics.segmentCount)
+    for (let index = 1; index < diagnostics.segmentPlan.length; index += 1) {
+      const previous = diagnostics.segmentPlan[index - 1]
+      const current = diagnostics.segmentPlan[index]
+      expect(current.y).toBe(previous.y + previous.height)
+    }
+    const rootHeight = await root.evaluate(element => element.getBoundingClientRect().height)
+    const lastSegment = diagnostics.segmentPlan.at(-1)
+    expect(lastSegment).toBeDefined()
+    expect(lastSegment!.y + lastSegment!.height).toBe(Math.ceil(rootHeight))
+    const segmentBuffers = await Promise.all(entries.map(async (name) => {
+      const entry = exportedZip.file(name)
+      if (!entry) {
+        throw new Error(`Missing ZIP entry ${name}`)
+      }
+      return Buffer.from(await entry.async('nodebuffer'))
+    }))
+    expect(segmentBuffers.map(readPngDimensions)).toEqual(diagnostics.segmentPlan.map(segment => ({
+      height: segment.height,
+      width: 640,
+    })))
+    const edgeComparison = await compareSegmentEdgesInBrowser(
+      page,
+      previewPng,
+      segmentBuffers,
+      diagnostics.segmentPlan,
+    )
+    expect(edgeComparison.meanChannelDelta).toBeLessThanOrEqual(12)
+    await expect(page.getByTestId('export-status')).toHaveText('已完成')
+    await expect(page.locator('[data-oneimg-inert-render-session]')).toHaveCount(0)
+  })
 })
 
 test.describe('Long-page Resource Resolver lifecycle contract', () => {

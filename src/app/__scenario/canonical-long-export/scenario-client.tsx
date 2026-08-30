@@ -57,3 +57,14 @@ export function CanonicalLongExportScenario() {
     />
   )
 }
+
+export function CanonicalLongExportEngineScenario() {
+  return (
+    <CanonicalLocalExportHarness
+      resourceDefinitions={longCanonicalFixtureResources}
+      runThroughExportEngine
+      scenarioLabel="STUDIO SCENARIO HARNESS · ISSUE #35 · SEGMENTED"
+      snapshot={longCanonicalSnapshot}
+    />
+  )
+}

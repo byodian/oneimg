@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CanonicalRenderSurface } from '@/features/canonical-renderer/canonical-renderer'
-import { collectSnapshotResourceIds } from '@/features/canonical-renderer/model'
+import { type CanonicalRenderSnapshot, collectSnapshotResourceIds } from '@/features/canonical-renderer/model'
 import {
   type ResolvedResourceSet,
   createBrowserResourceResolver,
@@ -28,8 +28,15 @@ import {
   updateRichTextDocumentText,
 } from '@/features/general-long-image'
 import { GeneralLongImagePresentationPanel } from '@/features/general-long-image/presentation-panel'
+import {
+  type ExportJob,
+  ExportJobError,
+  type ExportOutputScale,
+  ExportPanel,
+  type ExportPlan,
+} from '@/features/export-engine'
+import { createStudioExportEngine } from '@/features/export-engine/studio-export-engine'
 import { parseSmartPaste } from '@/features/smart-paste'
-import { createLocalSvgAdapter } from '@/features/local-export/local-svg-adapter'
 import {
   isRenderAbortError,
 } from '@/features/rendering/cancellation'
@@ -63,6 +70,13 @@ export interface StudioClientProps {
 type PendingStudioCommit = {
   readonly revision: DocumentRevision
   readonly transaction: Extract<DocumentCommitResult, { status: 'committed' }>['transaction']
+}
+
+interface StudioExportReceipt {
+  readonly documentRevision?: number
+  readonly format: 'png' | 'zip'
+  readonly fromCache: boolean
+  readonly snapshotId: string
 }
 
 function createStudioDocumentId() {
@@ -106,6 +120,20 @@ function normalizeEditableText(text: string) {
   return text.replaceAll('\r\n', '\n').replaceAll('\r', '\n').replace(/\n+/g, '\n').trim()
 }
 
+function readStudioPageMeasurement(snapshot: CanonicalRenderSnapshot) {
+  const root = document.querySelector<HTMLElement>('[data-testid="studio-editor"] [data-oneimg-render-root]')
+  if (root === null) {
+    return undefined
+  }
+  const bounds = root.getBoundingClientRect()
+  return [{
+    height: bounds.height,
+    id: 'page-1',
+    kind: snapshot.presentation.pageFormat.kind,
+    width: bounds.width,
+  }] as const
+}
+
 function isCommitted(
   result: DocumentCommitResult | DocumentHistoryResult,
 ): result is Extract<DocumentCommitResult, { status: 'committed' }> {
@@ -120,7 +148,7 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
   const session = useRef<DocumentSession>()
   const repository = useRef<LocalRepository>()
   const saveTail = useRef(Promise.resolve())
-  const exportController = useRef<AbortController>()
+  const exportJobRef = useRef<ExportJob>()
   const readinessGeneration = useRef(0)
   // Keep the native contenteditable node stable during input while exposing the latest Studio state to events.
   const richTextBlurHandler = useRef<(blockId: string | undefined, text: string) => void>(() => undefined)
@@ -144,7 +172,10 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
     () => createBrowserResourceResolver(generalLongImageResourceDefinitions),
     [],
   )
-  const adapter = useMemo(() => createLocalSvgAdapter(), [])
+  const exportEngine = useMemo(
+    () => createStudioExportEngine(),
+    [],
+  )
   const [revision, setRevision] = useState<DocumentRevision>()
   const [durableRevision, setDurableRevision] = useState(0)
   const [pendingCommitRevision, setPendingCommitRevision] = useState<number>()
@@ -158,6 +189,13 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
   const [previewReady, setPreviewReady] = useState(false)
   const [resources, setResources] = useState<ResolvedResourceSet>()
   const [error, setError] = useState<string>()
+  const [exportPanelOpen, setExportPanelOpen] = useState(false)
+  const [exportPlan, setExportPlan] = useState<ExportPlan>()
+  const [exportPlanVersion, setExportPlanVersion] = useState(0)
+  const [exportJob, setExportJob] = useState<ExportJob>()
+  const [exportJobState, setExportJobState] = useState<ReturnType<ExportJob['getState']>>()
+  const [exportOutputScale, setExportOutputScale] = useState<ExportOutputScale>(1)
+  const [lastExport, setLastExport] = useState<StudioExportReceipt>()
 
   const displayedRevision = conflictPreviewRevision ?? revision
   const snapshot = useMemo(
@@ -171,6 +209,36 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
     [snapshot],
   )
   const meaningful = revision === undefined ? false : isMeaningfulDocumentRevision(revision)
+
+  const buildExportPlan = useCallback(() => {
+    if (snapshot === undefined) {
+      return undefined
+    }
+    return exportEngine.plan({
+      documentRevision: revision?.revision,
+      meaningful,
+      output: { format: 'png', scale: exportOutputScale },
+      pageMeasurements: readStudioPageMeasurement(snapshot),
+      renderReady: previewReady,
+      resourceFingerprint: resources?.fingerprint,
+      snapshot,
+    })
+  }, [exportEngine, exportOutputScale, meaningful, previewReady, resources?.fingerprint, revision?.revision, snapshot])
+
+  useEffect(() => {
+    if (!exportPanelOpen || snapshot === undefined) {
+      return
+    }
+    setExportPlan(buildExportPlan())
+  }, [buildExportPlan, exportPanelOpen, exportPlanVersion, snapshot])
+
+  useEffect(() => {
+    if (exportJob === undefined) {
+      setExportJobState(undefined)
+      return
+    }
+    return exportJob.subscribe(setExportJobState)
+  }, [exportJob])
 
   useEffect(() => {
     mounted.current = true
@@ -231,7 +299,9 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
     return () => {
       active = false
       mounted.current = false
-      exportController.current?.abort()
+      if (exportJobRef.current !== undefined) {
+        exportEngine.cancel(exportJobRef.current.id)
+      }
       repository.current?.close()
     }
     // The Repository and resource resolver are intentionally created once per Studio session.
@@ -603,49 +673,83 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
     persistCommit(result.revision, result.transaction)
   }
 
-  async function exportPng() {
-    if (!snapshot || snapshot.localCapability !== 'certified' || !meaningful || conflictPreviewRevision !== undefined || !previewReady || exportController.current) {
+  function runExport() {
+    const currentPlan = buildExportPlan()
+    if (currentPlan !== undefined) {
+      setExportPlan(currentPlan)
+    }
+    if (
+      currentPlan === undefined
+      || !currentPlan.canRun
+      || conflictPreviewRevision !== undefined
+      || exportJobState?.status === 'running'
+    ) {
       return
     }
-    const controller = new AbortController()
-    exportController.current = controller
+
+    let job: ExportJob
+    try {
+      job = exportEngine.run(currentPlan)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason))
+      setPhase('unsaved')
+      return
+    }
+
+    exportJobRef.current = job
+    setExportJob(job)
     setError(undefined)
     setPhase('exporting')
-    let exportResources: ResolvedResourceSet | undefined
-    try {
-      exportResources = await resolver.resolve(snapshot, 'local-export', { signal: controller.signal })
-      const artifact = await adapter.exportPng({
-        resources: exportResources,
-        signal: controller.signal,
-        snapshot,
+    job.promise
+      .then((result) => {
+        if (!mounted.current) {
+          return
+        }
+        const extension = result.artifact.format === 'zip' ? 'zip' : 'png'
+        const url = URL.createObjectURL(result.artifact.blob)
+        const anchor = document.createElement('a')
+        anchor.download = `oneimg-general-long-image-r${result.documentRevision ?? 0}.${extension}`
+        anchor.href = url
+        anchor.click()
+        setTimeout(() => URL.revokeObjectURL(url), 0)
+        setLastExport({
+          documentRevision: result.documentRevision,
+          format: result.artifact.format,
+          fromCache: result.fromCache,
+          snapshotId: result.snapshotId,
+        })
+        setExportPlanVersion(version => version + 1)
+        if (conflictDraft !== undefined) {
+          setPhase('conflict')
+        } else if (pendingCommit.current !== undefined) {
+          setPhase('unsaved')
+        } else {
+          setPhase('saved')
+        }
       })
-      if (controller.signal.aborted) {
-        return
-      }
-      const url = URL.createObjectURL(artifact.blob)
-      const anchor = document.createElement('a')
-      anchor.download = `oneimg-general-long-image-r${revision?.revision ?? 0}.${artifact.format === 'zip' ? 'zip' : 'png'}`
-      anchor.href = url
-      anchor.click()
-      setTimeout(() => URL.revokeObjectURL(url), 0)
-      if (conflictDraft !== undefined) {
-        setPhase('conflict')
-      } else if (pendingCommit.current !== undefined) {
-        setPhase('unsaved')
-      } else {
-        setPhase('saved')
-      }
-    } catch (reason) {
-      if (!isRenderAbortError(reason) && !controller.signal.aborted && mounted.current) {
+      .catch((reason: unknown) => {
+        if (!mounted.current) {
+          return
+        }
+        if (reason instanceof ExportJobError && reason.code === 'canceled') {
+          setPhase(pendingCommit.current === undefined ? 'saved' : 'unsaved')
+          return
+        }
         setError(reason instanceof Error ? reason.message : String(reason))
         setPhase('unsaved')
-      }
-    } finally {
-      exportResources?.release()
-      if (exportController.current === controller) {
-        exportController.current = undefined
-      }
+      })
+      .finally(() => {
+        if (exportJobRef.current?.id === job.id) {
+          exportJobRef.current = undefined
+        }
+      })
+  }
+
+  function cancelExport() {
+    if (exportJob === undefined) {
+      return
     }
+    exportEngine.cancel(exportJob.id)
   }
 
   const state: StudioDocumentState = {
@@ -723,13 +827,14 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
               </button>
               <button
                 className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
-                disabled={conflictPreviewRevision !== undefined || snapshot.localCapability !== 'certified' || !meaningful || !previewReady || phase === 'exporting'}
+                disabled={conflictPreviewRevision !== undefined || snapshot.localCapability !== 'certified' || !meaningful || !previewReady}
                 onClick={() => {
-                  exportPng().catch(() => undefined)
+                  setExportPanelOpen(open => !open)
+                  setExportPlanVersion(version => version + 1)
                 }}
                 type="button"
               >
-                {phase === 'exporting' ? '导出中…' : '导出本地文件'}
+                {exportPanelOpen ? '关闭导出面板' : phase === 'exporting' ? '导出中…' : '导出本地文件'}
               </button>
             </div>
           </header>
@@ -793,6 +898,49 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
             >
               返回当前 Draft
             </button>
+          </div>
+        )}
+        {!cleanPreview && exportPanelOpen && (
+          <ExportPanel
+            jobState={exportJobState}
+            onCancel={cancelExport}
+            onClose={() => setExportPanelOpen(false)}
+            onOutputScaleChange={(scale) => {
+              setExportOutputScale(scale)
+              setExportPlanVersion(version => version + 1)
+            }}
+            onRun={runExport}
+            outputScale={exportOutputScale}
+            plan={exportPlan}
+          />
+        )}
+        {!cleanPreview && lastExport && (
+          <div className="flex items-center justify-between gap-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-950" data-testid="studio-export-receipt">
+            <div>
+              <p className="m-0 font-medium">
+                导出已完成：{lastExport.snapshotId === snapshot.snapshotId ? '当前版本' : `基于较早版本 r${lastExport.documentRevision ?? '?'}`}
+              </p>
+              <output className="mt-1 block text-xs" data-testid="studio-export-result">
+                {JSON.stringify({
+                  documentRevision: lastExport.documentRevision,
+                  format: lastExport.format,
+                  fromCache: lastExport.fromCache,
+                  snapshotId: lastExport.snapshotId,
+                })}
+              </output>
+            </div>
+            {lastExport.snapshotId !== snapshot.snapshotId && (
+              <button
+                className="shrink-0 rounded-full border border-emerald-300 bg-white px-3 py-1.5 font-medium"
+                onClick={() => {
+                  setExportPanelOpen(true)
+                  setExportPlanVersion(version => version + 1)
+                }}
+                type="button"
+              >
+                重新导出当前版本
+              </button>
+            )}
           </div>
         )}
         {!cleanPreview && (

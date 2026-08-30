@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises'
 import { type Page, expect, test } from '@playwright/test'
 
 interface StudioState {
@@ -8,6 +9,20 @@ interface StudioState {
   readonly restored: boolean
   readonly revision: number
   readonly status: string
+}
+
+interface StudioExportPlan {
+  readonly cacheReuse: 'hit' | 'miss' | 'unknown'
+  readonly canRun: boolean
+  readonly outputFormat: 'png'
+  readonly outputScale: 1 | 2
+  readonly route: string
+}
+
+interface StudioExportResult {
+  readonly fromCache: boolean
+  readonly format: 'png' | 'zip'
+  readonly snapshotId: string
 }
 
 async function readStudioState(page: Page) {
@@ -77,6 +92,64 @@ function contrastRatio(left: string, right: string) {
   return (Math.max(leftLuminance, rightLuminance) + 0.05) / (Math.min(leftLuminance, rightLuminance) + 0.05)
 }
 
+function readPngDimensions(buffer: Buffer) {
+  expect(buffer.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+  return {
+    height: buffer.readUInt32BE(20),
+    width: buffer.readUInt32BE(16),
+  }
+}
+
+async function comparePngToPreview(page: Page, preview: Buffer, exported: Buffer) {
+  return page.evaluate(async ({ exportedBase64, previewBase64 }) => {
+    const decode = async (base64: string) => {
+      const response = await fetch(`data:image/png;base64,${base64}`)
+      return createImageBitmap(await response.blob())
+    }
+    const previewImage = await decode(previewBase64)
+    const exportedImage = await decode(exportedBase64)
+    const width = Math.max(previewImage.width, exportedImage.width)
+    const height = Math.max(previewImage.height, exportedImage.height)
+    const readPixels = (image: ImageBitmap) => {
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const context = canvas.getContext('2d', { willReadFrequently: true })!
+      context.drawImage(image, 0, 0)
+      return context.getImageData(0, 0, width, height).data
+    }
+    const previewPixels = readPixels(previewImage)
+    const exportedPixels = readPixels(exportedImage)
+    let materialPixels = 0
+    let totalChannelDelta = 0
+    for (let offset = 0; offset < previewPixels.length; offset += 4) {
+      let pixelDelta = 0
+      for (let channel = 0; channel < 4; channel += 1) {
+        const delta = Math.abs(previewPixels[offset + channel]! - exportedPixels[offset + channel]!)
+        pixelDelta = Math.max(pixelDelta, delta)
+        totalChannelDelta += delta
+      }
+      if (pixelDelta > 32) {
+        materialPixels += 1
+      }
+    }
+    const result = {
+      exportedHeight: exportedImage.height,
+      exportedWidth: exportedImage.width,
+      materialPixelRatio: materialPixels / (width * height),
+      meanChannelDelta: totalChannelDelta / (width * height * 4),
+      previewHeight: previewImage.height,
+      previewWidth: previewImage.width,
+    }
+    previewImage.close()
+    exportedImage.close()
+    return result
+  }, {
+    exportedBase64: exported.toString('base64'),
+    previewBase64: preview.toString('base64'),
+  })
+}
+
 test.describe('General Long Image Studio slice', () => {
   test('opens an editable starter, commits meaningful content, and restores it', async ({ page }) => {
     await page.goto('/studio')
@@ -114,10 +187,41 @@ test.describe('General Long Image Studio slice', () => {
     await expect(root.getByText('这是我的第一段有意义内容。')).toBeVisible()
     const exportButton = page.getByRole('button', { name: '导出本地文件' })
     await expect(exportButton).toBeEnabled()
-    const downloadPromise = page.waitForEvent('download')
     await exportButton.click()
+    await expect(page.getByTestId('studio-export-panel')).toBeVisible()
+    await expect(page.locator('[data-oneimg-inert-render-session]')).toHaveCount(0)
+    const plan = JSON.parse(await page.getByTestId('studio-export-plan').textContent() ?? '{}') as StudioExportPlan
+    expect(plan).toMatchObject({
+      cacheReuse: 'miss',
+      canRun: true,
+      outputFormat: 'png',
+      outputScale: 1,
+      route: 'local-eligible',
+    })
+    const previewPng = await root.screenshot({ animations: 'disabled' })
+    const downloadPromise = page.waitForEvent('download')
+    await page.getByRole('button', { name: '导出 PNG' }).click()
     const download = await downloadPromise
     expect(download.suggestedFilename()).toBe('oneimg-general-long-image-r2.png')
+    const downloadPath = await download.path()
+    if (!downloadPath) {
+      throw new Error('Playwright did not expose the Studio PNG path')
+    }
+    const exportedPng = await readFile(downloadPath)
+    const dimensions = readPngDimensions(exportedPng)
+    expect(dimensions.width).toBe(640)
+    expect(dimensions.height).toBeGreaterThan(0)
+    const comparison = await comparePngToPreview(page, previewPng, exportedPng)
+    expect(comparison.exportedWidth).toBe(comparison.previewWidth)
+    expect(comparison.exportedHeight).toBe(comparison.previewHeight)
+    expect(comparison.materialPixelRatio).toBeLessThanOrEqual(0.05)
+    expect(comparison.meanChannelDelta).toBeLessThanOrEqual(4)
+    const exportResult = JSON.parse(await page.getByTestId('studio-export-result').textContent() ?? '{}') as StudioExportResult
+    expect(exportResult).toMatchObject({
+      fromCache: false,
+      format: 'png',
+      snapshotId: expect.stringContaining('r2'),
+    })
 
     const documentId = (await readStudioState(page)).documentId
     await page.reload()
@@ -134,6 +238,95 @@ test.describe('General Long Image Studio slice', () => {
       restored: true,
       revision: 2,
     })
+  })
+
+  test('plans output options without rasterizing and reuses a normal-page raster', async ({ page }) => {
+    await page.goto('/studio')
+
+    const root = page.getByTestId('studio-editor').locator('[data-oneimg-render-root]')
+    const editor = root.locator('[contenteditable="true"]')
+    await editor.fill('导出计划只在显式运行后创建 Raster。')
+    await editor.press('Escape')
+    await expect.poll(() => readStudioState(page)).toMatchObject({ meaningful: true, status: '已保存' })
+
+    await page.getByRole('button', { name: '导出本地文件' }).click()
+    const panel = page.getByTestId('studio-export-panel')
+    await expect(panel).toBeVisible()
+    await expect(page.locator('[data-oneimg-inert-render-session]')).toHaveCount(0)
+
+    await panel.getByLabel('输出倍率').selectOption('2')
+    await expect.poll(async () => JSON.parse(await page.getByTestId('studio-export-plan').textContent() ?? '{}') as StudioExportPlan).toMatchObject({
+      cacheReuse: 'miss',
+      outputScale: 2,
+    })
+    await expect(page.locator('[data-oneimg-inert-render-session]')).toHaveCount(0)
+
+    const highResolutionDownloadPromise = page.waitForEvent('download')
+    await panel.getByRole('button', { name: '导出 PNG' }).click()
+    const highResolutionDownload = await highResolutionDownloadPromise
+    const highResolutionPath = await highResolutionDownload.path()
+    if (!highResolutionPath) {
+      throw new Error('Playwright did not expose the high-resolution Studio PNG path')
+    }
+    expect(readPngDimensions(await readFile(highResolutionPath)).width).toBe(1280)
+    await expect.poll(async () => JSON.parse(await page.getByTestId('studio-export-result').textContent() ?? '{}') as StudioExportResult).toMatchObject({ fromCache: false })
+
+    await panel.getByLabel('输出倍率').selectOption('1')
+
+    const firstDownloadPromise = page.waitForEvent('download')
+    await panel.getByRole('button', { name: '导出 PNG' }).click()
+    await (await firstDownloadPromise).path()
+    await expect.poll(async () => JSON.parse(await page.getByTestId('studio-export-result').textContent() ?? '{}') as StudioExportResult).toMatchObject({ fromCache: false })
+
+    const secondDownloadPromise = page.waitForEvent('download')
+    await panel.getByRole('button', { name: '导出 PNG' }).click()
+    await (await secondDownloadPromise).path()
+    await expect.poll(async () => JSON.parse(await page.getByTestId('studio-export-result').textContent() ?? '{}') as StudioExportResult).toMatchObject({ fromCache: true })
+    await expect(page.locator('[data-oneimg-inert-render-session]')).toHaveCount(0)
+  })
+
+  test('marks an artifact from an older revision and offers a current re-export', async ({ page }) => {
+    await page.goto('/studio')
+
+    const root = page.getByTestId('studio-editor').locator('[data-oneimg-render-root]')
+    const editor = root.locator('[contenteditable="true"]')
+    await editor.fill('第一版导出内容。')
+    await editor.press('Escape')
+    await expect.poll(() => readStudioState(page)).toMatchObject({ revision: 2, status: '已保存' })
+    await page.getByRole('button', { name: '导出本地文件' }).click()
+    const firstDownloadPromise = page.waitForEvent('download')
+    await page.getByRole('button', { name: '导出 PNG' }).click()
+    await (await firstDownloadPromise).path()
+
+    await editor.fill('第二版内容不应改变已经完成的导出。')
+    await editor.press('Escape')
+    await expect.poll(() => readStudioState(page)).toMatchObject({ revision: 3, status: '已保存' })
+    await expect(page.getByTestId('studio-export-receipt')).toContainText('基于较早版本')
+    await expect(page.getByRole('button', { name: '重新导出当前版本' })).toBeVisible()
+  })
+
+  test('captures the latest draft when explicit run starts after a plan was shown', async ({ page }) => {
+    await page.goto('/studio')
+
+    const root = page.getByTestId('studio-editor').locator('[data-oneimg-render-root]')
+    const editor = root.locator('[contenteditable="true"]')
+    await editor.fill('面板先展示计划的版本。')
+    await editor.press('Escape')
+    await expect.poll(() => readStudioState(page)).toMatchObject({ revision: 2, status: '已保存' })
+
+    await page.getByRole('button', { name: '导出本地文件' }).click()
+    await expect(page.getByTestId('studio-export-plan')).toContainText('"snapshotId":"general-long-image:')
+
+    await editor.fill('运行前最后一次编辑应进入新的 Export Snapshot。')
+    await editor.press('Escape')
+    await expect.poll(() => readStudioState(page)).toMatchObject({ revision: 3, status: '已保存' })
+
+    const downloadPromise = page.waitForEvent('download')
+    await page.getByRole('button', { name: '导出 PNG' }).click()
+    const download = await downloadPromise
+    expect(download.suggestedFilename()).toBe('oneimg-general-long-image-r3.png')
+    await expect(page.getByTestId('studio-export-result')).toContainText('"documentRevision":3')
+    await expect(page.getByTestId('studio-export-result')).toContainText('"snapshotId":"general-long-image:')
   })
 
   test('clean preview hides editor chrome without changing the canonical root', async ({ page }) => {

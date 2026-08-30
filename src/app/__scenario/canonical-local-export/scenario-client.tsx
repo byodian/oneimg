@@ -15,12 +15,18 @@ import {
   createBrowserResourceResolver,
 } from '@/features/canonical-renderer/resource-resolver'
 import {
+  type ExportJob,
+  type ExportJobState,
+  createExportEngine,
+} from '@/features/export-engine'
+import {
   isRenderAbortError,
 } from '@/features/rendering/cancellation'
 import {
   EMPTY_LOCAL_EXPORT_CLEANUP_AUDIT,
   type LocalExportDiagnostics,
   type LocalExportProgress,
+  type LocalExportStage,
   type LocalExportStageHook,
   type LocalRasterizerAdapter,
 } from '@/features/local-export/local-rasterizer'
@@ -29,6 +35,7 @@ import { createLocalSvgAdapter } from '@/features/local-export/local-svg-adapter
 export interface CanonicalExportScenarioProps {
   readonly beforeExportStage?: LocalExportStageHook
   readonly resourceDefinitions: readonly BrowserResourceDefinition[]
+  readonly runThroughExportEngine?: boolean
   readonly scenarioLabel: string
   readonly snapshot: CanonicalRenderSnapshot
 }
@@ -43,10 +50,22 @@ export function CanonicalLocalExportScenario() {
   )
 }
 
+export function CanonicalExportEngineScenario() {
+  return (
+    <CanonicalLocalExportHarness
+      resourceDefinitions={controlledFixtureResources}
+      runThroughExportEngine
+      scenarioLabel="STUDIO SCENARIO HARNESS · ISSUE #35"
+      snapshot={controlledCanonicalSnapshot}
+    />
+  )
+}
+
 export function CanonicalLocalExportHarness({
   adapter,
   beforeExportStage,
   resourceDefinitions,
+  runThroughExportEngine = false,
   scenarioLabel,
   snapshot,
 }: CanonicalExportScenarioProps & { readonly adapter?: LocalRasterizerAdapter }) {
@@ -55,8 +74,13 @@ export function CanonicalLocalExportHarness({
     [adapter],
   )
   const resolver = useMemo(() => createBrowserResourceResolver(resourceDefinitions), [resourceDefinitions])
+  const exportEngine = useMemo(
+    () => createExportEngine({ localAdapter: resolvedAdapter, resolver }),
+    [resolvedAdapter, resolver],
+  )
   const readinessGeneration = useRef(0)
   const exportController = useRef<AbortController>()
+  const exportJobRef = useRef<ExportJob>()
   const cancelRequestedAt = useRef<number>()
   const [resources, setResources] = useState<ResolvedResourceSet>()
   const [previewReady, setPreviewReady] = useState(false)
@@ -74,7 +98,10 @@ export function CanonicalLocalExportHarness({
 
   useEffect(() => () => {
     exportController.current?.abort()
-  }, [])
+    if (exportJobRef.current !== undefined) {
+      exportEngine.cancel(exportJobRef.current.id)
+    }
+  }, [exportEngine])
 
   useEffect(() => {
     let active = true
@@ -149,6 +176,9 @@ export function CanonicalLocalExportHarness({
       setExportStatus('canceled')
       exportController.current.abort()
     }
+    if (exportJobRef.current !== undefined) {
+      exportEngine.cancel(exportJobRef.current.id)
+    }
     resources?.release()
     setResources(undefined)
     setPreviewReady(false)
@@ -156,6 +186,10 @@ export function CanonicalLocalExportHarness({
   }
 
   const cancelExport = () => {
+    if (runThroughExportEngine && exportJobRef.current !== undefined) {
+      exportEngine.cancel(exportJobRef.current.id)
+      return
+    }
     if (!exportController.current) {
       return
     }
@@ -164,8 +198,93 @@ export function CanonicalLocalExportHarness({
     exportController.current.abort()
   }
 
+  const exportThroughEngine = () => {
+    if (!resources || !previewReady || exporting) {
+      return
+    }
+    const previewRoot = document.querySelector<HTMLElement>('[data-testid="canonical-preview"] [data-oneimg-render-root]')
+    if (!previewRoot) {
+      setError('Canonical preview did not mount a Render Root')
+      setExportStatus('failed')
+      return
+    }
+    const bounds = previewRoot.getBoundingClientRect()
+    const plan = exportEngine.plan({
+      meaningful: true,
+      output: { format: 'png', scale: 1 },
+      pageMeasurements: [{
+        height: bounds.height,
+        id: 'page-1',
+        kind: snapshot.presentation.pageFormat.kind,
+        width: bounds.width,
+      }],
+      renderReady: previewReady,
+      resourceFingerprint: resources.fingerprint,
+      snapshot,
+    })
+    if (!plan.canRun) {
+      setError(plan.routeReason)
+      setExportStatus('failed')
+      return
+    }
+    const job = exportEngine.run(plan)
+    exportJobRef.current = job
+    setExporting(true)
+    setExportStatus('running')
+    setError(undefined)
+    setDiagnostics(undefined)
+    setProgress({ completed: 0, segmentCount: plan.pages.reduce((total, page) => total + page.segmentCount, 0), stage: 'render-ready', total: 1 })
+    const unsubscribe = job.subscribe((state: ExportJobState) => {
+      const stage: LocalExportStage = state.stage === 'packaging'
+        ? 'packaging'
+        : state.stage === 'encoding'
+          ? 'encoding'
+          : state.stage === 'ready' || state.stage === 'canceled' || state.stage === 'failed'
+            ? 'cleanup'
+            : 'render-ready'
+      setProgress({
+        completed: state.completed,
+        segmentCount: state.segmentCount,
+        stage,
+        total: state.total,
+      })
+    })
+    job.promise.then((result) => {
+      const downloadUrl = URL.createObjectURL(result.artifact.blob)
+      const anchor = document.createElement('a')
+      const extension = result.artifact.format === 'zip' ? 'zip' : 'png'
+      anchor.download = `oneimg-${snapshot.snapshotId}.${extension}`
+      anchor.href = downloadUrl
+      anchor.click()
+      setTimeout(() => URL.revokeObjectURL(downloadUrl), 0)
+      setDiagnostics({
+        ...result.artifact.diagnostics,
+        previewFingerprint: resources.fingerprint,
+      })
+      setExportStatus('completed')
+    }).catch((reason: unknown) => {
+      if (job.getState().status === 'canceled' || isRenderAbortError(reason)) {
+        setExportStatus('canceled')
+      } else {
+        setError(reason instanceof Error ? reason.message : String(reason))
+        setExportStatus('failed')
+      }
+    }).finally(() => {
+      unsubscribe()
+      if (exportJobRef.current?.id === job.id) {
+        exportJobRef.current = undefined
+      }
+      setResourceAudit(resolver.getDiagnostics())
+      setExporting(false)
+    })
+  }
+
   const exportLocalPng = async () => {
     if (!resources || !previewReady || exporting) {
+      return
+    }
+    if (runThroughExportEngine) {
+      exportThroughEngine()
       return
     }
     const controller = new AbortController()

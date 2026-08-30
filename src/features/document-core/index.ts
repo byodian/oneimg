@@ -957,7 +957,7 @@ function upgradePresentation(presentation: DocumentPresentation): DocumentPresen
   return upgraded
 }
 
-function cloneValue<T>(value: T): T {
+export function cloneValue<T>(value: T): T {
   if (Array.isArray(value)) {
     return value.map(child => cloneValue(child)) as T
   }
@@ -969,7 +969,7 @@ function cloneValue<T>(value: T): T {
   return value
 }
 
-function freezeDeep<T>(value: T): T {
+export function freezeDeep<T>(value: T): T {
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
     Object.freeze(value)
     for (const child of Object.values(value as Record<string, unknown>)) {
@@ -986,7 +986,7 @@ function freezeRevision(revision: DocumentRevision): DocumentRevision {
   return freezeDeep(cloned)
 }
 
-function stableStringify(value: unknown): string {
+export function stableStringify(value: unknown): string {
   if (value === undefined) {
     throw new DocumentCoreError('invalid-document', 'Document contains an undefined value')
   }

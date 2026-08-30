@@ -6,6 +6,7 @@ import type { ResolvedResourceSet } from '@/features/canonical-renderer/resource
 
 export interface LocalExportRequest {
   readonly beforeStage?: LocalExportStageHook
+  readonly outputScale?: 1 | 2
   readonly snapshot: CanonicalRenderSnapshot
   readonly resources: ResolvedResourceSet
   readonly onProgress?: (progress: LocalExportProgress) => void
@@ -87,6 +88,7 @@ export interface LocalExportDiagnostics {
   readonly peakEstimatedRasterBytes: number
   readonly memorySource: 'performance.memory' | 'unavailable'
   readonly maxSvgDataUrlBytes: number
+  readonly outputScale: 1 | 2
 }
 
 export interface LocalPngArtifact {

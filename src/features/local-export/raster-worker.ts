@@ -17,7 +17,7 @@ self.onmessage = async (event) => {
     return
   }
 
-  const { bitmap, height, id, trimTop, width } = message
+  const { bitmap, height, id, outputScale, trimTop, width } = message
   let canvas
   try {
     if (canceled.has(id)) {
@@ -32,7 +32,17 @@ self.onmessage = async (event) => {
     }
     context.imageSmoothingEnabled = true
     context.imageSmoothingQuality = 'high'
-    context.drawImage(bitmap, 0, trimTop, width, height, 0, 0, width, height)
+    context.drawImage(
+      bitmap,
+      0,
+      trimTop / outputScale,
+      width / outputScale,
+      height / outputScale,
+      0,
+      0,
+      width,
+      height,
+    )
     const blob = await canvas.convertToBlob({ type: 'image/png' })
     if (canceled.has(id)) {
       self.postMessage({ canvasCreated: true, id, type: 'canceled' })
@@ -88,7 +98,7 @@ interface PendingEncode {
 
 export interface RasterWorkerClient {
   readonly available: boolean
-  encode(bitmap: ImageBitmap, segment: RenderSegment, width: number, signal?: AbortSignal): Promise<Blob>
+  encode(bitmap: ImageBitmap, segment: RenderSegment, width: number, outputScale: 1 | 2, signal?: AbortSignal): Promise<Blob>
   getCleanupAudit(): RasterWorkerCleanupAudit
   terminate(): void
 }
@@ -96,7 +106,7 @@ export interface RasterWorkerClient {
 function createUnavailableClient(): RasterWorkerClient {
   return {
     available: false,
-    encode: async (_bitmap, _segment, _width, signal) => {
+    encode: async (_bitmap, _segment, _width, _outputScale, signal) => {
       throwIfRenderAborted(signal)
       throw new Error('Raster Worker is unavailable')
     },
@@ -217,7 +227,7 @@ export function createRasterWorkerClient(): RasterWorkerClient {
 
   return {
     available: true,
-    encode(bitmap, segment, width, signal) {
+    encode(bitmap, segment, width, outputScale, signal) {
       throwIfRenderAborted(signal)
       if (terminated) {
         throw new Error('Raster Worker has been terminated')
@@ -246,6 +256,7 @@ export function createRasterWorkerClient(): RasterWorkerClient {
             bitmap,
             height: segment.height,
             id,
+            outputScale,
             trimTop: segment.trimTop,
             type: 'encode',
             width,

@@ -2,6 +2,16 @@
 
 The Export Engine is the single deep Module responsible for turning a Document into Raster Exports, Semantic Slices, copied images, and Export Bundles while enforcing the WYSIWYG Contract. Callers do not choose a Rasterizer Adapter or orchestrate fonts, rendering, encoding, caching, retry, or packaging themselves.
 
+## Current local implementation slice
+
+Issue #35 delivers the first Studio-facing vertical slice of this contract for the certified General Long Image path. The export panel calls `plan()` without mounting an inert renderer or producing encoded bytes; an explicit run calls `run(plan)` with a deeply frozen Snapshot, reports real local stages, and downloads only the completed artifact. The initial UI supports PNG at 1× and 2×, caches immutable normal-size Page rasters by Snapshot/resource/presentation/viewport/output/Adapter/encoder inputs, and marks a receipt when the active Document has advanced beyond the exported Revision.
+
+The local slice intentionally does not claim the complete output matrix. Bounded pagination, remote High-Fidelity execution, broad runtime probes, full Preflight, and multi-Page/bundle reuse remain later gates. Unsupported local presentations stay blocked rather than producing a best-effort mismatch.
+
+Local `Export Job` failures keep a stable category (`resource-resolution-failed`, `rendering-failed`, `encoding-failed`, or `packaging-failed`), the execution stage that failed, and a recovery action. The panel exposes all three together with the original diagnostic message, so a failed export cannot be mistaken for a successful but lower-quality file.
+
+The certified SVG bridge retains the bounded Data URL transport established by the existing local adapter. Chromium currently marks the Blob-backed `foreignObject` bridge as not origin-clean when it reaches Canvas, so this slice keeps the 512 KiB transport guard and fails closed instead of silently degrading output. A future transport gate must prove a Blob URL path in the target browser matrix before removing that guard.
+
 ## Interface
 
 The conceptual Interface remains small:

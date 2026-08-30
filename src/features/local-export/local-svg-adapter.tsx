@@ -212,16 +212,18 @@ async function yieldToMainThread(signal?: AbortSignal) {
 
 async function rasterizeOnMain(
   image: CanvasImageSource,
-  width: number,
-  height: number,
+  sourceWidth: number,
+  sourceHeight: number,
   sourceY: number,
+  outputWidth: number,
+  outputHeight: number,
   signal: AbortSignal | undefined,
   onCanvasCreated: () => void,
   onCanvasDisposed: () => void,
 ) {
   throwIfRenderAborted(signal)
   if (typeof OffscreenCanvas !== 'undefined') {
-    const canvas = new OffscreenCanvas(width, height)
+    const canvas = new OffscreenCanvas(outputWidth, outputHeight)
     onCanvasCreated()
     try {
       const context = canvas.getContext('2d')
@@ -230,7 +232,7 @@ async function rasterizeOnMain(
       }
       context.imageSmoothingEnabled = true
       context.imageSmoothingQuality = 'high'
-      context.drawImage(image, 0, sourceY, width, height, 0, 0, width, height)
+      context.drawImage(image, 0, sourceY, sourceWidth, sourceHeight, 0, 0, outputWidth, outputHeight)
       throwIfRenderAborted(signal)
       const blob = await canvas.convertToBlob({ type: 'image/png' })
       throwIfRenderAborted(signal)
@@ -243,8 +245,8 @@ async function rasterizeOnMain(
   }
 
   const canvas = document.createElement('canvas')
-  canvas.width = width
-  canvas.height = height
+  canvas.width = outputWidth
+  canvas.height = outputHeight
   onCanvasCreated()
   try {
     const context = canvas.getContext('2d')
@@ -253,7 +255,7 @@ async function rasterizeOnMain(
     }
     context.imageSmoothingEnabled = true
     context.imageSmoothingQuality = 'high'
-    context.drawImage(image, 0, sourceY, width, height, 0, 0, width, height)
+    context.drawImage(image, 0, sourceY, sourceWidth, sourceHeight, 0, 0, outputWidth, outputHeight)
     throwIfRenderAborted(signal)
     const blob = await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob(result => result ? resolve(result) : reject(new Error('Unable to encode PNG')), 'image/png')
@@ -271,6 +273,7 @@ async function rasterizeSegment(
   image: HTMLImageElement,
   segment: RenderSegment,
   width: number,
+  outputScale: 1 | 2,
   worker: RasterWorkerClient,
   signal: AbortSignal | undefined,
   onBitmapCreated: () => void,
@@ -286,7 +289,7 @@ async function rasterizeSegment(
     onBitmapCreated()
     let transferred = false
     try {
-      const encoded = worker.encode(bitmap, segment, width, signal)
+      const encoded = worker.encode(bitmap, segment, width, outputScale, signal)
       transferred = true
       const blob = await encoded
       throwIfRenderAborted(signal)
@@ -297,7 +300,17 @@ async function rasterizeSegment(
         throw reason
       }
       onWorkerFallback()
-      return rasterizeOnMain(image, width, segment.height, segment.trimTop, signal, onCanvasCreated, onCanvasDisposed)
+      return rasterizeOnMain(
+        image,
+        width / outputScale,
+        segment.height / outputScale,
+        segment.trimTop / outputScale,
+        width,
+        segment.height,
+        signal,
+        onCanvasCreated,
+        onCanvasDisposed,
+      )
     } finally {
       if (!transferred) {
         bitmap.close()
@@ -307,7 +320,17 @@ async function rasterizeSegment(
   }
 
   onWorkerFallback()
-  return rasterizeOnMain(image, width, segment.height, segment.trimTop, signal, onCanvasCreated, onCanvasDisposed)
+  return rasterizeOnMain(
+    image,
+    width / outputScale,
+    segment.height / outputScale,
+    segment.trimTop / outputScale,
+    width,
+    segment.height,
+    signal,
+    onCanvasCreated,
+    onCanvasDisposed,
+  )
 }
 
 async function packageSegments(
@@ -331,7 +354,11 @@ async function packageSegments(
   })
 }
 
-async function exportPng({ beforeStage, onProgress, signal, snapshot, resources }: LocalExportRequest): Promise<LocalPngArtifact> {
+async function exportPng({ beforeStage, onProgress, outputScale: requestedOutputScale, signal, snapshot, resources }: LocalExportRequest): Promise<LocalPngArtifact> {
+  const outputScale = requestedOutputScale ?? 1
+  if (outputScale !== 1 && outputScale !== 2) {
+    throw new Error(`Unsupported local output scale: ${outputScale}`)
+  }
   const startedAt = performance.now()
   let peakMemoryBytes = readUsedHeapBytes()
   const sampleMemory = () => {
@@ -445,7 +472,7 @@ async function exportPng({ beforeStage, onProgress, signal, snapshot, resources 
     const bounds = canonicalRoot.getBoundingClientRect()
     const width = Math.ceil(bounds.width)
     const height = Math.ceil(bounds.height)
-    const plan = createSegmentedRenderPlan(width, height)
+    const plan = createSegmentedRenderPlan(width * outputScale, height * outputScale)
     const geometry = getCanonicalGeometry(canonicalRoot)
     let totalSvgBytes = 0
     let maxSvgDataUrlBytes = 0
@@ -464,10 +491,10 @@ async function exportPng({ beforeStage, onProgress, signal, snapshot, resources 
         canonicalRoot,
         resources,
         getCanonicalOwnedCss(resources),
-        plan.width,
-        segment.captureHeight,
-        plan.height,
-        segment.captureY,
+        plan.width / outputScale,
+        segment.captureHeight / outputScale,
+        plan.height / outputScale,
+        segment.captureY / outputScale,
         signal,
       )
       embeddedImageCount = serialized.embeddedImageCount
@@ -488,6 +515,7 @@ async function exportPng({ beforeStage, onProgress, signal, snapshot, resources 
           decodedSvg.image,
           segment,
           plan.width,
+          outputScale,
           worker,
           signal,
           () => {
@@ -588,6 +616,7 @@ async function exportPng({ beforeStage, onProgress, signal, snapshot, resources 
     longTaskMs,
     maxSvgDataUrlBytes: diagnosticsInput.maxSvgDataUrlBytes,
     memorySource: peakMemoryBytes === null ? 'unavailable' : 'performance.memory',
+    outputScale,
     peakMemoryBytes,
     peakEstimatedRasterBytes: Math.max(...diagnosticsInput.plan.segments.map(segment => (
       (segment.captureHeight + segment.height) * diagnosticsInput.plan.width * 4
