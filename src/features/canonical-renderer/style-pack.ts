@@ -247,6 +247,14 @@ export const canonicalStylePack = {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  [data-oneimg-render-root] .oneimg-media-group[data-layout-columns="1"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  [data-oneimg-render-root] .oneimg-media-group[data-layout-columns="2"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   [data-oneimg-render-root] .oneimg-media-item {
     background: var(--oneimg-surface);
     border-radius: 18px;
@@ -293,17 +301,15 @@ export const canonicalStylePack = {
     overflow-wrap: anywhere;
   }
 
-  [data-oneimg-render-root] .oneimg-media-group[data-arrangement="sequence"] {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  [data-oneimg-render-root] .oneimg-media-group[data-arrangement="featured"] .oneimg-media-item[data-featured="true"],
-  [data-oneimg-render-root] .oneimg-media-group[data-arrangement="margin-album"] .oneimg-media-item:first-child {
+  [data-oneimg-render-root] .oneimg-media-group .oneimg-media-item[data-layout-role="hero"],
+  [data-oneimg-render-root] .oneimg-media-group .oneimg-media-item[data-layout-role="balanced-wide"],
+  [data-oneimg-render-root] .oneimg-media-group .oneimg-media-item[data-layout-role="margin-primary"] {
     grid-column: 1 / -1;
   }
 
-  [data-oneimg-render-root] .oneimg-media-group[data-arrangement="featured"] .oneimg-media-item[data-featured="true"] .oneimg-media-item-image,
-  [data-oneimg-render-root] .oneimg-media-group[data-arrangement="margin-album"] .oneimg-media-item:first-child .oneimg-media-item-image {
+  [data-oneimg-render-root] .oneimg-media-group .oneimg-media-item[data-layout-role="hero"] :where(.oneimg-media-item-image, .oneimg-unresolved-media),
+  [data-oneimg-render-root] .oneimg-media-group .oneimg-media-item[data-layout-role="balanced-wide"] :where(.oneimg-media-item-image, .oneimg-unresolved-media),
+  [data-oneimg-render-root] .oneimg-media-group .oneimg-media-item[data-layout-role="margin-primary"] :where(.oneimg-media-item-image, .oneimg-unresolved-media) {
     aspect-ratio: 16 / 9;
   }
 

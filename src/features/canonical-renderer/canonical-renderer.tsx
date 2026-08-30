@@ -5,6 +5,7 @@ import type { ResolvedResourceSet } from './resource-resolver'
 import { publishCanonicalPaginationDiagnostics } from './render-ready'
 import { canonicalStylePack } from './style-pack'
 import type { RichTextNode } from '@/features/document-core'
+import { resolveSmartCollageLayout } from '@/features/smart-collage'
 
 type CanonicalCssProperties = CSSProperties & Record<`--oneimg-${string}`, string>
 
@@ -205,6 +206,8 @@ function renderMediaGroupSection(
   section: Extract<CanonicalSection, { kind: 'media-group' }>,
   resources: ResolvedResourceSet,
 ) {
+  const layout = resolveSmartCollageLayout(section.items, section.arrangement)
+  const itemRoles = new Map(layout.items.map(item => [item.itemId, item.role]))
   return (
     <section className="oneimg-section oneimg-media-group-section" data-block-id={section.id} data-block-kind="media-group" data-slice-boundary="section" key={section.id}>
       {section.caption && (
@@ -212,12 +215,21 @@ function renderMediaGroupSection(
           <p className="oneimg-media-group-caption">{section.caption}</p>
         </div>
       )}
-      <div className="oneimg-media-group" data-arrangement={section.arrangement} data-keep-together="true" data-slice-id={`${section.id}:items`}>
+      <div
+        className="oneimg-media-group"
+        data-arrangement={section.arrangement}
+        data-auto-reason={section.arrangement === 'auto' ? layout.reason : undefined}
+        data-effective-arrangement={layout.resolvedArrangement}
+        data-layout-columns={layout.columns}
+        data-keep-together="true"
+        data-slice-id={`${section.id}:items`}
+      >
         {section.items.map(item => (
           <figure
             className="oneimg-media-item"
             data-asset-id={item.assetId}
             data-featured={item.featured ? 'true' : undefined}
+            data-layout-role={itemRoles.get(item.id)}
             data-media-item-id={item.id}
             data-media-status={item.status}
             data-resource-id={item.resourceId}
