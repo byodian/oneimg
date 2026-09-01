@@ -374,6 +374,58 @@ test.describe('General Long Image Studio slice', () => {
     await expect(page.getByTestId('studio-export-slices')).toHaveCount(0)
   })
 
+  test('exports a multi-slice plan at 2× without invalidating its composition', async ({ page }) => {
+    const consoleMessages: string[] = []
+    page.on('console', message => consoleMessages.push(message.text()))
+    await page.goto('/studio')
+
+    const root = page.getByTestId('studio-editor').locator('[data-oneimg-render-root]')
+    const editor = root.locator('[contenteditable="true"]')
+    const sections = Array.from({ length: 90 }, (_, index) => (
+      `<h2>第 ${index + 1} 节</h2><p>这是一段用于验证高倍率连续长图语义切片的内容，保持同一份 Canonical composition。</p>`
+    )).join('')
+    await dispatchPaste(editor, { html: `<div>${sections}</div>`, text: '' })
+    await expect.poll(() => readStudioState(page)).toMatchObject({ meaningful: true, status: '已保存' })
+    await expect(root).toHaveAttribute('data-render-ready', 'true')
+
+    await page.getByRole('button', { name: '导出本地文件' }).click()
+    const panel = page.getByTestId('studio-export-panel')
+    await expect(panel).toBeVisible()
+    await panel.getByLabel('输出倍率').selectOption('2')
+    await expect.poll(async () => JSON.parse(await page.getByTestId('studio-export-plan').textContent() ?? '{}') as StudioExportPlan).toMatchObject({
+      canRun: true,
+      outputScale: 2,
+    })
+
+    const plan = JSON.parse(await page.getByTestId('studio-export-plan').textContent() ?? '{}') as {
+      pages: Array<{ semanticSlices: unknown[] }>
+    }
+    expect(plan.pages[0]?.semanticSlices.length).toBeGreaterThan(1)
+
+    const downloadPromise = page.waitForEvent('download')
+    await panel.getByRole('button', { name: '导出 PNG' }).click()
+    const download = await downloadPromise
+    expect(download.suggestedFilename()).toMatch(/\.zip$/)
+    await expect(page.getByTestId('studio-export-job-status')).toHaveText('已完成')
+    await expect(page.getByTestId('studio-export-job-error')).toHaveCount(0)
+    await expect.poll(async () => JSON.parse(await page.getByTestId('studio-export-result').textContent() ?? '{}') as StudioExportResult).toMatchObject({
+      fromCache: false,
+      format: 'zip',
+    })
+    expect(consoleMessages.filter(message => message.includes('Maximum update depth exceeded'))).toHaveLength(0)
+
+    const repeatedDownloadPromise = page.waitForEvent('download')
+    await panel.getByRole('button', { name: '导出 PNG' }).click()
+    const repeatedDownload = await repeatedDownloadPromise
+    expect(repeatedDownload.suggestedFilename()).toMatch(/\.zip$/)
+    await expect(page.getByTestId('studio-export-job-status')).toHaveText('已完成')
+    await expect(page.getByTestId('studio-export-job-error')).toHaveCount(0)
+    await expect.poll(async () => JSON.parse(await page.getByTestId('studio-export-result').textContent() ?? '{}') as StudioExportResult).toMatchObject({
+      fromCache: true,
+      format: 'zip',
+    })
+  })
+
   test('marks an artifact from an older revision and offers a current re-export', async ({ page }) => {
     await page.goto('/studio')
 

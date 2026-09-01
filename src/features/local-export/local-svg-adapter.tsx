@@ -17,8 +17,7 @@ import {
   DEFAULT_SEGMENTED_RENDER_LIMITS,
   type RenderSegment,
   type SegmentedRenderPlan,
-  type SemanticSliceBoundary,
-  createSegmentedRenderPlan,
+  createScaledSegmentedRenderPlan,
 } from './segmented-render'
 import { CanonicalRenderSurface, getCanonicalOwnedCss } from '@/features/canonical-renderer/canonical-renderer'
 import type { CanonicalResourceId } from '@/features/canonical-renderer/model'
@@ -358,6 +357,7 @@ async function packageSegments(
   }
 
   let chunkCount = 0
+  let lastReportedPercent = -5
   let resumeProducer: (() => void) | undefined
   let cancelProducer: (() => void) | undefined
   const stream = new ReadableStream<Uint8Array>({
@@ -409,12 +409,18 @@ async function packageSegments(
           }
           chunkCount += 1
           controller.enqueue(chunk)
-          emitProgress(onProgress, {
-            completed: Math.round(metadata.percent),
-            segmentCount: segments.length,
-            stage: 'packaging',
-            total: 100,
-          })
+          const percent = Math.round(metadata.percent)
+          // JSZip reports once per output chunk; coarse progress keeps the UI
+          // responsive without weakening the job's internal stage tracking.
+          if (percent === 100 || percent - lastReportedPercent >= 5) {
+            lastReportedPercent = percent
+            emitProgress(onProgress, {
+              completed: percent,
+              segmentCount: segments.length,
+              stage: 'packaging',
+              total: 100,
+            })
+          }
           if (controller.desiredSize !== null && controller.desiredSize <= 0) {
             helper.pause()
           }
@@ -517,19 +523,13 @@ function createInertRenderHost(snapshot: LocalExportRequest['snapshot']) {
 
 function measureCanonicalExportPlan(canonicalRoot: HTMLElement, outputScale: 1 | 2) {
   const bounds = canonicalRoot.getBoundingClientRect()
-  const width = Math.ceil(bounds.width)
-  const height = Math.ceil(bounds.height)
   const semanticBoundaries = getCanonicalSemanticSliceBoundaries(canonicalRoot)
-    .map<SemanticSliceBoundary>(boundary => ({
-      ...boundary,
-      ...(boundary.endY === undefined ? {} : { endY: boundary.endY * outputScale }),
-      y: boundary.y * outputScale,
-    }))
   return {
     layoutFingerprint: getCanonicalLayoutFingerprint(canonicalRoot),
-    plan: createSegmentedRenderPlan(
-      width * outputScale,
-      height * outputScale,
+    plan: createScaledSegmentedRenderPlan(
+      bounds.width,
+      bounds.height,
+      outputScale,
       DEFAULT_SEGMENTED_RENDER_LIMITS,
       semanticBoundaries,
     ),
@@ -633,7 +633,7 @@ async function exportPng({ beforeStage, onProgress, outputScale: requestedOutput
     layoutFingerprint: string
     maxSvgDataUrlBytes: number
     packagingChunkCount: number
-    plan: ReturnType<typeof createSegmentedRenderPlan>
+    plan: SegmentedRenderPlan
     renderReadyAt: number
     totalSvgBytes: number
   } | undefined

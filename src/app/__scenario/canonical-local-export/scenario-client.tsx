@@ -100,6 +100,7 @@ export function CanonicalLocalExportHarness({
   const cancelRequestedAt = useRef<number>()
   const packagingProgressCount = useRef(0)
   const packagingCancelTriggered = useRef(false)
+  const progressHistory = useRef<LocalExportProgress[]>([])
   const [resources, setResources] = useState<ResolvedResourceSet>()
   const [renderReadiness, setRenderReadiness] = useState<CanonicalRenderReadiness>()
   const [previewReady, setPreviewReady] = useState(false)
@@ -221,6 +222,7 @@ export function CanonicalLocalExportHarness({
         width: bounds.width,
       }],
       renderReady: previewReady,
+      fontFallbackIds: resources.fontFallbackIds,
       resourceFingerprint: resources.fingerprint,
       snapshot,
     }))
@@ -278,6 +280,7 @@ export function CanonicalLocalExportHarness({
         width: bounds.width,
       }],
       renderReady: previewReady,
+      fontFallbackIds: resources.fontFallbackIds,
       resourceFingerprint: resources.fingerprint,
       snapshot,
     })
@@ -366,6 +369,7 @@ export function CanonicalLocalExportHarness({
     setDiagnostics(undefined)
     setExportArtifact(undefined)
     packagingProgressCount.current = 0
+    progressHistory.current = []
     setProgress({ completed: 0, segmentCount: 0, stage: 'render-ready', total: 1 })
 
     let exportResources: ResolvedResourceSet | undefined
@@ -374,6 +378,7 @@ export function CanonicalLocalExportHarness({
       const artifact = await resolvedAdapter.exportPng({
         beforeStage: beforeExportStage,
         onProgress: (nextProgress) => {
+          progressHistory.current.push(nextProgress)
           setProgress(nextProgress)
           if (cancelAfterPackagingChunk && !packagingCancelTriggered.current && nextProgress.stage === 'packaging') {
             packagingProgressCount.current += 1
@@ -509,6 +514,9 @@ export function CanonicalLocalExportHarness({
       </pre>
       <pre data-testid="export-audit" style={{ background: '#fff', margin: '18px auto 0', overflow: 'auto', padding: 16, width: 640 }}>
         {JSON.stringify(progress)}
+      </pre>
+      <pre data-testid="export-progress-history" style={{ background: '#fff', margin: '18px auto 0', overflow: 'auto', padding: 16, width: 640 }}>
+        {JSON.stringify(progressHistory.current)}
       </pre>
       <pre data-testid="export-plan" style={{ background: '#fff', margin: '18px auto 0', overflow: 'auto', padding: 16, width: 640 }}>
         {JSON.stringify({

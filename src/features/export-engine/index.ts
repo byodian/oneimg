@@ -5,7 +5,10 @@ import {
   freezeDeep,
   stableStringify,
 } from '@/features/document-core'
-import type { CanonicalRenderSnapshot } from '@/features/canonical-renderer/model'
+import type {
+  CanonicalRenderSnapshot,
+  CanonicalResourceId,
+} from '@/features/canonical-renderer/model'
 import type { SemanticSliceBoundary } from '@/features/canonical-renderer/semantic-boundaries'
 import type {
   LocalExportProgress,
@@ -20,7 +23,7 @@ import {
   DEFAULT_SEGMENTED_RENDER_LIMITS,
   type RenderSegment,
   type SemanticSlice,
-  createSegmentedRenderPlan,
+  createScaledSegmentedRenderPlan,
 } from '@/features/local-export/segmented-render'
 import {
   isRenderAbortError,
@@ -95,6 +98,7 @@ export interface ExportPlanRequest {
   readonly pageMeasurements?: readonly ExportPageMeasurement[]
   readonly preflightFindings?: readonly PreflightFinding[]
   readonly renderReady: boolean
+  readonly fontFallbackIds?: readonly CanonicalResourceId[]
   readonly resourceFingerprint?: string
   readonly snapshot: CanonicalRenderSnapshot
 }
@@ -110,6 +114,7 @@ export interface ExportPlan {
   readonly outputFormat: ExportFormat
   readonly outputScale: ExportOutputScale
   readonly pages: readonly ExportPagePlan[]
+  readonly fontFallbackIds: readonly CanonicalResourceId[]
   readonly resourceFingerprint: string
   readonly route: ExportPlanRoute
   readonly routeReason: string
@@ -270,6 +275,14 @@ function cloneAndFreezeSnapshot(snapshot: CanonicalRenderSnapshot) {
   return freezeDeep(cloneValue(snapshot))
 }
 
+function normalizeFontFallbackIds(ids: readonly CanonicalResourceId[] | undefined) {
+  return Array.from(new Set(ids ?? [])).sort()
+}
+
+function sameResourceIdList(left: readonly CanonicalResourceId[], right: readonly CanonicalResourceId[]) {
+  return left.length === right.length && left.every((resourceId, index) => resourceId === right[index])
+}
+
 function assertPositiveFinite(value: number, label: string) {
   if (!Number.isFinite(value) || value <= 0) {
     throw new Error(`Unable to plan export: ${label} must be a positive finite number`)
@@ -283,15 +296,12 @@ function createPagePlan(
 ): ExportPagePlan {
   assertPositiveFinite(measurement.width, `Page ${measurement.id} width`)
   assertPositiveFinite(measurement.height, `Page ${measurement.id} height`)
-  const renderPlan = createSegmentedRenderPlan(
-    Math.ceil(measurement.width * outputScale),
-    Math.ceil(measurement.height * outputScale),
+  const renderPlan = createScaledSegmentedRenderPlan(
+    measurement.width,
+    measurement.height,
+    outputScale,
     DEFAULT_SEGMENTED_RENDER_LIMITS,
-    measurement.semanticBoundaries?.map(boundary => ({
-      ...boundary,
-      ...(boundary.endY === undefined ? {} : { endY: boundary.endY * outputScale }),
-      y: boundary.y * outputScale,
-    })),
+    measurement.semanticBoundaries,
   )
   return {
     height: renderPlan.height,
@@ -317,6 +327,7 @@ function buildCacheKey(
   outputScale: ExportOutputScale,
   pages: readonly ExportPagePlan[],
   resourceFingerprint: string,
+  fontFallbackIds: readonly CanonicalResourceId[],
 ) {
   return stableStringify({
     adapterId,
@@ -324,6 +335,7 @@ function buildCacheKey(
     outputFormat,
     outputScale,
     pages,
+    fontFallbackIds,
     resourceFingerprint,
     snapshot,
   })
@@ -452,6 +464,7 @@ export function createExportEngine({
         ? 'high-fidelity-required'
         : 'local-eligible'
     const resourceFingerprint = request.resourceFingerprint ?? 'unresolved'
+    const fontFallbackIds = normalizeFontFallbackIds(request.fontFallbackIds)
     const cacheKey = buildCacheKey(
       snapshot,
       localAdapter.id,
@@ -460,6 +473,7 @@ export function createExportEngine({
       outputScale,
       pages,
       resourceFingerprint,
+      fontFallbackIds,
     )
 
     return freezeDeep({
@@ -475,6 +489,7 @@ export function createExportEngine({
       outputFormat,
       outputScale,
       pages,
+      fontFallbackIds,
       resourceFingerprint,
       route,
       routeReason: routeReason(route),
@@ -497,6 +512,7 @@ export function createExportEngine({
         plannedPlan.outputScale,
         plannedPlan.pages,
         plannedPlan.resourceFingerprint,
+        plannedPlan.fontFallbackIds,
       ),
       snapshot: executionSnapshot,
     })
@@ -595,6 +611,7 @@ export function createExportEngine({
         updateState({ stage: 'preparing' })
         resources = await resolver.resolve(exportPlan.snapshot, 'local-export', { signal: controller.signal })
         throwIfRenderAborted(controller.signal)
+        const resolvedFontFallbackIds = normalizeFontFallbackIds(resources.fontFallbackIds)
         const actualCacheKey = buildCacheKey(
           exportPlan.snapshot,
           localAdapter.id,
@@ -603,9 +620,13 @@ export function createExportEngine({
           exportPlan.outputScale,
           exportPlan.pages,
           resources.fingerprint,
+          resolvedFontFallbackIds,
         )
-        if (resources.fingerprint !== exportPlan.resourceFingerprint) {
-          throw new Error('Referenced resources changed after Export Plan creation; reopen the Export Plan')
+        if (
+          resources.fingerprint !== exportPlan.resourceFingerprint
+          || !sameResourceIdList(resolvedFontFallbackIds, exportPlan.fontFallbackIds)
+        ) {
+          throw new Error('Referenced render sources changed after Export Plan creation; reopen the Export Plan')
         }
         const pagePlan = exportPlan.pages.length === 1
           ? {

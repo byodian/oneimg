@@ -18,6 +18,29 @@ test.describe('Export Engine scenario', () => {
     })
   })
 
+  test('keeps font fallback outcomes out of the same export cache entry', async ({ page }) => {
+    await page.goto('/scenario/export-engine')
+
+    await page.getByRole('button', { name: '比较字体回退缓存键' }).click()
+    await expect(page.getByTestId('export-engine-cache-key')).toHaveText('different')
+  })
+
+  test('rejects a plan when the font fallback outcome changes before rendering', async ({ page }) => {
+    await page.goto('/scenario/export-engine')
+
+    await page.getByRole('button', { name: '字体回退变化运行' }).click()
+    await expect.poll(() => readJson(page, 'export-engine-job')).toMatchObject({
+      error: {
+        code: 'resource-resolution-failed',
+        stage: 'preparing',
+      },
+      stage: 'failed',
+      status: 'failed',
+    })
+    await expect(page.getByTestId('export-engine-error')).toContainText('Referenced render sources changed after Export Plan creation')
+    await expect.poll(() => readJson(page, 'export-engine-metrics')).toMatchObject({ adapterCalls: 0 })
+  })
+
   test('publishes ready and failed job states with resource cleanup', async ({ page }) => {
     await page.goto('/scenario/export-engine')
 

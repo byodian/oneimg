@@ -589,6 +589,37 @@ test.describe('Canonical Renderer local export contract', () => {
     await expect(page.getByTestId('export-slices')).toBeVisible()
     await expect(page.locator('[data-oneimg-inert-render-session]')).toHaveCount(0)
   })
+
+  test('keeps a fractional Canonical geometry plan stable at 2×', async ({ page }) => {
+    await page.addInitScript(() => {
+      const originalGetBoundingClientRect = HTMLElement.prototype.getBoundingClientRect
+      HTMLElement.prototype.getBoundingClientRect = function getBoundingClientRect() {
+        const rect = originalGetBoundingClientRect.call(this)
+        if (!this.matches('[data-oneimg-render-root]')) {
+          return rect
+        }
+        return DOMRect.fromRect({
+          height: rect.height + 0.25,
+          width: rect.width + 0.25,
+          x: rect.x,
+          y: rect.y,
+        })
+      }
+    })
+    await page.goto('/scenario/export-engine-wysiwyg?scale=2')
+
+    const root = page.getByTestId('canonical-preview').locator('[data-oneimg-render-root]')
+    await expect(root).toHaveAttribute('data-render-ready', 'true')
+    const downloadPromise = page.waitForEvent('download')
+    await page.getByRole('button', { name: '导出本地 PNG' }).click()
+    const download = await downloadPromise
+    const downloadPath = await download.path()
+    if (!downloadPath) {
+      throw new Error('Playwright did not expose the fractional-geometry export path')
+    }
+    expect(readPngDimensions(await readFile(downloadPath)).width).toBe(1281)
+    await expect(page.getByTestId('export-status')).toHaveText('已完成')
+  })
 })
 
 test.describe('Long-page Resource Resolver lifecycle contract', () => {
@@ -668,6 +699,15 @@ test.describe('Long-page Resource Resolver lifecycle contract', () => {
       workerFallbackCount: number
       workerUsed: boolean
     }
+    const progressHistory = JSON.parse(await page.getByTestId('export-progress-history').textContent() ?? '[]') as Array<{
+      completed: number
+      stage: string
+      total: number
+    }>
+    const packagingProgress = progressHistory.filter(progress => progress.stage === 'packaging')
+    const distinctPackagingProgress = packagingProgress.filter((progress, index) => (
+      index === 0 || progress.completed !== packagingProgress[index - 1]?.completed
+    ))
 
     expect(diagnostics).toMatchObject({
       embeddedImageCount: 20,
@@ -676,6 +716,15 @@ test.describe('Long-page Resource Resolver lifecycle contract', () => {
       segmented: true,
       workerAvailable: true,
     })
+    expect(packagingProgress.length).toBeGreaterThan(1)
+    expect(distinctPackagingProgress[0]).toMatchObject({ completed: 0, total: 100 })
+    expect(distinctPackagingProgress.at(-1)).toMatchObject({ completed: 100, total: 100 })
+    for (let index = 1; index < distinctPackagingProgress.length; index += 1) {
+      const previous = distinctPackagingProgress[index - 1]!
+      const current = distinctPackagingProgress[index]!
+      expect(current.completed).toBeGreaterThanOrEqual(previous.completed)
+      expect(current.completed === 100 || current.completed - previous.completed >= 5).toBe(true)
+    }
     expect(diagnostics.segmentCount).toBeGreaterThan(1)
     expect(diagnostics.cleanupAudit.requested).toBeGreaterThan(0)
     expect(diagnostics.segmentBleed).toBe(80)

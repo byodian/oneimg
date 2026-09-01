@@ -29,6 +29,7 @@ import {
   createRichTextBlock,
   createUntouchedDocumentRevision,
   isMeaningfulDocumentRevision,
+  stableStringify,
 } from '@/features/document-core'
 import {
   type AssetPipeline,
@@ -230,6 +231,24 @@ function readStudioPageMeasurement(snapshot: CanonicalRenderSnapshot) {
     semanticBoundaries: getCanonicalSemanticSliceBoundaries(root),
     width: bounds.width,
   }] as const
+}
+
+function exportPlansMatch(left: ExportPlan | undefined, right: ExportPlan | undefined) {
+  if (left === right) {
+    return true
+  }
+  if (left === undefined || right === undefined) {
+    return false
+  }
+  return left.authorization === right.authorization
+    && left.cacheKey === right.cacheKey
+    && left.cacheReuse === right.cacheReuse
+    && left.canRun === right.canRun
+    && left.outputFormat === right.outputFormat
+    && left.outputScale === right.outputScale
+    && left.route === right.route
+    && left.routeReason === right.routeReason
+    && stableStringify(left.findings) === stableStringify(right.findings)
 }
 
 function sliceBoundaryLabel(kind: string) {
@@ -464,16 +483,20 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
       pageMeasurements: readStudioPageMeasurement(snapshot),
       renderReady: previewReady,
       preflightFindings: preflight.findings,
+      fontFallbackIds: renderResources?.fontFallbackIds,
       resourceFingerprint: renderResources?.fingerprint,
       snapshot,
     })
-  }, [exportEngine, exportOutputScale, meaningful, preflight.findings, previewReady, renderResources?.fingerprint, revision?.revision, snapshot])
+  }, [exportEngine, exportOutputScale, meaningful, preflight.findings, previewReady, renderResources?.fontFallbackIds, renderResources?.fingerprint, revision?.revision, snapshot])
 
   useEffect(() => {
     if (!exportPanelOpen || snapshot === undefined) {
       return
     }
-    setExportPlan(buildExportPlan())
+    const nextPlan = buildExportPlan()
+    setExportPlan((current) => {
+      return exportPlansMatch(current, nextPlan) ? current : nextPlan
+    })
   }, [buildExportPlan, exportPanelOpen, exportPlanVersion, snapshot])
 
   useEffect(() => {
@@ -485,7 +508,36 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
       setExportJobState(undefined)
       return
     }
-    return exportJob.subscribe(setExportJobState)
+    let active = true
+    let flushFrame: number | undefined
+    let pendingState: ReturnType<ExportJob['getState']> | undefined
+    // Export adapters can publish many progress states in one producer turn;
+    // keep React updates on the browser frame boundary.
+    const flush = () => {
+      flushFrame = undefined
+      if (!active || pendingState === undefined) {
+        return
+      }
+      const nextState = pendingState
+      pendingState = undefined
+      setExportJobState(nextState)
+    }
+    const publish = (nextState: ReturnType<ExportJob['getState']>) => {
+      pendingState = nextState
+      if (flushFrame !== undefined) {
+        return
+      }
+      flushFrame = window.requestAnimationFrame(flush)
+    }
+    const unsubscribe = exportJob.subscribe(publish)
+    return () => {
+      active = false
+      pendingState = undefined
+      if (flushFrame !== undefined) {
+        window.cancelAnimationFrame(flushFrame)
+      }
+      unsubscribe()
+    }
   }, [exportJob])
 
   useEffect(() => {

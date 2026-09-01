@@ -303,3 +303,22 @@ export function createSegmentedRenderPlan(
     width: normalizedWidth,
   }
 }
+
+export function createScaledSegmentedRenderPlan(
+  width: number,
+  height: number,
+  outputScale: 1 | 2,
+  limits: SegmentedRenderLimits = DEFAULT_SEGMENTED_RENDER_LIMITS,
+  semanticBoundaries: readonly SemanticSliceBoundary[] = [],
+) {
+  return createSegmentedRenderPlan(
+    width * outputScale,
+    height * outputScale,
+    limits,
+    semanticBoundaries.map(boundary => ({
+      ...boundary,
+      ...(boundary.endY === undefined ? {} : { endY: boundary.endY * outputScale }),
+      y: boundary.y * outputScale,
+    })),
+  )
+}

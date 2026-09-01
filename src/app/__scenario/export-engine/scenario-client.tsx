@@ -21,7 +21,7 @@ import {
 } from '@/features/local-export/local-rasterizer'
 import { createRenderAbortError } from '@/features/rendering/cancellation'
 
-type ScenarioRun = 'cancel' | 'failure' | 'success'
+type ScenarioRun = 'cancel' | 'failure' | 'font-fallback-change' | 'success'
 
 const SCENARIO_RESOURCE_FINGERPRINT = 'export-engine-scenario-resources@1'
 
@@ -42,9 +42,13 @@ function createScenarioResource(): ResolvedResource {
   }
 }
 
-function createScenarioResourceSet(releaseCount: { value: number }): ResolvedResourceSet {
+function createScenarioResourceSet(
+  releaseCount: { value: number },
+  fontFallbackIds: readonly string[] = [],
+): ResolvedResourceSet {
   const resource = createScenarioResource()
   return {
+    fontFallbackIds,
     fontFamily: resource.font?.family ?? '',
     fontFaceCss: '',
     fingerprint: SCENARIO_RESOURCE_FINGERPRINT,
@@ -119,6 +123,7 @@ export function ExportEngineScenario() {
   const [jobState, setJobState] = useState<ExportJobState>()
   const [error, setError] = useState<string>()
   const [result, setResult] = useState<string>()
+  const [cacheKeyComparison, setCacheKeyComparison] = useState<string>()
   const engine = useMemo(() => {
     const resolver: ResourceResolver = {
       getDiagnostics: () => ({
@@ -142,7 +147,10 @@ export function ExportEngineScenario() {
         if (mode.current === 'failure') {
           throw new Error('Scenario Resource Resolver failed')
         }
-        return createScenarioResourceSet(releaseCount.current)
+        return createScenarioResourceSet(
+          releaseCount.current,
+          mode.current === 'font-fallback-change' ? [controlledCanonicalSnapshot.fontPack.resourceIds[0]!] : [],
+        )
       },
     }
     const adapter: LocalRasterizerAdapter = {
@@ -175,7 +183,7 @@ export function ExportEngineScenario() {
     return createExportEngine({ localAdapter: adapter, resolver })
   }, [])
 
-  const createPlan = () => engine.plan({
+  const createPlan = (fontFallbackIds: readonly string[] = []) => engine.plan({
     documentRevision: 1,
     meaningful: true,
     pageMeasurements: [{
@@ -186,6 +194,7 @@ export function ExportEngineScenario() {
       width: 640,
     }],
     renderReady: true,
+    fontFallbackIds,
     resourceFingerprint: SCENARIO_RESOURCE_FINGERPRINT,
     snapshot: controlledCanonicalSnapshot,
   })
@@ -194,6 +203,7 @@ export function ExportEngineScenario() {
     mode.current = nextMode
     setError(undefined)
     setResult(undefined)
+    setCacheKeyComparison(undefined)
     const nextPlan = createPlan()
     setPlan(nextPlan)
     const nextJob = engine.run(nextPlan)
@@ -204,6 +214,14 @@ export function ExportEngineScenario() {
     }).catch((reason: unknown) => {
       setError(reason instanceof Error ? reason.message : String(reason))
     }).finally(unsubscribe)
+  }
+
+  const compareFontFallbackCacheKeys = () => {
+    const loadedFontPlan = createPlan()
+    const fallbackFontPlan = createPlan([controlledCanonicalSnapshot.fontPack.resourceIds[0]!])
+    setPlan(loadedFontPlan)
+    setCacheKeyComparison(loadedFontPlan.cacheKey === fallbackFontPlan.cacheKey ? 'same' : 'different')
+    setError(undefined)
   }
 
   const cancel = () => {
@@ -225,11 +243,14 @@ export function ExportEngineScenario() {
         >
           查看 Export Plan
         </button>
+        <button onClick={compareFontFallbackCacheKeys} type="button">比较字体回退缓存键</button>
         <button onClick={() => run('success')} type="button">成功运行</button>
         <button onClick={() => run('failure')} type="button">失败运行</button>
+        <button onClick={() => run('font-fallback-change')} type="button">字体回退变化运行</button>
         <button onClick={() => run('cancel')} type="button">可取消运行</button>
         <button disabled={jobState?.status !== 'running'} onClick={cancel} type="button">取消任务</button>
       </div>
+      <output data-testid="export-engine-cache-key">{cacheKeyComparison ?? ''}</output>
       <output data-testid="export-engine-plan">{plan ? JSON.stringify({ cacheReuse: plan.cacheReuse, canRun: plan.canRun, route: plan.route }) : ''}</output>
       <output data-testid="export-engine-job">{jobState ? JSON.stringify(jobState) : ''}</output>
       <output data-testid="export-engine-result">{result ?? ''}</output>
