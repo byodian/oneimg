@@ -5,11 +5,14 @@ import {
   isMeaningfulDocumentRevision,
   serializeDocumentRevision,
 } from '@/features/document-core'
+import type { PackageImportReport } from '@/features/oneimg-package'
 
 const DEFAULT_DATABASE_NAME = 'OneImgLocalCore'
-const DATABASE_VERSION = 1
+const DATABASE_VERSION = 3
 const DOCUMENT_STORE = 'documents'
 const TRANSACTION_STORE = 'transactions'
+const PACKAGE_IMPORT_STORE = 'package-imports'
+const ASSET_STORE = 'assets'
 
 export type DurableReceiptStatus = 'already-saved' | 'saved' | 'stale'
 
@@ -21,8 +24,13 @@ export interface DurableReceipt {
 }
 
 export interface PersistCommitInput {
+  readonly assets?: readonly LocalAssetRecord[]
   readonly revision: DocumentRevision
   readonly transaction: EditTransaction
+}
+
+export interface PersistImportedDraftInput extends PersistCommitInput {
+  readonly packageImport: RecordPackageImportInput
 }
 
 export interface RecentDocument {
@@ -40,10 +48,39 @@ export interface ConflictDraft {
   readonly sourceDocumentId: string
 }
 
+export interface PackageImportRecord {
+  readonly assets: readonly LocalAssetRecord[]
+  readonly documentId: string
+  readonly importedAt: string
+  readonly packageId: string
+  readonly report?: PackageImportReport
+  readonly sourceDocumentId: string
+}
+
+export interface LocalAssetRecord {
+  readonly assetId: string
+  readonly original: Blob
+  readonly renderSource?: Blob
+  readonly renderSourceRevision?: string
+}
+
+export type PackageImportAssetRecord = LocalAssetRecord
+
+export interface RecordPackageImportInput {
+  readonly assets?: readonly LocalAssetRecord[]
+  readonly documentId: string
+  readonly packageId: string
+  readonly report?: PackageImportReport
+  readonly sourceDocumentId: string
+}
+
 export interface LocalRepository {
   readonly close: () => void
+  readonly listAssets: () => Promise<readonly LocalAssetRecord[]>
   readonly listConflictDrafts: () => Promise<readonly ConflictDraft[]>
+  readonly listImportedPackages: () => Promise<readonly PackageImportRecord[]>
   readonly listRecents: () => Promise<readonly RecentDocument[]>
+  readonly persistImportedDraft: (input: PersistImportedDraftInput) => Promise<DurableReceipt>
   readonly persistCommit: (input: PersistCommitInput) => Promise<DurableReceipt>
   readonly restore: (documentId: string) => Promise<DocumentRevision | null>
 }
@@ -99,6 +136,14 @@ interface StoredTransactionRecord {
   readonly transaction: EditTransaction
 }
 
+interface StoredPackageImportRecord extends PackageImportRecord {
+  readonly id: string
+}
+
+interface StoredAssetRecord extends LocalAssetRecord {
+  readonly id: string
+}
+
 export function createInMemoryLocalRepository(
   options: LocalRepositoryOptions = {},
 ): LocalRepository {
@@ -106,16 +151,39 @@ export function createInMemoryLocalRepository(
   const beforePersistCommit = options.beforePersistCommit
   const documents = new Map<string, StoredDocumentRecord>()
   const transactions = new Map<string, StoredTransactionRecord>()
+  const packageImports = new Map<string, StoredPackageImportRecord>()
+  const assets = new Map<string, StoredAssetRecord>()
   const enqueue = createDocumentQueue()
 
   return {
     close: () => undefined,
+    listAssets: async () => listAssetRecords(assets.values()),
     listConflictDrafts: async () => listConflictRecords(documents.values()),
+    listImportedPackages: async () => listPackageImportRecords(packageImports.values()),
     listRecents: async () => listRecentRecords(documents.values()),
     persistCommit: input => enqueue(input.revision.id, async () => {
       await runBeforePersistCommit(beforePersistCommit, input)
       const prepared = prepareCommit(input, clock())
-      return saveInMemoryCommit(prepared, documents, transactions)
+      const preparedAssets = prepareAssetRecords(input.assets)
+      const receipt = saveInMemoryCommit(prepared, documents, transactions)
+      if (receipt.status !== 'stale') {
+        saveInMemoryAssets(preparedAssets, assets)
+      }
+      return receipt
+    }),
+    persistImportedDraft: input => enqueue(input.revision.id, async () => {
+      await runBeforePersistCommit(beforePersistCommit, input)
+      const prepared = prepareCommit(input, clock())
+      const packageImport = preparePackageImport(input.packageImport, prepared.record.updatedAt)
+      assertImportedDraftIdentity(input.revision, packageImport)
+      assertImportedDraftAssets(input.revision, packageImport)
+      const preparedAssets = prepareAssetRecords(input.assets ?? packageImport.assets)
+      const receipt = saveInMemoryCommit(prepared, documents, transactions)
+      if (receipt.status !== 'stale') {
+        saveInMemoryAssets(preparedAssets, assets)
+        packageImports.set(packageImport.id, packageImport)
+      }
+      return receipt
     }),
     restore: async (documentId) => {
       const record = documents.get(documentId)
@@ -143,10 +211,20 @@ export function createIndexedDbLocalRepository(
         db.close()
       }).catch(() => undefined)
     },
+    listAssets: async () => {
+      const db = await database
+      const records = await readAllAssets(db)
+      return listAssetRecords(records)
+    },
     listConflictDrafts: async () => {
       const db = await database
       const records = await readAllDocuments(db)
       return listConflictRecords(records)
+    },
+    listImportedPackages: async () => {
+      const db = await database
+      const records = await readAllPackageImports(db)
+      return listPackageImportRecords(records)
     },
     listRecents: async () => {
       const db = await database
@@ -157,7 +235,18 @@ export function createIndexedDbLocalRepository(
       await runBeforePersistCommit(beforePersistCommit, input)
       const db = await database
       const prepared = prepareCommit(input, clock())
-      return saveIndexedDbCommit(db, prepared)
+      const preparedAssets = prepareAssetRecords(input.assets)
+      return saveIndexedDbCommit(db, prepared, undefined, preparedAssets)
+    }),
+    persistImportedDraft: input => enqueue(input.revision.id, async () => {
+      await runBeforePersistCommit(beforePersistCommit, input)
+      const db = await database
+      const prepared = prepareCommit(input, clock())
+      const packageImport = preparePackageImport(input.packageImport, prepared.record.updatedAt)
+      assertImportedDraftIdentity(input.revision, packageImport)
+      assertImportedDraftAssets(input.revision, packageImport)
+      const preparedAssets = prepareAssetRecords(input.assets ?? packageImport.assets)
+      return saveIndexedDbCommit(db, prepared, packageImport, preparedAssets)
     }),
     restore: async (documentId) => {
       const db = await database
@@ -313,6 +402,154 @@ function listRecentRecords(records: Iterable<StoredDocumentRecord>): readonly Re
     }))
 }
 
+function packageImportRecordId(input: RecordPackageImportInput) {
+  return `${input.packageId}:${input.documentId}`
+}
+
+function prepareAssetRecords(input: readonly LocalAssetRecord[] | undefined): readonly StoredAssetRecord[] {
+  if (input === undefined) {
+    return []
+  }
+  const assetIds = new Set<string>()
+  return input.map((asset) => {
+    if (typeof asset.assetId !== 'string' || asset.assetId.trim().length === 0) {
+      throw new LocalRepositoryError('invalid-commit', 'Local Asset records must declare an Asset identity')
+    }
+    if (assetIds.has(asset.assetId)) {
+      throw new LocalRepositoryError('invalid-commit', `Local Asset ${asset.assetId} is repeated`)
+    }
+    if ((asset.renderSource === undefined) !== (asset.renderSourceRevision === undefined)) {
+      throw new LocalRepositoryError(
+        'invalid-commit',
+        'Local Asset Render Source bytes and revision must be provided together',
+      )
+    }
+    if (asset.renderSourceRevision !== undefined && asset.renderSourceRevision.trim().length === 0) {
+      throw new LocalRepositoryError('invalid-commit', 'Local Asset Render Source revision must be non-empty')
+    }
+    assetIds.add(asset.assetId)
+    return {
+      assetId: asset.assetId,
+      id: asset.assetId,
+      original: asset.original,
+      ...(asset.renderSource === undefined ? {} : { renderSource: asset.renderSource }),
+      ...(asset.renderSourceRevision === undefined ? {} : { renderSourceRevision: asset.renderSourceRevision }),
+    }
+  })
+}
+
+function saveInMemoryAssets(
+  records: readonly StoredAssetRecord[],
+  assets: Map<string, StoredAssetRecord>,
+) {
+  for (const record of records) {
+    assets.set(record.id, record)
+  }
+}
+
+function listAssetRecords(records: Iterable<StoredAssetRecord>): readonly LocalAssetRecord[] {
+  return Array.from(records)
+    .sort((left, right) => left.id.localeCompare(right.id))
+    .map(({ assetId, original, renderSource, renderSourceRevision }) => ({
+      assetId,
+      original,
+      ...(renderSource === undefined ? {} : { renderSource }),
+      ...(renderSourceRevision === undefined ? {} : { renderSourceRevision }),
+    }))
+}
+
+function assertImportedDraftIdentity(
+  revision: DocumentRevision,
+  packageImport: StoredPackageImportRecord,
+) {
+  if (packageImport.documentId !== revision.id) {
+    throw new LocalRepositoryError(
+      'invalid-commit',
+      'Imported Package metadata and Document revision identities do not match',
+    )
+  }
+}
+
+function assertImportedDraftAssets(
+  revision: DocumentRevision,
+  packageImport: StoredPackageImportRecord,
+) {
+  const referencedAssetIds = new Set(revision.pages.flatMap(page => page.blocks.flatMap(block => (
+    block.kind === 'media-group' ? block.items.map(item => item.assetId) : []
+  ))))
+  const packageAssetIds = new Set<string>()
+  for (const asset of packageImport.assets) {
+    if (packageAssetIds.has(asset.assetId)) {
+      throw new LocalRepositoryError(
+        'invalid-commit',
+        `Imported Package repeats Asset ${asset.assetId}`,
+      )
+    }
+    if (!referencedAssetIds.has(asset.assetId)) {
+      throw new LocalRepositoryError(
+        'invalid-commit',
+        `Imported Package Asset ${asset.assetId} is not referenced by its Document`,
+      )
+    }
+    packageAssetIds.add(asset.assetId)
+  }
+}
+
+function preparePackageImport(input: RecordPackageImportInput, importedAt: string): StoredPackageImportRecord {
+  if (input.packageId.trim().length === 0 || input.documentId.trim().length === 0 || input.sourceDocumentId.trim().length === 0) {
+    throw new LocalRepositoryError(
+      'invalid-commit',
+      'Imported Package metadata must declare package and Document identities',
+    )
+  }
+  const preparedAssets = prepareAssetRecords(input.assets)
+  return {
+    assets: preparedAssets.map(({ assetId, original, renderSource, renderSourceRevision }) => ({
+      assetId,
+      original,
+      ...(renderSource === undefined ? {} : { renderSource }),
+      ...(renderSourceRevision === undefined ? {} : { renderSourceRevision }),
+    })),
+    documentId: input.documentId,
+    id: packageImportRecordId(input),
+    importedAt,
+    packageId: input.packageId,
+    ...(input.report === undefined ? {} : { report: clonePackageImportReport(input.report) }),
+    sourceDocumentId: input.sourceDocumentId,
+  }
+}
+
+function clonePackageImportReport(report: PackageImportReport): PackageImportReport {
+  return {
+    exactAssetCount: report.exactAssetCount,
+    exactDocumentCount: report.exactDocumentCount,
+    findings: report.findings.map(finding => ({ ...finding })),
+    unknownBlockCount: report.unknownBlockCount,
+    unresolvedAssetCount: report.unresolvedAssetCount,
+  }
+}
+
+function listPackageImportRecords(records: Iterable<StoredPackageImportRecord>): readonly PackageImportRecord[] {
+  return Array.from(records)
+    .sort((left, right) => {
+      const byImportedAt = right.importedAt.localeCompare(left.importedAt)
+      return byImportedAt === 0 ? left.id.localeCompare(right.id) : byImportedAt
+    })
+    .map(({ assets, documentId, importedAt, packageId, report, sourceDocumentId }) => ({
+      assets: (assets ?? []).map(asset => ({
+        assetId: asset.assetId,
+        original: asset.original,
+        ...(asset.renderSource === undefined ? {} : { renderSource: asset.renderSource }),
+        ...(asset.renderSourceRevision === undefined ? {} : { renderSourceRevision: asset.renderSourceRevision }),
+      })),
+      documentId,
+      importedAt,
+      packageId,
+      ...(report === undefined ? {} : { report: clonePackageImportReport(report) }),
+      sourceDocumentId,
+    }))
+}
+
 function listConflictRecords(records: Iterable<StoredDocumentRecord>): readonly ConflictDraft[] {
   return Array.from(records)
     .filter(record => record.kind === 'conflict')
@@ -454,6 +691,12 @@ function openDatabase(indexedDb: IDBFactory, dbName: string): Promise<IDBDatabas
         const store = db.createObjectStore(TRANSACTION_STORE, { keyPath: 'id' })
         store.createIndex('by-document', 'documentId', { unique: false })
       }
+      if (!db.objectStoreNames.contains(PACKAGE_IMPORT_STORE)) {
+        db.createObjectStore(PACKAGE_IMPORT_STORE, { keyPath: 'id' })
+      }
+      if (!db.objectStoreNames.contains(ASSET_STORE)) {
+        db.createObjectStore(ASSET_STORE, { keyPath: 'id' })
+      }
     }
     request.onerror = () => reject(new LocalRepositoryError(
       'unavailable',
@@ -470,14 +713,31 @@ function openDatabase(indexedDb: IDBFactory, dbName: string): Promise<IDBDatabas
   })
 }
 
-function saveIndexedDbCommit(db: IDBDatabase, prepared: PreparedCommit): Promise<DurableReceipt> {
+function saveIndexedDbCommit(
+  db: IDBDatabase,
+  prepared: PreparedCommit,
+  packageImport?: StoredPackageImportRecord,
+  assets: readonly StoredAssetRecord[] = [],
+): Promise<DurableReceipt> {
   return new Promise((resolve, reject) => {
     let outcome: DurableReceipt | undefined
     let conflictDraft: PreparedConflictDraft | undefined
     let failure: Error | undefined
-    const transaction = db.transaction([DOCUMENT_STORE, TRANSACTION_STORE], 'readwrite')
+    const storeNames = [DOCUMENT_STORE, TRANSACTION_STORE]
+    if (packageImport !== undefined) {
+      storeNames.push(PACKAGE_IMPORT_STORE)
+    }
+    if (assets.length > 0) {
+      storeNames.push(ASSET_STORE)
+    }
+    const transaction = db.transaction(
+      storeNames,
+      'readwrite',
+    )
     const documents = transaction.objectStore(DOCUMENT_STORE)
     const storedTransactions = transaction.objectStore(TRANSACTION_STORE)
+    const packageImports = packageImport === undefined ? undefined : transaction.objectStore(PACKAGE_IMPORT_STORE)
+    const storedAssets = assets.length === 0 ? undefined : transaction.objectStore(ASSET_STORE)
     const currentRequest = documents.get(prepared.record.documentId)
     const transactionRequest = storedTransactions.get(prepared.transaction.id)
     let current: StoredDocumentRecord | undefined
@@ -525,12 +785,20 @@ function saveIndexedDbCommit(db: IDBDatabase, prepared: PreparedCommit): Promise
         fail(error instanceof Error ? error : new Error(String(error)))
         return
       }
-      if (outcome.status !== 'saved') {
+      if (outcome.status !== 'saved' && outcome.status !== 'already-saved') {
         transaction.abort()
         return
       }
-      documents.put(prepared.record)
-      storedTransactions.put(prepared.transaction)
+      if (outcome.status === 'saved') {
+        documents.put(prepared.record)
+        storedTransactions.put(prepared.transaction)
+      }
+      if (packageImport !== undefined) {
+        packageImports!.put(packageImport)
+      }
+      for (const asset of assets) {
+        storedAssets!.put(asset)
+      }
     }
 
     currentRequest.onerror = () => fail(requestError(currentRequest, 'Failed to read Document record'))
@@ -551,7 +819,11 @@ function saveIndexedDbCommit(db: IDBDatabase, prepared: PreparedCommit): Promise
       }
     }
     transaction.onabort = () => {
-      if (conflictDraft === undefined && outcome !== undefined && outcome.status !== 'saved') {
+      if (
+        conflictDraft === undefined
+        && outcome !== undefined
+        && (outcome.status === 'stale' || (outcome.status === 'already-saved' && packageImport === undefined))
+      ) {
         resolve(outcome)
         return
       }
@@ -569,7 +841,7 @@ function saveIndexedDbCommit(db: IDBDatabase, prepared: PreparedCommit): Promise
         ))
         return
       }
-      if (outcome?.status === 'saved') {
+      if (outcome?.status === 'saved' || outcome?.status === 'already-saved') {
         resolve(outcome)
         return
       }
@@ -603,5 +875,29 @@ function readAllDocuments(db: IDBDatabase): Promise<readonly StoredDocumentRecor
       request.error?.message ?? 'Failed to list Document records',
     ))
     request.onsuccess = () => resolve(request.result as readonly StoredDocumentRecord[])
+  })
+}
+
+function readAllAssets(db: IDBDatabase): Promise<readonly StoredAssetRecord[]> {
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(ASSET_STORE, 'readonly')
+    const request = transaction.objectStore(ASSET_STORE).getAll()
+    request.onerror = () => reject(new LocalRepositoryError(
+      'write-failed',
+      request.error?.message ?? 'Failed to read Asset records',
+    ))
+    request.onsuccess = () => resolve(request.result as readonly StoredAssetRecord[])
+  })
+}
+
+function readAllPackageImports(db: IDBDatabase): Promise<readonly StoredPackageImportRecord[]> {
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(PACKAGE_IMPORT_STORE, 'readonly')
+    const request = transaction.objectStore(PACKAGE_IMPORT_STORE).getAll()
+    request.onerror = () => reject(new LocalRepositoryError(
+      'write-failed',
+      request.error?.message ?? 'Failed to read Package import records',
+    ))
+    request.onsuccess = () => resolve(request.result as readonly StoredPackageImportRecord[])
   })
 }

@@ -23,6 +23,62 @@ function crc32(data: Buffer) {
   return (value ^ 0xffffffff) >>> 0
 }
 
+const VALID_PNG = Buffer.from([
+  137, 80, 78, 71, 13, 10, 26, 10,
+  0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 4, 0, 0, 0, 181, 28, 12, 2,
+  0, 0, 0, 11, 73, 68, 65, 84, 120, 218, 99, 100, 248, 15, 0, 1, 5, 1, 1, 39, 24, 227, 102,
+  0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130,
+])
+
+function createRawSnapshot(
+  assetId = 'raw-asset-v1',
+  documentId = 'raw-document-v1',
+  sensitive = false,
+  executable = false,
+) {
+  return {
+    blockVersion: 'block-catalog@1',
+    documentName: 'Raw package fixture',
+    id: documentId,
+    modelVersion: 'document@1',
+    pages: [{
+      blocks: [{
+        arrangement: 'sequence',
+        id: 'raw-block-v1',
+        items: [{
+          assetId,
+          featured: false,
+          fit: 'cover',
+          focalPoint: { x: 0.5, y: 0.5 },
+          id: 'raw-media-item-v1',
+          rotation: 0,
+          zoom: 1,
+        }],
+        kind: 'media-group',
+        version: 1,
+      }],
+      format: { kind: 'continuous', preset: 'long-image', width: 640 },
+      id: 'raw-page-v1',
+    }],
+    presentation: {
+      density: 'standard',
+      fontPackId: 'noto-sans-sc@1',
+      pageFormat: { kind: 'continuous', preset: 'long-image', width: 640 },
+      rendererRevision: 'canonical-renderer@1',
+      ...(sensitive ? { sensitive: true } : {}),
+      sceneId: 'general-long-image',
+      sceneVersion: 'general-long-image@1',
+      templateId: 'clear-paper',
+      templateVersion: 'clear-paper@1',
+      themeId: 'cobalt',
+      themeVersion: 'cobalt@1',
+    },
+    ...(executable ? { unsafe: { onmouseover: 'alert(1)' } } : {}),
+    revision: 1,
+    schema: 'oneimg-document@1',
+  }
+}
+
 function buildStoredZip(entries: readonly RawZipEntry[]) {
   const localParts: Buffer[] = []
   const centralParts: Buffer[] = []
@@ -67,8 +123,8 @@ function buildStoredZip(entries: readonly RawZipEntry[]) {
 }
 
 function createRawPackage(
-  assetData = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
-  snapshot: Record<string, unknown> = { blocks: [], pages: [] },
+  assetData = VALID_PNG,
+  snapshot: Record<string, unknown> = createRawSnapshot(),
   sensitive = false,
 ) {
   const documentData = Buffer.from(JSON.stringify({
@@ -81,6 +137,8 @@ function createRawPackage(
       pageFormat: 'continuous',
       rendererRevision: 'canonical-renderer@1',
       ...(sensitive ? { sensitive: true } : {}),
+      sceneId: 'general-long-image',
+      sceneVersion: 'general-long-image@1',
       templateId: 'clear-paper',
       templateVersion: 'clear-paper@1',
       themeId: 'cobalt',
@@ -116,6 +174,8 @@ function createRawPackage(
         pageFormat: 'continuous',
         rendererRevision: 'canonical-renderer@1',
         ...(sensitive ? { sensitive: true } : {}),
+        sceneId: 'general-long-image',
+        sceneVersion: 'general-long-image@1',
         templateId: 'clear-paper',
         templateVersion: 'clear-paper@1',
         themeId: 'cobalt',
@@ -148,7 +208,12 @@ function createRawPackage(
 async function inspectBytes(
   page: Page,
   bytes: Buffer,
-  limits?: { readonly maxDocumentBytes?: number; readonly maxEntryBytes?: number },
+  limits?: {
+    readonly maxDecodedPixels?: number
+    readonly maxDocumentBytes?: number
+    readonly maxEntryBytes?: number
+    readonly maxPreviewBytes?: number
+  },
 ) {
   return page.evaluate(async ({ bytes: input, limits: packageLimits }) => {
     const harness = window.__oneimgPackageHarness
@@ -171,16 +236,23 @@ test.describe('OneIMG Package streaming contract', () => {
         formatVersion: number
         packageId: string
       }
+      preview: {
+        importedBytesEqual: boolean
+        manifestPath: string
+        sensitiveOmitted: boolean
+      }
+      unresolvedAssetIdFresh: boolean
+      writerDecodedPixelLimit: string
       progress: {
         readStages: string[]
         writeStages: string[]
       }
       roundTrip: {
+        assetBytesEqual: boolean
         documentEqual: boolean
         importedDocumentIdDifferent: boolean
         importedDraftIdDifferent: boolean
         packageIdentityEqual: boolean
-        assetBytesEqual: boolean
       }
       status: string
     }
@@ -202,6 +274,13 @@ test.describe('OneIMG Package streaming contract', () => {
       'asset-render-source',
     ])
     expect(result.progress.readStages).toEqual(result.progress.writeStages)
+    expect(result.preview).toEqual({
+      importedBytesEqual: true,
+      manifestPath: 'previews/document-fixture-v1.png',
+      sensitiveOmitted: true,
+    })
+    expect(result.unresolvedAssetIdFresh).toBe(true)
+    expect(result.writerDecodedPixelLimit).toBe('resource-limit')
     expect(result.roundTrip).toEqual({
       assetBytesEqual: true,
       documentEqual: true,
@@ -229,12 +308,42 @@ test.describe('OneIMG Package streaming contract', () => {
     expect(duplicate).toMatchObject({ code: 'duplicate-entry', ok: false })
 
     const tamperedEntries = createRawPackage()
+    const tamperedAssetData = Buffer.from(VALID_PNG)
+    tamperedAssetData[tamperedAssetData.length - 1] ^= 1
     tamperedEntries[2] = {
       ...tamperedEntries[2],
-      data: Buffer.from([137, 80, 78, 71, 13, 10, 26, 9]),
+      data: tamperedAssetData,
     }
     const tampered = await inspectBytes(page, buildStoredZip(tamperedEntries))
     expect(tampered).toMatchObject({ code: 'integrity-mismatch', ok: false })
+
+    const snapshotMismatchEntries = createRawPackage()
+    const mismatchedDocument = JSON.parse(snapshotMismatchEntries[1]!.data.toString()) as {
+      snapshot: Record<string, unknown>
+    }
+    mismatchedDocument.snapshot = {
+      ...mismatchedDocument.snapshot,
+      id: 'different-document-v1',
+    }
+    const mismatchedDocumentData = Buffer.from(JSON.stringify(mismatchedDocument))
+    snapshotMismatchEntries[1] = {
+      ...snapshotMismatchEntries[1]!,
+      data: mismatchedDocumentData,
+    }
+    const snapshotMismatchManifest = JSON.parse(snapshotMismatchEntries[0]!.data.toString()) as {
+      entries: Array<{ byteLength: number; path: string; sha256: string }>
+    }
+    const snapshotMismatchEntry = snapshotMismatchManifest.entries.find(
+      entry => entry.path === 'documents/raw-document-v1.json',
+    )!
+    snapshotMismatchEntry.byteLength = mismatchedDocumentData.length
+    snapshotMismatchEntry.sha256 = sha256(mismatchedDocumentData)
+    snapshotMismatchEntries[0] = {
+      ...snapshotMismatchEntries[0]!,
+      data: Buffer.from(JSON.stringify(snapshotMismatchManifest)),
+    }
+    const snapshotMismatch = await inspectBytes(page, buildStoredZip(snapshotMismatchEntries))
+    expect(snapshotMismatch).toMatchObject({ code: 'integrity-mismatch', ok: false })
 
     const spoofed = await inspectBytes(page, buildStoredZip(createRawPackage(Buffer.from('not a png'))))
     expect(spoofed).toMatchObject({ code: 'media-mismatch', ok: false })
@@ -248,6 +357,16 @@ test.describe('OneIMG Package streaming contract', () => {
       { maxDocumentBytes: 8 },
     )
     expect(oversizedDocument).toMatchObject({ code: 'resource-limit', ok: false })
+
+    const oversizedPixelData = Buffer.from(createRawPackage()[2]!.data)
+    oversizedPixelData.writeUInt32BE(2, 16)
+    oversizedPixelData.writeUInt32BE(2, 20)
+    const oversizedPixels = await inspectBytes(
+      page,
+      buildStoredZip(createRawPackage(oversizedPixelData)),
+      { maxDecodedPixels: 1 },
+    )
+    expect(oversizedPixels).toMatchObject({ code: 'resource-limit', ok: false })
 
     const newerEntries = createRawPackage()
     const newerManifest = JSON.parse(newerEntries[0]!.data.toString()) as Record<string, unknown>
@@ -282,11 +401,14 @@ test.describe('OneIMG Package streaming contract', () => {
 
     const executable = await inspectBytes(
       page,
-      buildStoredZip(createRawPackage(undefined, { blocks: [{ onmouseover: 'alert(1)' }] })),
+      buildStoredZip(createRawPackage(undefined, createRawSnapshot('raw-asset-v1', 'raw-document-v1', false, true))),
     )
     expect(executable).toMatchObject({ code: 'executable-content', ok: false })
 
-    const sensitive = await inspectBytes(page, buildStoredZip(createRawPackage(undefined, { blocks: [], pages: [] }, true)))
+    const sensitive = await inspectBytes(
+      page,
+      buildStoredZip(createRawPackage(undefined, createRawSnapshot('raw-asset-v1', 'raw-document-v1', true), true)),
+    )
     expect(sensitive).toMatchObject({ ok: true })
   })
 })

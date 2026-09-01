@@ -75,6 +75,14 @@ The Package Module inspects an input without changing local state, writes a sele
 
 Package writing and reading are incremental. Entries stream in stable order, SHA-256 and compression update as bytes pass, and progress reports actual entries and bytes. Cancellation stops pending I/O, discards uncommitted candidate records, and preserves shared Assets. When direct writable streaming is unavailable, the implementation uses a bounded fallback with preflighted memory cost; the existing whole-archive JSZip Blob path is not eligible for media-heavy OneIMG Packages.
 
+## Current Studio integration
+
+The current Studio slice exposes an explicit “保存 .oneimg 副本” action for the current committed semantic Draft and a file picker for `.oneimg` Packages. It packages one Document without requiring a Project, login, or live file binding. A committed in-memory revision may be packaged while the Local Repository acknowledgement is still pending; the snapshot boundary is the Document Core transaction rather than transient editor state. Package import is held while an unrelated local commit is pending so switching to the new Draft cannot discard an unacknowledged edit.
+
+Import first runs the Package Module's complete candidate inspection. Only a single-Document candidate is currently activated by Studio; after its Assets and Document have been validated and durably committed, Studio switches to a new Imported Draft and records the source Package identity in the Local Repository. Failed validation, newer-format Recovery results, and multi-Document candidates leave the active Draft untouched. A previously imported Package identity produces an explicit duplicate choice; choosing a new copy creates another independent Draft and never merges, synchronizes, or overwrites work.
+
+Package Preview is optional at the module boundary. This single-Document Studio slice omits Preview because the current Studio export artifact is not the Canonical Preview boundary required for a trustworthy package preview. Sensitive Documents therefore omit it by default as well. Preview bytes supplied by another producer are integrity-checked like other Package entries and are never used as an editing or Raster Export source.
+
 ## Validation and hostile input
 
 Inspection validates the Manifest and every selected entry before committing an import. The Package Module rejects:

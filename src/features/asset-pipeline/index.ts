@@ -101,6 +101,10 @@ export interface AssetPipelineOptions {
 }
 
 export interface AssetIngestionOptions {
+  readonly renderSource?: {
+    readonly blob: Blob
+    readonly revision: string
+  }
   readonly signal?: AbortSignal
 }
 
@@ -113,6 +117,7 @@ export interface AssetPipeline {
   readonly ingest: (input: Blob, options?: AssetIngestionOptions) => Promise<AssetIngestionResult>
   readonly ingestMany: (inputs: readonly Blob[], options?: AssetIngestionOptions) => Promise<AssetImportBatchResult>
   readonly list: () => readonly AssetRecord[]
+  readonly remove: (assetId: string) => void
 }
 
 const DEFAULT_MAX_DECODED_PIXELS = 40_000_000
@@ -402,6 +407,66 @@ async function createNormalizedRenderSource(
   return { blob, intrinsicDimensions, rawDimensions }
 }
 
+function decodedImagesHaveSamePixels(expected: DecodedImage, actual: DecodedImage) {
+  if (
+    expected.dimensions.width !== actual.dimensions.width
+    || expected.dimensions.height !== actual.dimensions.height
+  ) {
+    return false
+  }
+  const canvas = createCanvas(expected.dimensions.width, expected.dimensions.height)
+  const context = canvas.getContext('2d', { alpha: true, willReadFrequently: true })
+  if (context === null) {
+    throw new Error('Unable to create a local 2D canvas for Render Source validation')
+  }
+  expected.draw(context)
+  const expectedPixels = context.getImageData(
+    0,
+    0,
+    expected.dimensions.width,
+    expected.dimensions.height,
+  ).data
+  context.clearRect(0, 0, expected.dimensions.width, expected.dimensions.height)
+  actual.draw(context)
+  const actualPixels = context.getImageData(
+    0,
+    0,
+    actual.dimensions.width,
+    actual.dimensions.height,
+  ).data
+  if (expectedPixels.length !== actualPixels.length) {
+    return false
+  }
+  for (let index = 0; index < expectedPixels.length; index += 1) {
+    if (expectedPixels[index] !== actualPixels[index]) {
+      return false
+    }
+  }
+  return true
+}
+
+async function validateProvidedRenderSource(
+  expectedBlob: Blob,
+  providedBlob: Blob,
+  signal?: AbortSignal,
+) {
+  if (providedBlob.type.toLowerCase() !== 'image/png') {
+    throw new Error('Package Render Source must be a PNG')
+  }
+  let expectedDecoded: DecodedImage | undefined
+  let providedDecoded: DecodedImage | undefined
+  try {
+    expectedDecoded = await decodeImage(expectedBlob, signal)
+    providedDecoded = await decodeImage(providedBlob, signal)
+    if (!decodedImagesHaveSamePixels(expectedDecoded, providedDecoded)) {
+      throw new Error('Package Render Source pixels do not match the normalized Original')
+    }
+  } finally {
+    expectedDecoded?.close()
+    providedDecoded?.close()
+  }
+}
+
 function createUnresolvedRecord(
   id: string,
   original: AssetOriginalMetadata,
@@ -437,6 +502,13 @@ class BrowserAssetPipeline implements AssetPipeline {
     const id = `asset-${sha256}`
     const existing = this.assets.get(id)
     if (existing !== undefined) {
+      if (options.renderSource !== undefined && existing.renderSourceBlob !== undefined) {
+        await validateProvidedRenderSource(
+          existing.renderSourceBlob,
+          options.renderSource.blob,
+          options.signal,
+        )
+      }
       return { asset: existing.record, created: false }
     }
 
@@ -469,6 +541,8 @@ class BrowserAssetPipeline implements AssetPipeline {
     const originalBlob = new Blob([imageBytes(bytes)], { type: sniffedMimeType })
     const decodeBlob = new Blob([imageBytes(stripJpegExifSegments(bytes, sniffedMimeType))], { type: sniffedMimeType })
     let decoded: DecodedImage | undefined
+    let expectedRenderSourceDecoded: DecodedImage | undefined
+    let providedRenderSourceDecoded: DecodedImage | undefined
     try {
       decoded = await decodeImage(decodeBlob, options.signal)
       const rawDimensions = decoded.dimensions
@@ -477,6 +551,19 @@ class BrowserAssetPipeline implements AssetPipeline {
       }
       const exifOrientation = readExifOrientation(bytes, sniffedMimeType)
       const normalized = await createNormalizedRenderSource(decoded, exifOrientation, options.signal)
+      const renderSourceBlob = options.renderSource === undefined
+        ? normalized.blob
+        : new Blob([options.renderSource.blob], { type: 'image/png' })
+      if (options.renderSource !== undefined) {
+        if (options.renderSource.blob.type.toLowerCase() !== 'image/png') {
+          throw new Error('Package Render Source must be a PNG')
+        }
+        expectedRenderSourceDecoded = await decodeImage(normalized.blob, options.signal)
+        providedRenderSourceDecoded = await decodeImage(renderSourceBlob, options.signal)
+        if (!decodedImagesHaveSamePixels(expectedRenderSourceDecoded, providedRenderSourceDecoded)) {
+          throw new Error('Package Render Source pixels do not match the normalized Original')
+        }
+      }
       const metadata: NormalizedImageMetadata = {
         alphaMode: sniffedMimeType === 'image/jpeg' ? 'opaque' : 'preserved',
         colorInterpretation: 'srgb',
@@ -486,8 +573,10 @@ class BrowserAssetPipeline implements AssetPipeline {
         rawDimensions: normalized.rawDimensions,
       }
       const renderSource = {
-        byteLength: normalized.blob.size,
-        id: `${id}:render-source:png@1`,
+        byteLength: renderSourceBlob.size,
+        id: options.renderSource === undefined
+          ? `${id}:render-source:png@1`
+          : `${id}:render-source:${options.renderSource.revision}`,
         metadata,
         mimeType: 'image/png' as const,
       } satisfies RenderSourceMetadata
@@ -497,7 +586,7 @@ class BrowserAssetPipeline implements AssetPipeline {
         renderSource,
         status: 'ready' as const,
       } satisfies ReadyAssetRecord
-      this.assets.set(id, { originalBlob, record, renderSourceBlob: normalized.blob })
+      this.assets.set(id, { originalBlob, record, renderSourceBlob })
       return { asset: record, created: true }
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
@@ -506,11 +595,16 @@ class BrowserAssetPipeline implements AssetPipeline {
       if (error instanceof Error && error.name === 'AbortError') {
         throw error
       }
+      if (options.renderSource !== undefined) {
+        throw error
+      }
       const record = createUnresolvedRecord(id, original, failureFromError(error))
       this.assets.set(id, { originalBlob, record })
       return { asset: record, created: true }
     } finally {
       decoded?.close()
+      expectedRenderSourceDecoded?.close()
+      providedRenderSourceDecoded?.close()
     }
   }
 
@@ -532,6 +626,10 @@ class BrowserAssetPipeline implements AssetPipeline {
 
   list() {
     return Array.from(this.assets.values(), value => value.record)
+  }
+
+  remove(assetId: string) {
+    this.assets.delete(assetId)
   }
 
   getOriginal(assetId: string) {

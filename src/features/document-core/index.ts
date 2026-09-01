@@ -175,7 +175,7 @@ export type DocumentIntent =
 export interface EditTransaction {
   readonly documentId: string
   readonly id: string
-  readonly intentType: DocumentIntent['type'] | 'redo' | 'undo'
+  readonly intentType: DocumentIntent['type'] | 'import' | 'redo' | 'undo'
   readonly resultRevision: number
   readonly selection?: SelectionHint
   readonly sourceRevision: number
@@ -247,6 +247,29 @@ export function createUntouchedDocumentRevision(
     presentation,
     revision: 1,
     schema: DOCUMENT_SCHEMA,
+  })
+}
+
+export function createImportedDocumentRevision(
+  sourceRevision: DocumentRevision,
+  documentId: string,
+): DocumentRevision {
+  assertNonEmptyString(documentId, 'Imported Document id')
+  return freezeRevision({
+    ...cloneValue(sourceRevision),
+    id: documentId,
+    revision: 1,
+  })
+}
+
+export function createImportedDocumentTransaction(documentId: string): EditTransaction {
+  assertNonEmptyString(documentId, 'Imported Document id')
+  return freezeDeep({
+    documentId,
+    id: defaultIdFactory('transaction', `import-${documentId}`),
+    intentType: 'import' as const,
+    resultRevision: 1,
+    sourceRevision: 0,
   })
 }
 

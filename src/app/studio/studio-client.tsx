@@ -31,6 +31,7 @@ import {
   isMeaningfulDocumentRevision,
 } from '@/features/document-core'
 import {
+  type AssetPipeline,
   type AssetRecord,
   createBrowserAssetPipeline,
 } from '@/features/asset-pipeline'
@@ -64,9 +65,23 @@ import {
   type LocalPngArtifact,
   getLocalPngSliceFilename,
 } from '@/features/local-export/local-rasterizer'
+import {
+  type OneImgPackageImportResult,
+  type PackageImportReport,
+  type PackageProgress,
+  createOneImgPackage,
+  importOneImgPackage,
+} from '@/features/oneimg-package'
+import {
+  ONEIMG_PACKAGE_APPLICATION_VERSION,
+  createStudioImportTransaction,
+  createStudioImportedDocument,
+  createStudioPackageExport,
+} from '@/features/oneimg-package/studio-adapter'
 import { isRenderAbortError } from '@/features/rendering/cancellation'
 import {
   type ConflictDraft,
+  type LocalAssetRecord,
   type LocalRepository,
   LocalRepositoryError,
   createIndexedDbLocalRepository,
@@ -104,11 +119,62 @@ interface StudioExportReceipt {
   readonly snapshotId: string
 }
 
-function createStudioDocumentId() {
-  const suffix = typeof globalThis.crypto?.randomUUID === 'function'
+interface StudioPackageImportStatus {
+  readonly duplicate?: boolean
+  readonly kind: 'cancelled' | 'duplicate' | 'imported' | 'recovery'
+  readonly packageId?: string
+  readonly report?: PackageImportReport
+  readonly sourceDocumentId?: string
+}
+
+function persistedAssetRecords(assetPipeline: AssetPipeline): readonly LocalAssetRecord[] {
+  return assetPipeline.list().map((asset) => {
+    const original = assetPipeline.getOriginal(asset.id)
+    if (asset.status !== 'ready') {
+      return { assetId: asset.id, original }
+    }
+    const renderSource = assetPipeline.getRenderSource(asset.id)
+    return {
+      assetId: asset.id,
+      original,
+      renderSource: renderSource.blob,
+      renderSourceRevision: renderSource.metadata.id,
+    }
+  })
+}
+
+async function rehydrateStoredAsset(assetPipeline: AssetPipeline, asset: LocalAssetRecord) {
+  try {
+    await assetPipeline.ingest(
+      asset.original,
+      asset.renderSource === undefined || asset.renderSourceRevision === undefined
+        ? {}
+        : {
+            renderSource: {
+              blob: asset.renderSource,
+              revision: asset.renderSourceRevision,
+            },
+          },
+    )
+  } catch {
+    // A stale or corrupt persisted Render Source must not hide otherwise restorable work.
+    // Re-ingest the Original so a bad optimization becomes a regenerated or unresolved Asset.
+    await assetPipeline.ingest(asset.original).catch(() => undefined)
+  }
+}
+
+function createStudioRandomSuffix() {
+  return typeof globalThis.crypto?.randomUUID === 'function'
     ? globalThis.crypto.randomUUID()
     : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
-  return `document:studio:${suffix}`
+}
+
+function createStudioDocumentId() {
+  return `document:studio:${createStudioRandomSuffix()}`
+}
+
+function createStudioPackageId() {
+  return `package-${createStudioRandomSuffix()}`
 }
 
 function phaseLabel(phase: StudioPhase) {
@@ -231,6 +297,9 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
   const repository = useRef<LocalRepository>()
   const saveTail = useRef(Promise.resolve())
   const exportJobRef = useRef<ExportJob>()
+  const pendingPackageImport = useRef<OneImgPackageImportResult>()
+  const importedPackageIds = useRef(new Set<string>())
+  const sourceDocumentIds = useRef(new Map<string, string>())
   const readinessGeneration = useRef(0)
   // Keep the native contenteditable node stable during input while exposing the latest Studio state to events.
   const richTextBlurHandler = useRef<(blockId: string | undefined, text: string) => void>(() => undefined)
@@ -285,6 +354,11 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
   const [exportOutputScale, setExportOutputScale] = useState<ExportOutputScale>(1)
   const [exportArtifact, setExportArtifact] = useState<LocalPngArtifact>()
   const [lastExport, setLastExport] = useState<StudioExportReceipt>()
+  const [packageWriting, setPackageWriting] = useState(false)
+  const [packageImporting, setPackageImporting] = useState(false)
+  const [packageProgress, setPackageProgress] = useState<PackageProgress>()
+  const [packageImportStatus, setPackageImportStatus] = useState<StudioPackageImportStatus>()
+  const packageImportLocked = packageImporting || packageImportStatus?.kind === 'duplicate'
 
   const assetMap = useMemo(() => new Map(assets.map(asset => [asset.id, asset])), [assets])
   const resourceDefinitions = useMemo(() => [
@@ -370,11 +444,14 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
 
   const currentExportArtifact = exportPlan !== undefined
     && exportArtifact !== undefined
+    && snapshot !== undefined
+    && exportArtifact.diagnostics.snapshotId === snapshot.snapshotId
     && exportArtifact.diagnostics.snapshotId === exportPlan.snapshot.snapshotId
     && exportArtifact.diagnostics.exportFingerprint === exportPlan.resourceFingerprint
     && exportArtifact.diagnostics.layoutFingerprint === exportPlan.pages[0]?.layoutFingerprint
     ? exportArtifact
     : undefined
+  const packageSaveEligible = revision !== undefined
 
   const buildExportPlan = useCallback(() => {
     if (snapshot === undefined) {
@@ -442,6 +519,19 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
         repository.current = localRepository
         const recents = await localRepository.listRecents()
         const conflictDrafts = await localRepository.listConflictDrafts()
+        const importedPackages = await localRepository.listImportedPackages()
+        const persistedAssets = await localRepository.listAssets()
+        importedPackageIds.current = new Set(importedPackages.map(item => item.packageId))
+        sourceDocumentIds.current = new Map(importedPackages.map(item => [item.documentId, item.sourceDocumentId]))
+        for (const asset of persistedAssets) {
+          await rehydrateStoredAsset(assetPipeline, asset)
+        }
+        for (const importedPackage of importedPackages) {
+          for (const asset of importedPackage.assets) {
+            await rehydrateStoredAsset(assetPipeline, asset)
+          }
+        }
+        setAssets(assetPipeline.list())
         const hintedDocumentId = window.localStorage.getItem(ACTIVE_DOCUMENT_HINT_KEY)
         let restoredRevision: DocumentRevision | null = null
 
@@ -478,6 +568,15 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
         setConflictDraftCount(conflictDrafts.length)
         setRestored(hasRestoredRevision)
         setPhase(hasRestoredRevision ? 'restored' : 'ready')
+        const restoredPackage = importedPackages.find(item => item.documentId === usableRevision.id)
+        if (restoredPackage !== undefined) {
+          setPackageImportStatus({
+            kind: 'imported',
+            packageId: restoredPackage.packageId,
+            report: restoredPackage.report,
+            sourceDocumentId: restoredPackage.sourceDocumentId,
+          })
+        }
       } catch (reason) {
         if (!active) {
           return
@@ -635,7 +734,11 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
     const task = saveTail.current
       .catch(() => undefined)
       .then(async () => {
-        const receipt = await localRepository.persistCommit({ revision: nextRevision, transaction })
+        const receipt = await localRepository.persistCommit({
+          assets: persistedAssetRecords(assetPipeline),
+          revision: nextRevision,
+          transaction,
+        })
         if (!mounted.current) {
           return
         }
@@ -678,6 +781,243 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
         setPhase('unsaved')
       })
     saveTail.current = task.then(() => undefined, () => undefined)
+  }
+
+  async function savePackage() {
+    const currentRevision = session.current?.getRevision() ?? revision
+    if (
+      currentRevision === undefined
+      || !packageSaveEligible
+      || packageWriting
+      || packageImportLocked
+      || conflictDraft !== undefined
+      || conflictPreviewRevision !== undefined
+    ) {
+      return
+    }
+
+    setPackageWriting(true)
+    setPackageProgress(undefined)
+    setError(undefined)
+    try {
+      const packageInput = createStudioPackageExport(
+        currentRevision,
+        assetPipeline,
+        sourceDocumentIds.current.get(currentRevision.id),
+      )
+      const artifact = await createOneImgPackage({
+        applicationVersion: ONEIMG_PACKAGE_APPLICATION_VERSION,
+        assets: packageInput.assets,
+        documents: [packageInput.document],
+        onProgress: setPackageProgress,
+        packageId: createStudioPackageId(),
+      })
+      const packageBlob = await new Response(artifact.stream).blob()
+      const downloadUrl = URL.createObjectURL(new Blob([packageBlob], { type: 'application/zip' }))
+      const anchor = document.createElement('a')
+      anchor.download = `oneimg-${artifact.manifest.packageId}-r${currentRevision.revision}.oneimg`
+      anchor.href = downloadUrl
+      anchor.click()
+      setTimeout(() => URL.revokeObjectURL(downloadUrl), 0)
+      setPackageProgress(undefined)
+    } catch (reason) {
+      setPackageProgress(undefined)
+      setError(reason instanceof Error ? reason.message : String(reason))
+    } finally {
+      setPackageWriting(false)
+    }
+  }
+
+  async function commitImportedPackage(result: OneImgPackageImportResult, duplicate: boolean) {
+    if ('recovery' in result && result.recovery !== undefined) {
+      setPackageImportStatus({
+        kind: 'recovery',
+        packageId: result.packageId,
+        report: result.report,
+      })
+      return
+    }
+    const draft = result.drafts[0]
+    const localRepository = repository.current
+    if (draft === undefined || localRepository === undefined) {
+      throw new Error('OneIMG Package 没有可导入的 Document')
+    }
+
+    const importedAssetIds = new Map<string, string>()
+    const stagedAssetIds = new Set<string>()
+    try {
+      for (const asset of draft.assets) {
+        const ingested = await assetPipeline.ingest(
+          asset.original,
+          asset.renderSource === undefined || asset.renderSourceRevision === undefined
+            ? {}
+            : {
+                renderSource: {
+                  blob: asset.renderSource,
+                  revision: asset.renderSourceRevision,
+                },
+              },
+        )
+        if (ingested.created) {
+          stagedAssetIds.add(ingested.asset.id)
+        }
+        importedAssetIds.set(asset.assetId, ingested.asset.id)
+      }
+      const importedDocumentId = createStudioDocumentId()
+      const importedRevision = createStudioImportedDocument(draft, importedAssetIds, importedDocumentId)
+      const transaction = createStudioImportTransaction(importedRevision.id)
+      const packageImport = result.packageId === undefined
+        ? undefined
+        : {
+            assets: draft.assets.flatMap((asset) => {
+              const assetId = importedAssetIds.get(asset.assetId)
+              return assetId === undefined ? [] : [{
+                assetId,
+                original: asset.original,
+                ...(asset.renderSource === undefined ? {} : { renderSource: asset.renderSource }),
+                ...(asset.renderSourceRevision === undefined ? {} : { renderSourceRevision: asset.renderSourceRevision }),
+              }]
+            }),
+            documentId: importedRevision.id,
+            packageId: result.packageId,
+            report: result.report,
+            sourceDocumentId: draft.sourceDocumentId,
+          }
+      const receipt = packageImport === undefined
+        ? await localRepository.persistCommit({
+          assets: persistedAssetRecords(assetPipeline),
+          revision: importedRevision,
+          transaction,
+        })
+        : await localRepository.persistImportedDraft({
+          assets: persistedAssetRecords(assetPipeline),
+          packageImport,
+          revision: importedRevision,
+          transaction,
+        })
+      if (receipt.status === 'stale') {
+        throw new Error('Imported Draft 保存到了较早版本，当前工作没有被切换。')
+      }
+      stagedAssetIds.clear()
+      if (result.packageId !== undefined) {
+        importedPackageIds.current.add(result.packageId)
+        sourceDocumentIds.current.set(importedRevision.id, draft.sourceDocumentId)
+      }
+
+      session.current = createDocumentSession(importedRevision)
+      durableRevisionSnapshot.current = importedRevision
+      durableRevisionNumber.current = importedRevision.revision
+      pendingCommit.current = undefined
+      setPendingCommitRevision(undefined)
+      setRevision(importedRevision)
+      setAssets(assetPipeline.list())
+      setDurableRevision(importedRevision.revision)
+      setRecentCount((await localRepository.listRecents()).length)
+      setConflictDraftCount((await localRepository.listConflictDrafts()).length)
+      setConflictDraft(undefined)
+      setConflictPreviewRevision(undefined)
+      setRestored(false)
+      setError(undefined)
+      setExportArtifact(undefined)
+      setExportPlan(undefined)
+      setExportPanelOpen(false)
+      setPackageImportStatus({
+        duplicate,
+        kind: 'imported',
+        packageId: result.packageId,
+        report: result.report,
+        sourceDocumentId: draft.sourceDocumentId,
+      })
+      setPhase('saved')
+      window.localStorage.setItem(ACTIVE_DOCUMENT_HINT_KEY, importedRevision.id)
+    } catch (error) {
+      stagedAssetIds.forEach(assetId => assetPipeline.remove(assetId))
+      throw error
+    }
+  }
+
+  async function importPackageFile(file: File) {
+    const currentRevision = session.current?.getRevision() ?? revision
+    if (
+      currentRevision === undefined
+      || packageWriting
+      || packageImporting
+      || pendingPackageImport.current !== undefined
+      || pendingCommitRevision !== undefined
+      || conflictDraft !== undefined
+      || conflictPreviewRevision !== undefined
+    ) {
+      return
+    }
+
+    setPackageImporting(true)
+    setPackageProgress(undefined)
+    setError(undefined)
+    try {
+      const result = await importOneImgPackage(file, {
+        onProgress: setPackageProgress,
+        reservedIds: [currentRevision.id],
+      })
+      setPackageProgress(undefined)
+      if ('recovery' in result && result.recovery !== undefined) {
+        setPackageImportStatus({
+          kind: 'recovery',
+          packageId: result.packageId,
+          report: result.report,
+        })
+        setError(result.recovery.message)
+        setPhase('editing')
+        return
+      }
+      if (result.drafts.length !== 1) {
+        throw new Error('当前 Studio 只支持导入 single-Document Package；候选内容没有改变当前 Draft。')
+      }
+      const duplicate = result.packageId !== undefined && importedPackageIds.current.has(result.packageId)
+      if (duplicate) {
+        pendingPackageImport.current = result
+        const draft = result.drafts[0]
+        setPackageImportStatus({
+          duplicate: true,
+          kind: 'duplicate',
+          packageId: result.packageId,
+          report: result.report,
+          sourceDocumentId: draft?.sourceDocumentId,
+        })
+        return
+      }
+      await commitImportedPackage(result, false)
+    } catch (reason) {
+      setPackageProgress(undefined)
+      setError(reason instanceof Error ? reason.message : String(reason))
+      setPhase('editing')
+    } finally {
+      setPackageImporting(false)
+    }
+  }
+
+  async function confirmDuplicatePackageImport() {
+    const result = pendingPackageImport.current
+    if (result === undefined || packageImporting) {
+      return
+    }
+    pendingPackageImport.current = undefined
+    setPackageImporting(true)
+    setPackageProgress(undefined)
+    setError(undefined)
+    try {
+      await commitImportedPackage(result, true)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason))
+      setPhase('editing')
+    } finally {
+      setPackageImporting(false)
+    }
+  }
+
+  function cancelDuplicatePackageImport() {
+    pendingPackageImport.current = undefined
+    setPackageImportStatus({ kind: 'cancelled' })
+    setPackageProgress(undefined)
   }
 
   function retryPendingCommit() {
@@ -1405,13 +1745,13 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
           <header className="flex items-center justify-between gap-4" data-testid="studio-header">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">OneIMG Studio</p>
-              <h1 className="mt-1 text-xl font-semibold">新建长图</h1>
+              <h1 className="mt-1 text-xl font-semibold">{revision.documentName || '新建长图'}</h1>
             </div>
             <div className="flex items-center gap-2">
               <button
                 aria-label="撤销"
                 className="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
-                disabled={!session.current?.canUndo() || conflictDraft !== undefined || conflictPreviewRevision !== undefined || phase === 'exporting'}
+                disabled={!session.current?.canUndo() || packageImportLocked || conflictDraft !== undefined || conflictPreviewRevision !== undefined || phase === 'exporting'}
                 onClick={() => moveHistory('undo')}
                 type="button"
               >
@@ -1420,7 +1760,7 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
               <button
                 aria-label="重做"
                 className="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
-                disabled={!session.current?.canRedo() || conflictDraft !== undefined || conflictPreviewRevision !== undefined || phase === 'exporting'}
+                disabled={!session.current?.canRedo() || packageImportLocked || conflictDraft !== undefined || conflictPreviewRevision !== undefined || phase === 'exporting'}
                 onClick={() => moveHistory('redo')}
                 type="button"
               >
@@ -1436,7 +1776,7 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
               </button>
               <button
                 className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
-                disabled={conflictPreviewRevision !== undefined || !meaningful || !preflight.canExport || preflight.localRoute !== 'local-eligible'}
+                disabled={packageImportLocked || conflictPreviewRevision !== undefined || !meaningful || !preflight.canExport || preflight.localRoute !== 'local-eligible'}
                 onClick={() => {
                   setExportPlan(buildExportPlan())
                   setExportPanelOpen(open => !open)
@@ -1455,11 +1795,106 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
           {!meaningful && <p className="m-0" data-testid="studio-starter-hint">无需命名或创建项目，直接开始输入。</p>}
         </div>
 
+        {!cleanPreview && (
+          <section
+            aria-label="OneIMG Package"
+            className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm"
+            data-testid="studio-package-controls"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="m-0 text-sm font-semibold text-slate-900">便携副本</p>
+                <p className="m-0 mt-1 text-xs text-slate-500">保存当前已提交 Draft 的 OneIMG Package；它是独立快照，不会成为实时文件绑定。</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
+                  disabled={!packageSaveEligible || packageWriting || packageImportLocked || conflictDraft !== undefined || conflictPreviewRevision !== undefined}
+                  onClick={() => savePackage().catch(() => undefined)}
+                  type="button"
+                >
+                  {packageWriting ? '保存 Package 中…' : '保存 .oneimg 副本'}
+                </button>
+                <label className="cursor-pointer rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 shadow-sm has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-40">
+                  导入 .oneimg Package
+                  <input
+                    accept=".oneimg,application/zip"
+                    aria-label="导入 .oneimg Package"
+                    className="sr-only"
+                    data-testid="studio-package-input"
+                    disabled={packageWriting || packageImporting || pendingPackageImport.current !== undefined || pendingCommitRevision !== undefined || conflictDraft !== undefined || conflictPreviewRevision !== undefined}
+                    onChange={(event) => {
+                      const file = event.currentTarget.files?.[0]
+                      event.currentTarget.value = ''
+                      if (file !== undefined) {
+                        Promise.resolve(importPackageFile(file)).catch(() => undefined)
+                      }
+                    }}
+                    type="file"
+                  />
+                </label>
+              </div>
+            </div>
+            {packageProgress && (
+              <output className="mt-3 block text-xs text-slate-600" data-testid="studio-package-progress" aria-live="polite">
+                {packageProgress.stage === 'writing' ? '正在写入' : '正在验证'} {packageProgress.entryPath}（{packageProgress.completedEntries}/{packageProgress.totalEntries}）
+              </output>
+            )}
+            {packageImportStatus && packageImportStatus.kind !== 'cancelled' && (
+              <div className="mt-3 rounded-xl bg-slate-50 p-3 text-xs text-slate-700" data-testid="studio-import-report" role="status">
+                {packageImportStatus.kind === 'imported' && (
+                  <p className="m-0">
+                    已创建 Imported Draft；不会覆盖当前 Draft。{packageImportStatus.duplicate ? '这是你选择的新副本。' : ''}
+                  </p>
+                )}
+                {packageImportStatus.kind === 'duplicate' && (
+                  <>
+                    <p className="m-0">检测到相同来源的 Package；当前 Draft 尚未改变。可以导入一份新的副本，不会合并、同步或覆盖当前工作。</p>
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        className="rounded-full border border-slate-300 bg-white px-3 py-1.5 font-medium"
+                        disabled={packageImporting}
+                        onClick={() => confirmDuplicatePackageImport().catch(() => undefined)}
+                        type="button"
+                      >
+                        导入新的副本
+                      </button>
+                      <button
+                        className="rounded-full border border-slate-300 bg-white px-3 py-1.5 font-medium"
+                        disabled={packageImporting}
+                        onClick={cancelDuplicatePackageImport}
+                        type="button"
+                      >
+                        取消
+                      </button>
+                    </div>
+                  </>
+                )}
+                {packageImportStatus.kind === 'recovery' && (
+                  <p className="m-0">这个 Package 需要 Recovery Draft；当前工作没有改变，也没有把较新内容当作可编辑内容导入。</p>
+                )}
+                {packageImportStatus.report && (
+                  <output className="mt-1 block text-slate-500">
+                    {`已验证 ${packageImportStatus.report.exactDocumentCount} 个 Document、${packageImportStatus.report.exactAssetCount} 个 Asset`}
+                    {packageImportStatus.report.unknownBlockCount > 0 ? `；Unknown Block ${packageImportStatus.report.unknownBlockCount} 个` : ''}
+                    {packageImportStatus.report.unresolvedAssetCount > 0 ? `；Unresolved Asset ${packageImportStatus.report.unresolvedAssetCount} 个` : ''}
+                  </output>
+                )}
+              </div>
+            )}
+            {revision?.presentation.sensitive && (
+              <p className="m-0 mt-3 text-xs text-amber-800" data-testid="studio-package-sensitive-note">
+                Sensitive Document 默认省略 Package Preview；普通未加密 OneIMG Package 不等于 encrypted-at-rest。
+              </p>
+            )}
+          </section>
+        )}
+
         {error && <p data-testid="studio-error" className="m-0 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
         {!cleanPreview && (
           <MediaGroupEditor
             arrangement={mediaGroup?.arrangement ?? 'auto'}
-            disabled={assetImporting || phase === 'exporting' || conflictDraft !== undefined || conflictPreviewRevision !== undefined}
+            disabled={assetImporting || packageImportLocked || phase === 'exporting' || conflictDraft !== undefined || conflictPreviewRevision !== undefined}
             items={mediaGroup?.items ?? []}
             onImportFiles={importFiles}
             onMoveItem={moveMediaItem}
@@ -1576,7 +2011,7 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
         )}
         {!cleanPreview && (
           <GeneralLongImagePresentationPanel
-            disabled={phase === 'exporting' || conflictDraft !== undefined || conflictPreviewRevision !== undefined}
+            disabled={packageImportLocked || phase === 'exporting' || conflictDraft !== undefined || conflictPreviewRevision !== undefined}
             onChange={commitPresentation}
             resources={renderResources}
             snapshot={snapshot}
@@ -1589,7 +2024,7 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
           style={{ maxWidth: snapshot.referenceViewport.width }}
         >
           <CanonicalRenderSurface
-            mode={conflictPreviewRevision ? 'preview' : cleanPreview ? 'preview' : 'edit'}
+            mode={packageImportLocked || conflictPreviewRevision ? 'preview' : cleanPreview ? 'preview' : 'edit'}
             onRichTextBlur={stableRichTextBlurHandler}
             onRichTextInput={stableRichTextInputHandler}
             onRichTextPaste={stableRichTextPasteHandler}

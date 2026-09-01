@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises'
+import JSZip from 'jszip'
 import { type Page, expect, test } from '@playwright/test'
 
 interface StudioDocumentState {
@@ -112,5 +113,25 @@ test.describe('Studio media import', () => {
     await expect.poll(() => readStudioState(page)).toMatchObject({ revision: 6 })
     await expect(root.locator('[data-media-item-id="media-item-2"]')).toHaveAttribute('data-media-status', 'ready')
     await expect(page.getByRole('button', { name: '导出本地文件' })).toBeEnabled()
+
+    await page.reload()
+    await expect.poll(() => readStudioState(page)).toMatchObject({ meaningful: true, revision: 6 })
+    await expect(root.locator('[data-media-item-id="media-item-1"]')).toHaveAttribute('data-media-status', 'ready')
+    await expect(root.locator('[data-media-item-id="media-item-2"]')).toHaveAttribute('data-media-status', 'ready')
+
+    const packageDownloadPromise = page.waitForEvent('download')
+    await page.getByRole('button', { name: '保存 .oneimg 副本' }).click()
+    const packageDownload = await packageDownloadPromise
+    const packagePath = await packageDownload.path()
+    if (packagePath === null) {
+      throw new Error('Playwright did not expose the restored OneIMG Package path')
+    }
+    const packageZip = await JSZip.loadAsync(await readFile(packagePath))
+    const packageManifest = JSON.parse(await packageZip.file('manifest.json')!.async('string')) as {
+      readonly assets: readonly unknown[]
+    }
+    // Both test files contain the same pixels, so content-addressed Asset identity
+    // intentionally deduplicates them while preserving both Media Items.
+    expect(packageManifest.assets).toHaveLength(1)
   })
 })

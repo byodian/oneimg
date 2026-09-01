@@ -1,7 +1,12 @@
+import {
+  type DocumentRevision,
+  validateDocumentRevision,
+} from '@/features/document-core'
+
 export type JsonPrimitive = string | number | boolean | null
 export type JsonValue = JsonPrimitive | readonly JsonValue[] | { readonly [key: string]: JsonValue }
 
-export type PackageEntryRole = 'asset-original' | 'asset-render-source' | 'document' | 'manifest'
+export type PackageEntryRole = 'asset-original' | 'asset-render-source' | 'document' | 'manifest' | 'preview'
 export type PackageProgressStage = 'reading' | 'writing'
 
 export interface PackagePresentation {
@@ -26,6 +31,7 @@ export interface OneImgPackageDocumentInput {
   readonly requiredAssetIds: readonly string[]
   readonly revision: number
   readonly snapshot: JsonValue
+  readonly sourceDocumentId?: string
   readonly unknownBlockCount?: number
   readonly unresolvedAssetIds?: readonly string[]
 }
@@ -41,6 +47,17 @@ export interface OneImgPackageAssetInput {
   readonly original: PackageBinarySource
   readonly renderSource?: PackageBinarySource
   readonly renderSourceRevision?: string
+}
+
+export interface OneImgPackagePreviewInput {
+  readonly documentId: string
+  readonly source: PackageBinarySource
+}
+
+export interface OneImgPackagePreview {
+  readonly blob: Blob
+  readonly documentId: string
+  readonly mimeType: string
 }
 
 export interface PackageEntryManifest {
@@ -59,6 +76,7 @@ export interface PackageDocumentManifest {
   readonly presentation: PackagePresentation
   readonly requiredAssetIds: readonly string[]
   readonly revision: number
+  readonly sourceDocumentId: string
   readonly unknownBlockCount: number
   readonly unresolvedAssetIds: readonly string[]
 }
@@ -72,6 +90,12 @@ export interface PackageAssetManifest {
   readonly renderSourceRevision?: string
 }
 
+export interface PackagePreviewManifest {
+  readonly documentId: string
+  readonly mediaType: string
+  readonly path: string
+}
+
 export interface OneImgPackageManifest {
   readonly applicationVersion: string
   readonly assets: readonly PackageAssetManifest[]
@@ -80,6 +104,7 @@ export interface OneImgPackageManifest {
   readonly entries: readonly PackageEntryManifest[]
   readonly formatVersion: 1
   readonly packageId: string
+  readonly previews: readonly PackagePreviewManifest[]
   readonly requiredCapabilities: readonly string[]
   readonly safeRecovery: 'complete' | 'unresolved-assets'
   readonly schema: 'oneimg-package-manifest'
@@ -103,6 +128,8 @@ export interface OneImgPackageLimits {
   readonly maxJsonDepth: number
   readonly maxJsonNodes: number
   readonly maxManifestBytes: number
+  readonly maxPreviewBytes: number
+  readonly maxDecodedPixels: number
   readonly maxStringBytes: number
   readonly maxTotalBytes: number
 }
@@ -114,6 +141,8 @@ export const DEFAULT_ONEIMG_PACKAGE_LIMITS: OneImgPackageLimits = {
   maxJsonDepth: 64,
   maxJsonNodes: 100_000,
   maxManifestBytes: 2 * 1024 * 1024,
+  maxPreviewBytes: 4 * 1024 * 1024,
+  maxDecodedPixels: 40_000_000,
   maxStringBytes: 8 * 1024 * 1024,
   maxTotalBytes: 128 * 1024 * 1024,
 }
@@ -123,9 +152,11 @@ export interface CreateOneImgPackageOptions {
   readonly assets: readonly OneImgPackageAssetInput[]
   readonly createdAt?: string
   readonly documents: readonly OneImgPackageDocumentInput[]
+  readonly includeSensitivePreviews?: boolean
   readonly limits?: Partial<OneImgPackageLimits>
   readonly onProgress?: (progress: PackageProgress) => void
   readonly packageId: string
+  readonly previews?: readonly OneImgPackagePreviewInput[]
   readonly signal?: AbortSignal
 }
 
@@ -175,6 +206,7 @@ export interface OneImgPackageInspection {
   }[]
   readonly documents: readonly OneImgPackageDocumentInput[]
   readonly manifest: OneImgPackageManifest
+  readonly previews: readonly OneImgPackagePreview[]
   readonly report: PackageImportReport
 }
 
@@ -189,6 +221,7 @@ export interface OneImgPackageRecoveryDraft {
 export interface OneImgPackageRecoveryInspection {
   readonly assets: readonly []
   readonly documents: readonly []
+  readonly previews: readonly []
   readonly recovery: OneImgPackageRecoveryDraft
   readonly report: PackageImportReport
 }
@@ -200,6 +233,7 @@ export interface OneImgPackageImportedDraft {
   readonly document: OneImgPackageDocumentInput
   readonly documentId: string
   readonly draftId: string
+  readonly preview?: OneImgPackagePreview
   readonly sourceDocumentId: string
 }
 
@@ -278,6 +312,13 @@ const EXECUTABLE_DECLARATION_KEYS = new Set([
   'scripts',
 ])
 const SUPPORTED_PACKAGE_CAPABILITIES = new Set(['oneimg-package-v1', 'stored-zip-v1'])
+const SUPPORTED_COMPONENT_VERSIONS = new Map([
+  ['block-catalog', 2],
+  ['canonical-renderer', 3],
+  ['document', 1],
+  ['noto-sans-sc', 1],
+  ['noto-sans-sc-variable', 5],
+])
 const MIME_EXTENSIONS = new Map([
   ['font/woff2', 'woff2'],
   ['image/gif', 'gif'],
@@ -286,6 +327,7 @@ const MIME_EXTENSIONS = new Map([
   ['image/webp', 'webp'],
   ['application/json', 'json'],
 ])
+const PREVIEW_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 const ZIP_SIGNATURE_BYTES = 4
 const textEncoder = new TextEncoder()
 
@@ -406,22 +448,23 @@ function assertPlainJson(value: unknown, limits: OneImgPackageLimits, path = '$'
 }
 
 function assertDeclarativeJson(value: JsonValue, path = '$') {
-  const visit = (current: JsonValue, currentPath: string) => {
+  const visit = (current: JsonValue, currentPath: string, key?: string) => {
     if (typeof current === 'string') {
       if (
         /^\s*(?:javascript|vbscript|data:text\/html|blob):/i.test(current)
         || /<script\b/i.test(current)
-        || /\b(?:https?|wss?|ftp|file):\/\//i.test(current)
-        || /(^|[\s"'])\/\//.test(current)
         || /\burl\s*\(/i.test(current)
         || /\b(?:eval|expression)\s*\(/i.test(current)
       ) {
         fail('executable-content', 'Package contains executable declaration text', currentPath)
       }
+      if (key?.toLowerCase() === 'href' && !/^(?:https?:|mailto:|tel:)/i.test(current.trim())) {
+        fail('executable-content', 'Package contains an unsupported link URL', currentPath)
+      }
       return
     }
     if (Array.isArray(current)) {
-      current.forEach((item, index) => visit(item, `${currentPath}[${index}]`))
+      current.forEach((item, index) => visit(item, `${currentPath}[${index}]`, key))
       return
     }
     if (!current || typeof current !== 'object') {
@@ -438,7 +481,7 @@ function assertDeclarativeJson(value: JsonValue, path = '$') {
       ) {
         fail('executable-content', `Package contains executable declaration key ${key}`, currentPath)
       }
-      visit(item, `${currentPath}.${key}`)
+      visit(item, `${currentPath}.${key}`, key)
     }
   }
   visit(value, path)
@@ -482,8 +525,15 @@ function requireBoolean(record: { readonly [key: string]: JsonValue }, key: stri
 }
 
 function isNewerComponentVersion(value: string) {
-  const match = /@(\d+)$/.exec(value)
-  return match !== null && Number(match[1]) > 1
+  const match = /@(\d+)(?:\.|$)/.exec(value)
+  if (match === null) {
+    return false
+  }
+  const componentName = value.slice(0, match.index)
+  const supportedVersion = SUPPORTED_COMPONENT_VERSIONS.get(componentName)
+  return supportedVersion === undefined
+    ? Number(match[1]) > 1
+    : Number(match[1]) > supportedVersion
 }
 
 function recoveryDraftFromManifest(
@@ -571,8 +621,73 @@ function documentPayload(document: OneImgPackageDocumentInput, limits: OneImgPac
     revision: document.revision,
     schema: 'oneimg-document@1',
     snapshot: document.snapshot,
+    sourceDocumentId: document.sourceDocumentId ?? document.id,
     unknownBlockCount: document.unknownBlockCount ?? 0,
     unresolvedAssetIds: [...(document.unresolvedAssetIds ?? [])],
+  }
+}
+
+function packagePresentationFromRevision(revision: DocumentRevision): PackagePresentation {
+  const presentation = revision.presentation
+  return normalizePresentation({
+    density: presentation.density,
+    fontPackId: presentation.fontPackId,
+    pageFormat: presentation.pageFormat.kind,
+    rendererRevision: presentation.rendererRevision,
+    ...(presentation.sensitive === undefined ? {} : { sensitive: presentation.sensitive }),
+    sceneId: presentation.sceneId,
+    sceneVersion: presentation.sceneVersion,
+    templateId: presentation.templateId,
+    templateVersion: presentation.templateVersion,
+    themeId: presentation.themeId,
+    themeVersion: presentation.themeVersion,
+  })
+}
+
+function snapshotAssetIds(revision: DocumentRevision) {
+  return new Set(revision.pages.flatMap(page => page.blocks.flatMap(block => (
+    block.kind === 'media-group' ? block.items.map(item => item.assetId) : []
+  ))))
+}
+
+function snapshotUnknownBlockCount(revision: DocumentRevision) {
+  return revision.pages.reduce(
+    (count, page) => count + page.blocks.filter(block => block.kind === 'unknown').length,
+    0,
+  )
+}
+
+function validateDocumentSnapshot(
+  document: OneImgPackageDocumentInput,
+  path: string,
+) {
+  let revision: DocumentRevision
+  try {
+    revision = validateDocumentRevision(document.snapshot)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    fail('invalid-manifest', `Document ${document.id} snapshot is invalid: ${message}`, path)
+  }
+
+  const requiredAssetIds = new Set(document.requiredAssetIds)
+  const documentAssetIds = snapshotAssetIds(revision)
+  if (
+    requiredAssetIds.size !== documentAssetIds.size
+    || Array.from(requiredAssetIds).some(assetId => !documentAssetIds.has(assetId))
+    || Array.from(documentAssetIds).some(assetId => !requiredAssetIds.has(assetId))
+  ) {
+    fail('integrity-mismatch', `Document ${document.id} Asset references disagree with its snapshot`, path)
+  }
+  if (
+    revision.id !== document.id
+    || revision.modelVersion !== document.modelVersion
+    || revision.blockVersion !== document.blockVersion
+    || revision.revision !== document.revision
+    || stableJsonStringify(packagePresentationFromRevision(revision) as unknown as JsonValue)
+      !== stableJsonStringify(normalizePresentation(document.presentation) as unknown as JsonValue)
+    || snapshotUnknownBlockCount(revision) !== (document.unknownBlockCount ?? 0)
+  ) {
+    fail('integrity-mismatch', `Document ${document.id} metadata disagrees with its snapshot`, path)
   }
 }
 
@@ -732,6 +847,7 @@ class Crc32 {
 }
 
 interface SourceSummary {
+  readonly bytes?: Uint8Array
   readonly byteLength: number
   readonly crc32: number
   readonly sample: Uint8Array
@@ -782,10 +898,12 @@ async function summarizeSource(
   limits: OneImgPackageLimits,
   signal: AbortSignal | undefined,
   maxBytes: number,
+  captureBytes = false,
 ): Promise<SourceSummary> {
   const hasher = new Sha256Hasher()
   const crc = new Crc32()
   const sample = new Uint8Array(32)
+  const chunks: Uint8Array[] = []
   let sampleLength = 0
   let byteLength = 0
   const stream = sourceStream(source)
@@ -812,6 +930,9 @@ async function summarizeSource(
         sample.set(value.subarray(0, copied), sampleLength)
         sampleLength += copied
       }
+      if (captureBytes) {
+        chunks.push(value.slice())
+      }
     }
   } catch (error) {
     await reader.cancel(error).catch(() => undefined)
@@ -821,6 +942,7 @@ async function summarizeSource(
   }
 
   return {
+    ...(captureBytes ? { bytes: concatBytes(chunks) } : {}),
     byteLength,
     crc32: crc.digest(),
     sample: sample.subarray(0, sampleLength),
@@ -1022,6 +1144,7 @@ function validateDocumentForWrite(
   limits: OneImgPackageLimits,
 ) {
   assertPathId(document.id, 'document.id')
+  assertVersionedId(document.sourceDocumentId ?? document.id, 'document.sourceDocumentId')
   assertVersionedId(document.modelVersion, 'document.modelVersion')
   assertVersionedId(document.blockVersion, 'document.blockVersion')
   if (!Number.isSafeInteger(document.revision) || document.revision < 1) {
@@ -1053,6 +1176,52 @@ function validateDocumentForWrite(
   normalizePresentation(document.presentation)
   assertPlainJson(document.snapshot, limits, `document.${document.id}.snapshot`)
   assertDeclarativeJson(document.snapshot, `document.${document.id}.snapshot`)
+  validateDocumentSnapshot(document, `documents/${document.id}.json`)
+}
+
+interface PreparedPackagePreview {
+  readonly documentId: string
+  readonly path: string
+  readonly source: PackageBinarySource
+}
+
+function preparePackagePreviews(
+  previews: readonly OneImgPackagePreviewInput[],
+  documents: readonly OneImgPackageDocumentInput[],
+  includeSensitivePreviews: boolean,
+): readonly PreparedPackagePreview[] {
+  const documentsById = new Map(documents.map(document => [document.id, document]))
+  const documentIds = new Set<string>()
+  const prepared: PreparedPackagePreview[] = []
+  for (const preview of previews) {
+    assertPathId(preview.documentId, 'preview.documentId')
+    const document = documentsById.get(preview.documentId)
+    if (document === undefined) {
+      fail('missing-entry', `Preview references missing Document ${preview.documentId}`)
+    }
+    if (documentIds.has(preview.documentId)) {
+      fail('duplicate-entry', `Document ${preview.documentId} has more than one Package Preview`)
+    }
+    documentIds.add(preview.documentId)
+    assertExtension(preview.source.extension, `preview.${preview.documentId}.extension`)
+    assertSupportedMediaTypeDeclaration(
+      preview.source.mimeType,
+      preview.source.extension,
+      `preview.${preview.documentId}.mimeType`,
+    )
+    if (!PREVIEW_MIME_TYPES.has(preview.source.mimeType)) {
+      fail('unsupported-media', `Package Preview media type ${preview.source.mimeType} is not supported`)
+    }
+    if (document.presentation.sensitive && !includeSensitivePreviews) {
+      continue
+    }
+    prepared.push({
+      documentId: preview.documentId,
+      path: `previews/${preview.documentId}.${preview.source.extension}`,
+      source: preview.source,
+    })
+  }
+  return prepared.sort((left, right) => left.documentId.localeCompare(right.documentId))
 }
 
 function makeReport(
@@ -1095,15 +1264,24 @@ async function preflightEntry(
   limits: OneImgPackageLimits,
   signal: AbortSignal | undefined,
 ): Promise<PackageEntry> {
+  const isImage = entry.role !== 'manifest' && entry.mediaType.startsWith('image/')
   const summary = await summarizeSource(
     entry.source,
     limits,
     signal,
-    entry.role === 'document' ? limits.maxDocumentBytes : limits.maxEntryBytes,
+    entry.role === 'document'
+      ? limits.maxDocumentBytes
+      : entry.role === 'preview'
+        ? limits.maxPreviewBytes
+        : limits.maxEntryBytes,
+    isImage,
   )
   if (entry.role !== 'manifest') {
     const extension = entry.path.split('.').pop() ?? ''
     assertSupportedMedia(entry.mediaType, extension, summary.sample, entry.path)
+    if (isImage) {
+      await validatePackageImage(summary.bytes!, entry.mediaType, entry.path, limits, signal)
+    }
   }
   return { ...entry, ...summary }
 }
@@ -1271,6 +1449,7 @@ function createWriterStream(
 function expectedPackageEntries(
   documents: readonly OneImgPackageDocumentInput[],
   assets: readonly OneImgPackageAssetInput[],
+  previews: readonly PreparedPackagePreview[],
   limits: OneImgPackageLimits,
 ) {
   const assetMap = new Map(assets.map(asset => [asset.id, asset]))
@@ -1352,6 +1531,17 @@ function expectedPackageEntries(
       })
     }
   }
+  for (const preview of previews) {
+    entries.push({
+      byteLength: 0,
+      crc32: 0,
+      mediaType: preview.source.mimeType,
+      path: preview.path,
+      role: 'preview',
+      sha256: '',
+      source: preview.source,
+    })
+  }
   return entries
 }
 
@@ -1380,7 +1570,12 @@ export async function createOneImgPackage(options: CreateOneImgPackageOptions): 
     fail('resource-limit', 'Document count exceeds the package entry limit')
   }
 
-  const payloadEntries = expectedPackageEntries(options.documents, options.assets, limits)
+  const packagePreviews = preparePackagePreviews(
+    options.previews ?? [],
+    options.documents,
+    options.includeSensitivePreviews ?? false,
+  )
+  const payloadEntries = expectedPackageEntries(options.documents, options.assets, packagePreviews, limits)
   const preparedPayloadEntries: PackageEntry[] = []
   for (const entry of payloadEntries) {
     throwIfPackageAborted(options.signal)
@@ -1397,6 +1592,7 @@ export async function createOneImgPackage(options: CreateOneImgPackageOptions): 
       presentation: normalizePresentation(document.presentation),
       requiredAssetIds: [...document.requiredAssetIds],
       revision: document.revision,
+      sourceDocumentId: document.sourceDocumentId ?? document.id,
       unknownBlockCount: document.unknownBlockCount ?? 0,
       unresolvedAssetIds: [...(document.unresolvedAssetIds ?? [])],
     }))
@@ -1414,6 +1610,11 @@ export async function createOneImgPackage(options: CreateOneImgPackageOptions): 
           }
         : {}),
     }))
+  const previewManifests = packagePreviews.map((preview): PackagePreviewManifest => ({
+    documentId: preview.documentId,
+    mediaType: preview.source.mimeType,
+    path: preview.path,
+  }))
   const manifest: OneImgPackageManifest = {
     applicationVersion: options.applicationVersion,
     assets: assetManifests,
@@ -1428,6 +1629,7 @@ export async function createOneImgPackage(options: CreateOneImgPackageOptions): 
     })),
     formatVersion: 1,
     packageId: options.packageId,
+    previews: previewManifests,
     requiredCapabilities: ['oneimg-package-v1', 'stored-zip-v1'],
     safeRecovery: options.documents.some(document => (document.unresolvedAssetIds?.length ?? 0) > 0)
       ? 'unresolved-assets'
@@ -1580,6 +1782,10 @@ function parseManifest(
         fail('duplicate-entry', `Manifest repeats Document ${id}`, 'manifest.json')
       }
       documentIds.add(id)
+      const sourceDocumentId = item.sourceDocumentId === undefined
+        ? id
+        : requireString(item, 'sourceDocumentId', path)
+      assertVersionedId(sourceDocumentId, `${path}.sourceDocumentId`)
       const requiredAssetIds = requireArray(item, 'requiredAssetIds', path).map((assetId, assetIndex) => {
         if (typeof assetId !== 'string') {
           fail('invalid-manifest', `${path}.requiredAssetIds[${assetIndex}] must be a string`)
@@ -1640,6 +1846,7 @@ function parseManifest(
         presentation,
         requiredAssetIds,
         revision,
+        sourceDocumentId,
         unknownBlockCount,
         unresolvedAssetIds,
       })
@@ -1702,6 +1909,38 @@ function parseManifest(
       })
     }
 
+    const previewValues = record.previews === undefined
+      ? []
+      : requireArray(record, 'previews', 'manifest')
+    const previews: PackagePreviewManifest[] = []
+    const previewDocumentIds = new Set<string>()
+    for (let index = 0; index < previewValues.length; index += 1) {
+      const value = previewValues[index]!
+      const path = `manifest.previews[${index}]`
+      const item = requireRecord(value, path)
+      const documentId = requireString(item, 'documentId', path)
+      assertPathId(documentId, `${path}.documentId`)
+      if (!documentIds.has(documentId)) {
+        fail('missing-entry', `Preview references missing Document ${documentId}`, 'manifest.json')
+      }
+      if (previewDocumentIds.has(documentId)) {
+        fail('duplicate-entry', `Manifest repeats Preview for Document ${documentId}`, 'manifest.json')
+      }
+      previewDocumentIds.add(documentId)
+      const previewPath = requireString(item, 'path', path)
+      const mediaType = requireString(item, 'mediaType', path)
+      assertPackagePath(previewPath)
+      const extension = previewPath.split('.').pop() ?? ''
+      if (previewPath !== `previews/${documentId}.${extension}`) {
+        fail('invalid-path', `${path}.path does not match its Document id`, previewPath)
+      }
+      assertSupportedMediaTypeDeclaration(mediaType, extension, `${path}.mediaType`)
+      if (!PREVIEW_MIME_TYPES.has(mediaType)) {
+        fail('unsupported-media', `Package Preview media type ${mediaType} is not supported`, previewPath)
+      }
+      previews.push({ documentId, mediaType, path: previewPath })
+    }
+
     const entryValues = requireArray(record, 'entries', 'manifest')
     if (entryValues.length > limits.maxEntries) {
       fail('resource-limit', `Manifest contains more than ${limits.maxEntries} entries`, 'manifest.json')
@@ -1724,17 +1963,23 @@ function parseManifest(
       const mediaType = requireString(item, 'mediaType', path)
       const extension = entryPath.split('.').pop() ?? ''
       assertSupportedMediaTypeDeclaration(mediaType, extension, `${path}.mediaType`)
+      const role = requireString(item, 'role', path) as Exclude<PackageEntryRole, 'manifest'>
+      if (!['asset-original', 'asset-render-source', 'document', 'preview'].includes(role)) {
+        fail('invalid-manifest', `Manifest entry ${entryPath} has an unsupported role`, entryPath)
+      }
       const byteLength = requireNumber(item, 'byteLength', path)
-      if (byteLength < 0 || byteLength > limits.maxEntryBytes) {
-        fail('resource-limit', `Manifest entry ${entryPath} exceeds the entry limit`, entryPath)
+      const roleLimit = role === 'document'
+        ? limits.maxDocumentBytes
+        : role === 'preview'
+          ? limits.maxPreviewBytes
+          : limits.maxEntryBytes
+      const maxByteLength = Math.min(limits.maxEntryBytes, roleLimit)
+      if (byteLength < 0 || byteLength > maxByteLength) {
+        fail('resource-limit', `Manifest entry ${entryPath} exceeds the ${role} limit`, entryPath)
       }
       const sha256 = requireString(item, 'sha256', path)
       if (!HASH_PATTERN.test(sha256)) {
         fail('invalid-manifest', `Manifest entry ${entryPath} has an invalid SHA-256`, entryPath)
-      }
-      const role = requireString(item, 'role', path) as Exclude<PackageEntryRole, 'manifest'>
-      if (!['asset-original', 'asset-render-source', 'document'].includes(role)) {
-        fail('invalid-manifest', `Manifest entry ${entryPath} has an unsupported role`, entryPath)
       }
       entries.push({ byteLength, mediaType, path: entryPath, role, sha256 })
     }
@@ -1760,6 +2005,7 @@ function parseManifest(
     const expectedEntryPaths = new Set([
       ...documents.map(document => document.path),
       ...assets.flatMap(asset => [asset.originalPath, ...(asset.renderSourcePath ? [asset.renderSourcePath] : [])]),
+      ...previews.map(preview => preview.path),
     ])
     if (expectedEntryPaths.size !== entries.length || entries.some(entry => !expectedEntryPaths.has(entry.path))) {
       fail('invalid-manifest', 'Manifest entries do not match its Documents and Assets', 'manifest.json')
@@ -1782,6 +2028,12 @@ function parseManifest(
         }
       }
     }
+    for (const preview of previews) {
+      const previewEntry = entries.find(candidate => candidate.path === preview.path)
+      if (!previewEntry || previewEntry.role !== 'preview' || previewEntry.mediaType !== preview.mediaType) {
+        fail('invalid-manifest', `Preview for Document ${preview.documentId} has an invalid Manifest entry`, preview.path)
+      }
+    }
     const safeRecoveryExpected = documents.some(document => document.unresolvedAssetIds.length > 0)
       ? 'unresolved-assets'
       : 'complete'
@@ -1796,6 +2048,7 @@ function parseManifest(
       entries,
       formatVersion: 1,
       packageId,
+      previews,
       requiredCapabilities,
       safeRecovery,
       schema: 'oneimg-package-manifest',
@@ -1829,6 +2082,10 @@ function parseDocumentPayload(
   const id = requireString(record, 'documentId', manifestDocument.path)
   const modelVersion = requireString(record, 'modelVersion', manifestDocument.path)
   const blockVersion = requireString(record, 'blockVersion', manifestDocument.path)
+  const sourceDocumentId = record.sourceDocumentId === undefined
+    ? manifestDocument.sourceDocumentId
+    : requireString(record, 'sourceDocumentId', manifestDocument.path)
+  assertVersionedId(sourceDocumentId, `${manifestDocument.path}.sourceDocumentId`)
   const revision = requireNumber(record, 'revision', manifestDocument.path)
   const requiredAssetIds = requireArray(record, 'requiredAssetIds', manifestDocument.path).map((value, index) => {
     if (typeof value !== 'string') {
@@ -1851,6 +2108,7 @@ function parseDocumentPayload(
     requiredAssetIds,
     revision,
     snapshot: record.snapshot!,
+    sourceDocumentId,
     unknownBlockCount,
     unresolvedAssetIds,
   }
@@ -1859,6 +2117,7 @@ function parseDocumentPayload(
     || document.modelVersion !== manifestDocument.modelVersion
     || document.blockVersion !== manifestDocument.blockVersion
     || document.revision !== manifestDocument.revision
+    || document.sourceDocumentId !== manifestDocument.sourceDocumentId
     || stableJsonStringify(document.presentation as unknown as JsonValue) !== stableJsonStringify(manifestDocument.presentation as unknown as JsonValue)
     || stableJsonStringify(document.requiredAssetIds as unknown as JsonValue) !== stableJsonStringify(manifestDocument.requiredAssetIds as unknown as JsonValue)
     || stableJsonStringify(document.unresolvedAssetIds as unknown as JsonValue) !== stableJsonStringify(manifestDocument.unresolvedAssetIds as unknown as JsonValue)
@@ -1867,6 +2126,7 @@ function parseDocumentPayload(
     fail('integrity-mismatch', `Document ${manifestDocument.id} disagrees with the Manifest`, manifestDocument.path)
   }
   assertPlainJson(document.snapshot, limits, `${manifestDocument.path}.snapshot`)
+  validateDocumentSnapshot(document, manifestDocument.path)
   return document
 }
 
@@ -1997,6 +2257,10 @@ function readUint32(bytes: Uint8Array, offset: number) {
   return new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(offset, true)
 }
 
+function readBigEndianUint32(bytes: Uint8Array, offset: number) {
+  return new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(offset, false)
+}
+
 function decodePackagePath(bytes: Uint8Array) {
   const path = decodeUtf8(bytes, 'ZIP path')
   assertPackagePath(path)
@@ -2010,6 +2274,165 @@ function blobFromBytes(bytes: Uint8Array, type?: string) {
   const ownedBytes = new Uint8Array(new ArrayBuffer(bytes.byteLength))
   ownedBytes.set(bytes)
   return new Blob([ownedBytes.buffer], type ? { type } : undefined)
+}
+
+function bytesEqualAt(bytes: Uint8Array, offset: number, expected: readonly number[]) {
+  return expected.every((byte, index) => bytes[offset + index] === byte)
+}
+
+function readLittleEndian24(bytes: Uint8Array, offset: number) {
+  return bytes[offset]!
+    | (bytes[offset + 1]! << 8)
+    | (bytes[offset + 2]! << 16)
+}
+
+function readPackageImageDimensions(
+  bytes: Uint8Array,
+  mimeType: string,
+  path: string,
+): { readonly height: number; readonly width: number } {
+  const invalid = () => fail('media-mismatch', `Image dimensions could not be read for ${mimeType}`, path)
+  if (mimeType === 'image/png') {
+    if (bytes.byteLength < 24 || readBigEndianUint32(bytes, 8) !== 13 || !bytesEqualAt(bytes, 12, [73, 72, 68, 82])) {
+      invalid()
+    }
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+    return { height: view.getUint32(20, false), width: view.getUint32(16, false) }
+  }
+  if (mimeType === 'image/gif') {
+    if (bytes.byteLength < 10) {
+      invalid()
+    }
+    return { height: readUint16(bytes, 8), width: readUint16(bytes, 6) }
+  }
+  if (mimeType === 'image/webp') {
+    const isVp8x = bytes.byteLength >= 20 && bytesEqualAt(bytes, 12, [86, 80, 56, 88])
+    const isVp8 = bytes.byteLength >= 20 && bytesEqualAt(bytes, 12, [86, 80, 56, 32])
+    const isVp8l = bytes.byteLength >= 20 && bytesEqualAt(bytes, 12, [86, 80, 56, 76])
+    if (!isVp8x && !isVp8 && !isVp8l) {
+      invalid()
+    }
+    if (isVp8x) {
+      if (bytes.byteLength < 30) {
+        invalid()
+      }
+      return {
+        height: readLittleEndian24(bytes, 27) + 1,
+        width: readLittleEndian24(bytes, 24) + 1,
+      }
+    }
+    if (isVp8) {
+      if (bytes.byteLength < 30 || !bytesEqualAt(bytes, 23, [157, 1, 42])) {
+        invalid()
+      }
+      return {
+        height: readUint16(bytes, 28) & 0x3fff,
+        width: readUint16(bytes, 26) & 0x3fff,
+      }
+    }
+    if (bytes.byteLength < 25 || bytes[20] !== 0x2f) {
+      invalid()
+    }
+    return {
+      height: 1 + ((bytes[22]! >> 6) | (bytes[23]! << 2) | ((bytes[24]! & 0x0f) << 10)),
+      width: 1 + (bytes[21]! | ((bytes[22]! & 0x3f) << 8)),
+    }
+  }
+  if (mimeType === 'image/jpeg') {
+    if (bytes.byteLength < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) {
+      invalid()
+    }
+    let offset = 2
+    while (offset + 1 < bytes.byteLength) {
+      if (bytes[offset] !== 0xff) {
+        invalid()
+      }
+      while (offset < bytes.byteLength && bytes[offset] === 0xff) {
+        offset += 1
+      }
+      if (offset >= bytes.byteLength) {
+        invalid()
+      }
+      const marker = bytes[offset++]!
+      if (marker === 0xd8 || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) {
+        continue
+      }
+      if (marker === 0xd9 || marker === 0xda || offset + 2 > bytes.byteLength) {
+        invalid()
+      }
+      const segmentLength = readUint16(bytes, offset)
+      if (segmentLength < 2 || offset + segmentLength > bytes.byteLength) {
+        invalid()
+      }
+      const isStartOfFrame = (marker >= 0xc0 && marker <= 0xc3)
+        || (marker >= 0xc5 && marker <= 0xc7)
+        || (marker >= 0xc9 && marker <= 0xcb)
+        || (marker >= 0xcd && marker <= 0xcf)
+      if (isStartOfFrame) {
+        if (segmentLength < 8) {
+          invalid()
+        }
+        return {
+          height: readUint16(bytes, offset + 3),
+          width: readUint16(bytes, offset + 5),
+        }
+      }
+      offset += segmentLength
+    }
+    return invalid()
+  }
+  return invalid()
+}
+
+function assertPackageDecodedPixelLimit(
+  dimensions: { readonly height: number; readonly width: number },
+  path: string,
+  limits: OneImgPackageLimits,
+) {
+  if (dimensions.width < 1 || dimensions.height < 1) {
+    fail('media-mismatch', 'Image dimensions must be positive', path)
+  }
+  if (dimensions.width > Math.floor(limits.maxDecodedPixels / dimensions.height)) {
+    fail('resource-limit', `Image exceeds the ${limits.maxDecodedPixels.toLocaleString()} decoded-pixel limit`, path)
+  }
+}
+
+async function validatePackageImage(
+  bytes: Uint8Array,
+  mimeType: string,
+  path: string,
+  limits: OneImgPackageLimits,
+  signal?: AbortSignal,
+) {
+  if (!mimeType.startsWith('image/')) {
+    return
+  }
+  const dimensions = readPackageImageDimensions(bytes, mimeType, path)
+  assertPackageDecodedPixelLimit(dimensions, path, limits)
+  if (typeof createImageBitmap !== 'function') {
+    return
+  }
+  throwIfPackageAborted(signal)
+  let bitmap: ImageBitmap | undefined
+  try {
+    bitmap = await createImageBitmap(blobFromBytes(bytes, mimeType), {
+      colorSpaceConversion: 'default',
+      imageOrientation: 'none',
+    })
+  } catch (error) {
+    if (signal?.aborted) {
+      throwIfPackageAborted(signal)
+    }
+    fail('media-mismatch', `Image could not be decoded for ${mimeType}`, path)
+  }
+  try {
+    if (bitmap.width !== dimensions.width || bitmap.height !== dimensions.height) {
+      fail('media-mismatch', `Decoded image dimensions do not match ${mimeType}`, path)
+    }
+    assertPackageDecodedPixelLimit({ height: bitmap.height, width: bitmap.width }, path, limits)
+  } finally {
+    bitmap.close()
+  }
 }
 
 function assertZipFlags(flags: number, path?: string) {
@@ -2186,9 +2609,14 @@ export async function inspectOneImgPackage(
         const capture = true
         const maxByteLength = isManifest
           ? limits.maxManifestBytes
-          : manifestEntry!.role === 'document'
-            ? limits.maxDocumentBytes
-            : limits.maxEntryBytes
+          : Math.min(
+            limits.maxEntryBytes,
+            manifestEntry!.role === 'document'
+              ? limits.maxDocumentBytes
+              : manifestEntry!.role === 'preview'
+                ? limits.maxPreviewBytes
+                : limits.maxEntryBytes,
+          )
         const consumed = await consumeZipEntry(cursor, byteLength, limits, capture, maxByteLength, options.signal)
         expandedBytes += consumed.byteLength
         if (expandedBytes > limits.maxTotalBytes) {
@@ -2218,6 +2646,7 @@ export async function inspectOneImgPackage(
             return {
               assets: [],
               documents: [],
+              previews: [],
               recovery: parsedManifest,
               report: makeRecoveryReport(),
             }
@@ -2233,6 +2662,7 @@ export async function inspectOneImgPackage(
             consumed.bytes!.subarray(0, 32),
             path,
           )
+          await validatePackageImage(consumed.bytes!, manifestEntry!.mediaType, path, limits, options.signal)
         }
         localEntries.push(parsed)
         options.onProgress?.({
@@ -2387,10 +2817,22 @@ export async function inspectOneImgPackage(
             }),
       }
     })
+    const parsedPreviews = manifest.previews.map((manifestPreview) => {
+      const entry = localByPath.get(manifestPreview.path)
+      if (!entry || !(entry.value instanceof Uint8Array)) {
+        fail('missing-entry', `Preview for Document ${manifestPreview.documentId} is missing`, manifestPreview.path)
+      }
+      return {
+        blob: blobFromBytes(entry.value, manifestPreview.mediaType),
+        documentId: manifestPreview.documentId,
+        mimeType: manifestPreview.mediaType,
+      }
+    })
     return {
       assets: parsedAssets,
       documents: parsedDocuments,
       manifest,
+      previews: parsedPreviews,
       report: makeReport(parsedDocuments, parsedAssets.length),
     }
   } catch (error) {
@@ -2479,8 +2921,12 @@ export async function importOneImgPackage(
     return id
   }
   const assetIds = new Map<string, string>()
-  for (const asset of inspection.assets) {
-    assetIds.set(asset.id, issueId('asset', asset.id))
+  for (const document of inspection.documents) {
+    for (const sourceAssetId of document.requiredAssetIds) {
+      if (!assetIds.has(sourceAssetId)) {
+        assetIds.set(sourceAssetId, issueId('asset', sourceAssetId))
+      }
+    }
   }
   const drafts = inspection.documents.map((document) => {
     const draftId = issueId('draft', document.id)
@@ -2507,12 +2953,14 @@ export async function importOneImgPackage(
       unresolvedAssetIds: document.unresolvedAssetIds?.map(sourceAssetId => assetIds.get(sourceAssetId) ?? sourceAssetId),
       snapshot: remapSnapshotAssetReferences(document.snapshot, assetIds),
     }
+    const preview = inspection.previews.find(candidate => candidate.documentId === document.id)
     return {
       assets: importedAssets,
       document: importedDocument,
       documentId,
       draftId,
-      sourceDocumentId: document.id,
+      ...(preview === undefined ? {} : { preview }),
+      sourceDocumentId: document.sourceDocumentId ?? document.id,
     }
   })
   return {

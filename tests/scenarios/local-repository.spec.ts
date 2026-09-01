@@ -5,6 +5,10 @@ interface RepositoryCheck {
   readonly conflictDraftSourceDocumentId: string
   readonly conflictDraftRevision: number
   readonly duplicateStatus: string
+  readonly importedPackageAssetCount: number
+  readonly importedPackageCount: number
+  readonly importedPackageId: string
+  readonly importedPackageReportDocumentCount: number
   readonly recentIds: readonly string[]
   readonly restoredRevision: number
   readonly staleStatus: string
@@ -32,6 +36,10 @@ test.describe('Local Repository contract', () => {
         conflictDraftRevision: 3,
         conflictDraftSourceDocumentId: 'document:repository-fixture',
         duplicateStatus: 'already-saved',
+        importedPackageAssetCount: 1,
+        importedPackageCount: 1,
+        importedPackageId: 'package:repository-fixture',
+        importedPackageReportDocumentCount: 1,
         recentIds: ['document:repository-fixture'],
         restoredRevision: 3,
         staleRevisionAfterWrite: 3,
