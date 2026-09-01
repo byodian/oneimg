@@ -93,7 +93,35 @@ async function corruptPersistedRenderSource(page: Page) {
   })
 }
 
+async function createLegacyStudioDatabase(page: Page) {
+  await page.goto('/scenario/oneimg-package')
+  await page.evaluate(async () => {
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open('OneImgStudio', 3)
+      request.onupgradeneeded = () => {
+        const database = request.result
+        database.createObjectStore('documents', { keyPath: 'documentId' })
+        const transactions = database.createObjectStore('transactions', { keyPath: 'id' })
+        transactions.createIndex('by-document', 'documentId', { unique: false })
+      }
+      request.onerror = () => reject(request.error ?? new Error('Unable to create legacy Studio database'))
+      request.onsuccess = () => {
+        request.result.close()
+        resolve()
+      }
+    })
+  })
+}
+
 test.describe('OneIMG Package Studio flow', () => {
+  test('upgrades a legacy database before loading package and asset records', async ({ page }) => {
+    await createLegacyStudioDatabase(page)
+    await page.goto('/studio')
+
+    await expect(page.getByTestId('studio-editor')).toBeVisible()
+    await expect(page.getByTestId('studio-error')).toHaveCount(0)
+  })
+
   test('saves a committed Draft and imports it as an independent copy', async ({ page }) => {
     await page.goto('/studio')
 

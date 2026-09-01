@@ -8,7 +8,7 @@ import {
 import type { PackageImportReport } from '@/features/oneimg-package'
 
 const DEFAULT_DATABASE_NAME = 'OneImgLocalCore'
-const DATABASE_VERSION = 3
+const DATABASE_VERSION = 4
 const DOCUMENT_STORE = 'documents'
 const TRANSACTION_STORE = 'transactions'
 const PACKAGE_IMPORT_STORE = 'package-imports'
