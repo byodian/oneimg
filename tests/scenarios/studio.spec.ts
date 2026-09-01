@@ -412,6 +412,12 @@ test.describe('General Long Image Studio slice', () => {
       fromCache: false,
       format: 'zip',
     })
+    await panel.getByLabel('输出倍率').selectOption('1')
+    await expect(page.getByTestId('studio-export-slices')).toHaveCount(0)
+    await panel.getByLabel('输出倍率').selectOption('2')
+    await expect.poll(async () => JSON.parse(await page.getByTestId('studio-export-plan').textContent() ?? '{}') as StudioExportPlan).toMatchObject({
+      outputScale: 2,
+    })
     expect(consoleMessages.filter(message => message.includes('Maximum update depth exceeded'))).toHaveLength(0)
 
     const repeatedDownloadPromise = page.waitForEvent('download')

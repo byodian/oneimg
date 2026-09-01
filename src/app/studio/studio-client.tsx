@@ -114,6 +114,7 @@ type PendingStudioCommit = {
 }
 
 interface StudioExportReceipt {
+  readonly cacheKey: string
   readonly documentRevision?: number
   readonly format: 'png' | 'zip'
   readonly fromCache: boolean
@@ -466,6 +467,7 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
     && snapshot !== undefined
     && exportArtifact.diagnostics.snapshotId === snapshot.snapshotId
     && exportArtifact.diagnostics.snapshotId === exportPlan.snapshot.snapshotId
+    && lastExport?.cacheKey === exportPlan.cacheKey
     && exportArtifact.diagnostics.exportFingerprint === exportPlan.resourceFingerprint
     && exportArtifact.diagnostics.layoutFingerprint === exportPlan.pages[0]?.layoutFingerprint
     ? exportArtifact
@@ -1694,6 +1696,7 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
         anchor.click()
         setTimeout(() => URL.revokeObjectURL(url), 0)
         setLastExport({
+          cacheKey: job.plan.cacheKey,
           documentRevision: result.documentRevision,
           format: result.artifact.format,
           fromCache: result.fromCache,
