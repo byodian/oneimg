@@ -4,7 +4,7 @@
   "private": true,
   "packageManager": "pnpm@10.17.1",
   "scripts": {
-    "dev": "next dev",
+    "dev": "ONEIMG_ENABLE_STUDIO=1 next dev",
     "build": "next build",
     "start": "next start",
     "test:scenario": "playwright test",

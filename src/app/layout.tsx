@@ -72,7 +72,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full break-words overflow-hidden" data-platform={getPlatform()}>
+    <html lang="zh-CN" className="h-full break-words overflow-hidden" data-platform={getPlatform()}>
       <head>
         {/* Google Adsense */}
         <Script

@@ -1,6 +1,6 @@
 import type { LocalCapabilityProbeObservation } from './preflight'
 
-const PROBE_ID = 'local-svg-foreign-object@1'
+const PROBE_ID = 'local-svg-foreign-object@3'
 const PROBE_TIMEOUT_MS = 2500
 const PROBE_TIMEOUT_REASON = '本地 SVG foreignObject 探测超时'
 const probeCache = new Map<string, Promise<LocalCapabilityProbeObservation>>()

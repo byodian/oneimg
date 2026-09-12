@@ -1,12 +1,13 @@
 import type { RasterWorkerCleanupAudit } from './raster-worker'
-import type { RenderSegment, SemanticSlice } from './segmented-render'
+import type { RasterOutputScale, RenderSegment, SemanticSlice } from './segmented-render'
 import type { CanonicalRenderSnapshot } from '@/features/canonical-renderer/model'
 import type { CanonicalGeometry } from '@/features/canonical-renderer/render-ready'
 import type { ResolvedResourceSet } from '@/features/canonical-renderer/resource-resolver'
 
 export interface LocalExportRequest {
   readonly beforeStage?: LocalExportStageHook
-  readonly outputScale?: 1 | 2
+  readonly outputScale?: RasterOutputScale
+  readonly exportSlices?: boolean
   readonly pagePlan?: LocalExportPagePlan
   readonly snapshot: CanonicalRenderSnapshot
   readonly resources: ResolvedResourceSet
@@ -103,7 +104,7 @@ export interface LocalExportDiagnostics {
   readonly peakEstimatedRasterBytes: number
   readonly memorySource: 'performance.memory' | 'unavailable'
   readonly maxSvgDataUrlBytes: number
-  readonly outputScale: 1 | 2
+  readonly outputScale: RasterOutputScale
   readonly packagingChunkCount: number
 }
 

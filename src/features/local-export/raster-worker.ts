@@ -17,7 +17,7 @@ self.onmessage = async (event) => {
     return
   }
 
-  const { bitmap, height, id, outputScale, trimTop, width } = message
+  const { bitmap, height, id, trimTop, width } = message
   let canvas
   try {
     if (canceled.has(id)) {
@@ -35,9 +35,9 @@ self.onmessage = async (event) => {
     context.drawImage(
       bitmap,
       0,
-      trimTop / outputScale,
-      width / outputScale,
-      height / outputScale,
+      trimTop,
+      width,
+      height,
       0,
       0,
       width,
@@ -98,7 +98,7 @@ interface PendingEncode {
 
 export interface RasterWorkerClient {
   readonly available: boolean
-  encode(bitmap: ImageBitmap, segment: RenderSegment, width: number, outputScale: 1 | 2, signal?: AbortSignal): Promise<Blob>
+  encode(bitmap: ImageBitmap, segment: RenderSegment, width: number, signal?: AbortSignal): Promise<Blob>
   getCleanupAudit(): RasterWorkerCleanupAudit
   terminate(): void
 }
@@ -106,7 +106,7 @@ export interface RasterWorkerClient {
 function createUnavailableClient(): RasterWorkerClient {
   return {
     available: false,
-    encode: async (_bitmap, _segment, _width, _outputScale, signal) => {
+    encode: async (_bitmap, _segment, _width, signal) => {
       throwIfRenderAborted(signal)
       throw new Error('Raster Worker is unavailable')
     },
@@ -227,7 +227,7 @@ export function createRasterWorkerClient(): RasterWorkerClient {
 
   return {
     available: true,
-    encode(bitmap, segment, width, outputScale, signal) {
+    encode(bitmap, segment, width, signal) {
       throwIfRenderAborted(signal)
       if (terminated) {
         throw new Error('Raster Worker has been terminated')
@@ -256,7 +256,6 @@ export function createRasterWorkerClient(): RasterWorkerClient {
             bitmap,
             height: segment.height,
             id,
-            outputScale,
             trimTop: segment.trimTop,
             type: 'encode',
             width,

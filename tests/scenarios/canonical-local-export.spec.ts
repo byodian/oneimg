@@ -75,8 +75,13 @@ async function compareSegmentsInBrowser(
   })
 }
 
-async function comparePngsInBrowser(page: Page, preview: Buffer, exported: Buffer) {
-  return page.evaluate(async ({ previewBase64, exportedBase64 }) => {
+async function comparePngsInBrowser(
+  page: Page,
+  preview: Buffer,
+  exported: Buffer,
+  region?: { x: number; y: number; width: number; height: number },
+) {
+  return page.evaluate(async ({ previewBase64, exportedBase64, region }) => {
     const decode = async (base64: string) => {
       const response = await fetch(`data:image/png;base64,${base64}`)
       return createImageBitmap(await response.blob())
@@ -88,19 +93,31 @@ async function comparePngsInBrowser(page: Page, preview: Buffer, exported: Buffe
     const exportedWidth = exportedImage.width
     const exportedHeight = exportedImage.height
 
-    const width = Math.max(previewWidth, exportedWidth)
-    const height = Math.max(previewHeight, exportedHeight)
+    const width = region?.width ?? Math.max(previewWidth, exportedWidth)
+    const height = region?.height ?? Math.max(previewHeight, exportedHeight)
     const readPixels = (image: ImageBitmap) => {
       const canvas = document.createElement('canvas')
       canvas.width = width
       canvas.height = height
       const context = canvas.getContext('2d', { willReadFrequently: true })!
-      context.drawImage(image, 0, 0)
+      context.drawImage(image, -(region?.x ?? 0), -(region?.y ?? 0))
       return context.getImageData(0, 0, width, height).data
     }
 
     const previewPixels = readPixels(previewImage)
     const exportedPixels = readPixels(exportedImage)
+    const edgeEnergy = (pixels: Uint8ClampedArray) => {
+      let total = 0
+      for (let y = 0; y < height - 1; y += 1) {
+        for (let x = 0; x < width - 1; x += 1) {
+          const offset = (y * width + x) * 4
+          const horizontal = pixels[offset] - pixels[offset + 4]
+          const vertical = pixels[offset] - pixels[offset + width * 4]
+          total += horizontal * horizontal + vertical * vertical
+        }
+      }
+      return total
+    }
     const diffCanvas = document.createElement('canvas')
     diffCanvas.width = width
     diffCanvas.height = height
@@ -158,14 +175,119 @@ async function comparePngsInBrowser(page: Page, preview: Buffer, exported: Buffe
       noisyPixelRatio: noisyPixels / pixelCount,
       previewHeight,
       previewWidth,
+      sharpnessRatio: edgeEnergy(exportedPixels) / edgeEnergy(previewPixels),
     }
   }, {
     exportedBase64: exported.toString('base64'),
     previewBase64: preview.toString('base64'),
+    region,
   })
 }
 
 test.describe('Canonical Renderer local export contract', () => {
+  for (const outputScale of [1, 2, 3] as const) {
+    test(`preserves preview glyphs and sharpness at ${outputScale}×`, async ({ browser }, testInfo) => {
+      const context = await browser.newContext({ deviceScaleFactor: outputScale, viewport: { width: 1440, height: 1100 } })
+      const page = await context.newPage()
+      try {
+        await page.goto(`/scenario/export-engine-wysiwyg?scale=${outputScale}`)
+        const root = page.getByTestId('canonical-preview').locator('[data-oneimg-render-root]')
+        await expect(root).toHaveAttribute('data-render-ready', 'true')
+        const regions = await root.evaluate((element, scale) => {
+          const rootRect = element.getBoundingClientRect()
+          return ['.oneimg-title', '.oneimg-lede', '.oneimg-eyebrow'].map((selector) => {
+            const rect = element.querySelector(selector)!.getBoundingClientRect()
+            return {
+              name: selector.slice(1),
+              x: Math.round((rect.x - rootRect.x) * scale),
+              y: Math.round((rect.y - rootRect.y) * scale),
+              width: Math.round(rect.width * scale),
+              height: Math.round(rect.height * scale),
+            }
+          })
+        }, outputScale)
+        const previewPng = await root.screenshot({ animations: 'disabled' })
+        const downloadPromise = page.waitForEvent('download')
+        await page.getByRole('button', { name: '导出本地 PNG' }).click()
+        const downloadPath = await (await downloadPromise).path()
+        if (downloadPath === null) {
+          throw new Error('Expected the exported PNG')
+        }
+        const exportedPng = await readFile(downloadPath)
+        await testInfo.attach('preview.png', { body: previewPng, contentType: 'image/png' })
+        await testInfo.attach('export.png', { body: exportedPng, contentType: 'image/png' })
+        for (const region of regions) {
+          const { diffBase64, ...metrics } = await comparePngsInBrowser(page, previewPng, exportedPng, region)
+          await testInfo.attach(`${region.name}-diff.png`, { body: Buffer.from(diffBase64, 'base64'), contentType: 'image/png' })
+          await testInfo.attach(`${region.name}-metrics.json`, { body: JSON.stringify(metrics), contentType: 'application/json' })
+          expect(metrics.exportedWidth).toBe(640 * outputScale)
+          expect(metrics.exportedHeight).toBe(metrics.previewHeight)
+          expect(metrics.materialPixelRatio, region.name).toBeLessThanOrEqual(0.05)
+          expect(metrics.meanChannelDelta, region.name).toBeLessThanOrEqual(4)
+          expect(metrics.sharpnessRatio, region.name).toBeGreaterThanOrEqual(0.9)
+          expect(metrics.sharpnessRatio, region.name).toBeLessThanOrEqual(1.1)
+        }
+      } finally {
+        await context.close()
+      }
+    })
+  }
+
+  for (const outputScale of [1, 2, 3] as const) {
+    test(`exports Studio typography faithfully at ${outputScale}× after preview zoom`, async ({ browser }, testInfo) => {
+      const context = await browser.newContext({ deviceScaleFactor: outputScale, viewport: { width: 1600, height: 1100 } })
+      const page = await context.newPage()
+      try {
+        await page.goto('/studio')
+        const root = page.getByTestId('studio-editor').locator('[data-oneimg-render-root]')
+        const editor = root.locator('[contenteditable="true"]')
+        await expect(editor).toBeVisible()
+        await editor.evaluate((element) => {
+          const data = new DataTransfer()
+          data.setData('text/plain', '所见即所得 Preview\n清晰预览，准确导出。Canonical text 123 ABC abc。')
+          data.setData('text/html', '<h1>所见即所得 Preview</h1><p>清晰预览，准确导出。<strong>Canonical text 123 ABC abc。</strong></p>')
+          element.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, clipboardData: data }))
+        })
+        await page.getByRole('button', { name: '清爽预览', exact: true }).click()
+        await expect(root).toHaveAttribute('data-render-ready', 'true')
+        const referenceHeight = await root.evaluate(element => element.getBoundingClientRect().height)
+        const previewPng = await root.screenshot({ animations: 'disabled' })
+        await page.getByRole('button', { name: '返回编辑', exact: true }).click()
+        await page.getByRole('button', { name: '缩小预览', exact: true }).click()
+        await page.getByRole('button', { name: '缩小预览', exact: true }).click()
+        await expect(page.getByTestId('studio-editor')).not.toHaveAttribute('data-preview-scale', '1')
+        await page.getByRole('button', { name: '导出本地文件', exact: true }).click()
+        const panel = page.getByTestId('studio-export-panel')
+        await panel.getByLabel('输出倍率').selectOption(String(outputScale))
+        const downloadPromise = page.waitForEvent('download')
+        await panel.getByRole('button', { name: '导出 PNG', exact: true }).click()
+        const downloadPath = await (await downloadPromise).path()
+        if (downloadPath === null) {
+          throw new Error('Expected the Studio PNG')
+        }
+        const exportedPng = await readFile(downloadPath)
+        const { diffBase64, ...metrics } = await comparePngsInBrowser(page, previewPng, exportedPng, {
+          x: 0, y: 0, width: 640 * outputScale, height: Math.ceil(referenceHeight * outputScale),
+        })
+        await testInfo.attach('studio-preview.png', { body: previewPng, contentType: 'image/png' })
+        await testInfo.attach('studio-export.png', { body: exportedPng, contentType: 'image/png' })
+        await testInfo.attach('studio-diff.png', { body: Buffer.from(diffBase64, 'base64'), contentType: 'image/png' })
+        await testInfo.attach('studio-metrics.json', { body: JSON.stringify(metrics), contentType: 'application/json' })
+        expect(metrics.exportedWidth).toBe(640 * outputScale)
+        expect(metrics.exportedWidth).toBe(metrics.previewWidth)
+        // Locator screenshots round the CSS clip before applying device scale.
+        expect(metrics.exportedHeight).toBe(Math.ceil(referenceHeight * outputScale))
+        expect(Math.abs(metrics.exportedHeight - metrics.previewHeight)).toBeLessThan(outputScale)
+        expect(metrics.materialPixelRatio).toBeLessThanOrEqual(0.05)
+        expect(metrics.meanChannelDelta).toBeLessThanOrEqual(4)
+        expect(metrics.sharpnessRatio).toBeGreaterThanOrEqual(0.9)
+        expect(metrics.sharpnessRatio).toBeLessThanOrEqual(1.1)
+      } finally {
+        await context.close()
+      }
+    })
+  }
+
   test('renders the controlled multilingual fixture through the production renderer', async ({ page }) => {
     await page.goto('/scenario/canonical-local-export')
 
@@ -269,7 +391,7 @@ test.describe('Canonical Renderer local export contract', () => {
       memorySource: 'performance.memory' | 'unavailable'
     }
     expect(diagnostics).toMatchObject({
-      adapterId: 'local-svg-foreign-object@1',
+      adapterId: 'local-svg-foreign-object@3',
       snapshotId: 'canonical-wysiwyg-fixture-v1',
       source: 'canonical-svg-foreign-object',
     })
@@ -387,7 +509,7 @@ test.describe('Canonical Renderer local export contract', () => {
       source: string
     }
     expect(diagnostics).toMatchObject({
-      adapterId: 'local-svg-foreign-object@1',
+      adapterId: 'local-svg-foreign-object@3',
       embeddedImageCount: 1,
       snapshotId: 'canonical-wysiwyg-fixture-v1',
       source: 'canonical-svg-foreign-object',

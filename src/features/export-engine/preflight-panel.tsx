@@ -3,6 +3,7 @@
 import type { PreflightAction, PreflightFinding, PreflightFindingKind } from './preflight'
 
 export interface ExportPreflightPanelProps {
+  readonly compact?: boolean
   readonly findings: readonly PreflightFinding[]
   readonly onAction?: (action: PreflightAction, finding: PreflightFinding) => void
 }
@@ -34,7 +35,7 @@ function ActionButton({
 }) {
   return (
     <button
-      className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-slate-500"
+      className="rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700 hover:border-slate-500"
       onClick={() => onAction?.(action, finding)}
       type="button"
     >
@@ -42,7 +43,7 @@ function ActionButton({
     </button>
   )
 }
-export function ExportPreflightPanel({ findings, onAction }: ExportPreflightPanelProps) {
+export function ExportPreflightPanel({ compact = false, findings, onAction }: ExportPreflightPanelProps) {
   if (findings.length === 0) {
     return null
   }
@@ -57,39 +58,29 @@ export function ExportPreflightPanel({ findings, onAction }: ExportPreflightPane
   return (
     <section
       aria-label="导出前检查"
-      className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+      className={compact
+        ? 'rounded-xl border border-slate-200 bg-white p-3'
+        : 'rounded-xl border border-slate-200 bg-white p-5 shadow-sm'}
       data-testid="preflight-panel"
     >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="m-0 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Preflight</p>
-          <h2 className="mt-1 text-lg font-semibold text-slate-900">导出前检查</h2>
-        </div>
-        <p className="m-0 text-right text-xs leading-5 text-slate-500">
-          {findings.filter(finding => finding.kind === 'blocking-error').length} 项必须处理
-          {' · '}
-          {findings.filter(finding => finding.kind === 'quality-warning').length} 项质量提醒
-        </p>
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="m-0 text-xs font-semibold text-slate-800">导出前检查</h2>
+        <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-800">{findings.length} 项</span>
       </div>
 
-      <div aria-live="polite" className="mt-4 space-y-4">
+      <div aria-live="polite" className={compact ? 'mt-3 space-y-3' : 'mt-4 space-y-4'}>
         {groups.map(group => (
           <div key={group.kind}>
-            <h3 className="m-0 text-sm font-semibold text-slate-800">{kindLabels[group.kind]}</h3>
-            <ul className="mt-2 space-y-2">
+            <h3 className="m-0 text-[11px] font-medium text-slate-500">{kindLabels[group.kind]}</h3>
+            <ul className={compact ? 'mt-1.5 space-y-2' : 'mt-2 space-y-2'}>
               {group.findings.map((finding, index) => {
                 const actions = [
                   ...(finding.action === undefined ? [] : [finding.action]),
                   ...(finding.alternatives ?? []),
                 ]
                 return (
-                  <li className="rounded-xl bg-slate-50 p-3" key={findingKey(finding, index)}>
-                    <p className="m-0 text-sm leading-6 text-slate-700">{finding.message}</p>
-                    {(finding.resourceId !== undefined || finding.targetId !== undefined) && (
-                      <p className="m-0 mt-1 font-mono text-[11px] text-slate-500">
-                        {finding.resourceId ?? finding.targetId}
-                      </p>
-                    )}
+                  <li className="rounded-lg bg-slate-50 p-2.5" key={findingKey(finding, index)}>
+                    <p className="m-0 text-xs leading-5 text-slate-700">{finding.message}</p>
                     {actions.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-2">
                         {actions.map(action => (

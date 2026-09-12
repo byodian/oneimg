@@ -42,7 +42,8 @@ test.describe('Export Preflight and Render Ready contract', () => {
       }),
     ]))
     await expect(page.getByTestId('preflight-panel')).toContainText('重新链接资源')
-    await expect(page.getByTestId('preflight-panel')).toContainText('image:missing')
+    await expect(page.getByTestId('preflight-panel')).not.toContainText('image:missing')
+    expect(result.findings).toEqual(expect.arrayContaining([expect.objectContaining({ resourceId: 'image:missing' })]))
   })
 
   test('classifies an image decode failure as an Unresolved Asset', async ({ page }) => {
@@ -56,7 +57,8 @@ test.describe('Export Preflight and Render Ready contract', () => {
         kind: 'blocking-error',
       }),
     ]))
-    await expect(page.getByTestId('preflight-panel')).toContainText('image:decode-failed')
+    await expect(page.getByTestId('preflight-panel')).not.toContainText('image:decode-failed')
+    expect(result.findings).toEqual(expect.arrayContaining([expect.objectContaining({ resourceId: 'image:decode-failed' })]))
   })
 
   test('keeps quality warnings and Scene Suggestions non-blocking', async ({ page }) => {
@@ -99,7 +101,7 @@ test.describe('Export Preflight and Render Ready contract', () => {
         code: 'presentation-risk',
       }),
     ]))
-    await expect(page.getByTestId('preflight-panel')).not.toContainText('授权 High-Fidelity Export')
+    await expect(page.getByTestId('preflight-panel')).not.toContainText('授权云端导出')
   })
 
   test('does not offer an unverified compatibility repair after a probe failure', async ({ page }) => {
@@ -115,7 +117,7 @@ test.describe('Export Preflight and Render Ready contract', () => {
     ]))
     expect(result.findings.some(finding => finding.action?.kind === 'apply-compatible-presentation')).toBe(false)
     await expect(page.getByTestId('preflight-panel')).not.toContainText('应用兼容呈现')
-    await expect(page.getByTestId('preflight-panel')).not.toContainText('授权 High-Fidelity Export')
+    await expect(page.getByTestId('preflight-panel')).not.toContainText('授权云端导出')
   })
 
   test('offers High-Fidelity authorization after a probe failure when available', async ({ page }) => {
@@ -130,7 +132,7 @@ test.describe('Export Preflight and Render Ready contract', () => {
       }),
     ]))
     expect(result.findings.some(finding => finding.action?.kind === 'apply-compatible-presentation')).toBe(false)
-    await expect(page.getByTestId('preflight-panel')).toContainText('授权 High-Fidelity Export')
+    await expect(page.getByTestId('preflight-panel')).toContainText('授权云端导出')
     await expect(page.getByTestId('preflight-panel')).not.toContainText('应用兼容呈现')
   })
 

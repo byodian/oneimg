@@ -8,5 +8,5 @@ export default function StudioPage() {
     notFound()
   }
 
-  return <StudioClient />
+  return <StudioClient diagnostics={process.env.ONEIMG_ENABLE_SCENARIOS === '1'} />
 }

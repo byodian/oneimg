@@ -20,10 +20,10 @@ import type {
   ResourceResolver,
 } from '@/features/canonical-renderer/resource-resolver'
 import {
-  DEFAULT_SEGMENTED_RENDER_LIMITS,
+  type RasterOutputScale,
   type RenderSegment,
   type SemanticSlice,
-  createScaledSegmentedRenderPlan,
+  createExportRenderPlan,
 } from '@/features/local-export/segmented-render'
 import {
   isRenderAbortError,
@@ -55,7 +55,7 @@ export { probeLocalSvgCapability } from './capability-probe'
 export { ExportPreflightPanel } from './preflight-panel'
 export type { ExportPreflightPanelProps } from './preflight-panel'
 
-export type ExportOutputScale = 1 | 2
+export type ExportOutputScale = RasterOutputScale
 export type ExportFormat = 'png'
 export type ExportPlanRoute = 'cannot-export' | 'high-fidelity-recommended' | 'high-fidelity-required' | 'local-eligible'
 export type ExportFindingKind = PreflightFindingKind
@@ -94,6 +94,7 @@ export interface ExportPlanRequest {
   readonly output?: {
     readonly format?: ExportFormat
     readonly scale?: ExportOutputScale
+    readonly slices?: boolean
   }
   readonly pageMeasurements?: readonly ExportPageMeasurement[]
   readonly preflightFindings?: readonly PreflightFinding[]
@@ -113,6 +114,7 @@ export interface ExportPlan {
   readonly id: string
   readonly outputFormat: ExportFormat
   readonly outputScale: ExportOutputScale
+  readonly exportSlices: boolean
   readonly pages: readonly ExportPagePlan[]
   readonly fontFallbackIds: readonly CanonicalResourceId[]
   readonly resourceFingerprint: string
@@ -218,17 +220,17 @@ const FAILURE_POLICIES: Record<ExportJobExecutionStage, {
   },
   packaging: {
     code: 'packaging-failed',
-    nextStep: '重新运行当前 Export Plan；如果仍失败，请重新导出 PNG。',
+    nextStep: '打包失败，请重试；也可以关闭分片，导出完整图片。',
     recoveryAction: 'retry',
   },
   preparing: {
     code: 'resource-resolution-failed',
-    nextStep: '检查并重新关联引用资源后，重新运行当前 Export Plan。',
+    nextStep: '请检查未能加载的图片，重新选择文件后再导出。',
     recoveryAction: 'resolve-resources',
   },
   rendering: {
     code: 'rendering-failed',
-    nextStep: '重新运行当前 Export Plan；若仍失败，请切换兼容呈现或 High-Fidelity Export。',
+    nextStep: '请重试；如果仍无法生成图片，请降低倍率或切换模板。',
     recoveryAction: 'retry-with-high-fidelity',
   },
 }
@@ -249,7 +251,7 @@ function createCanceledErrorInfo(stage: ExportJobExecutionStage): ExportJobError
   return createJobErrorInfo({
     code: 'canceled',
     message: '导出已取消。',
-    nextStep: '可以重新运行当前 Export Plan。',
+    nextStep: '可以随时重新导出。',
     recoveryAction: 'retry',
     stage,
   })
@@ -283,9 +285,9 @@ function sameResourceIdList(left: readonly CanonicalResourceId[], right: readonl
   return left.length === right.length && left.every((resourceId, index) => resourceId === right[index])
 }
 
-function assertPositiveFinite(value: number, label: string) {
+function assertPositiveFinite(value: number) {
   if (!Number.isFinite(value) || value <= 0) {
-    throw new Error(`Unable to plan export: ${label} must be a positive finite number`)
+    throw new Error('无法计算图片尺寸，请返回预览后重试。')
   }
 }
 
@@ -293,14 +295,15 @@ function createPagePlan(
   measurement: ExportPageMeasurement,
   index: number,
   outputScale: ExportOutputScale,
+  exportSlices: boolean,
 ): ExportPagePlan {
-  assertPositiveFinite(measurement.width, `Page ${measurement.id} width`)
-  assertPositiveFinite(measurement.height, `Page ${measurement.id} height`)
-  const renderPlan = createScaledSegmentedRenderPlan(
+  assertPositiveFinite(measurement.width)
+  assertPositiveFinite(measurement.height)
+  const renderPlan = createExportRenderPlan(
     measurement.width,
     measurement.height,
     outputScale,
-    DEFAULT_SEGMENTED_RENDER_LIMITS,
+    exportSlices,
     measurement.semanticBoundaries,
   )
   return {
@@ -325,6 +328,7 @@ function buildCacheKey(
   encoderRevision: string,
   outputFormat: ExportFormat,
   outputScale: ExportOutputScale,
+  exportSlices: boolean,
   pages: readonly ExportPagePlan[],
   resourceFingerprint: string,
   fontFallbackIds: readonly CanonicalResourceId[],
@@ -334,6 +338,7 @@ function buildCacheKey(
     encoderRevision,
     outputFormat,
     outputScale,
+    exportSlices,
     pages,
     fontFallbackIds,
     resourceFingerprint,
@@ -399,6 +404,7 @@ export function createExportEngine({
     const snapshot = cloneAndFreezeSnapshot(request.snapshot)
     const outputFormat = request.output?.format ?? 'png'
     const outputScale = request.output?.scale ?? 1
+    const exportSlices = request.output?.slices ?? false
     const findings: ExportFinding[] = []
     const addFinding = (finding: ExportFinding) => {
       if (findings.some(existing => (
@@ -415,23 +421,23 @@ export function createExportEngine({
     }
 
     if (outputFormat !== 'png') {
-      addFinding({ code: 'unsupported-format', kind: 'blocking-error', message: '当前 Export Engine 仅支持 PNG。' })
+      addFinding({ code: 'unsupported-format', kind: 'blocking-error', message: '请选择 PNG 格式。' })
     }
     if (!request.meaningful) {
-      addFinding({ code: 'empty-document', kind: 'blocking-error', message: '空 Document 没有可导出的内容。' })
+      addFinding({ code: 'empty-document', kind: 'blocking-error', message: '添加文字或图片后即可导出。' })
     }
     if (!request.renderReady) {
-      addFinding({ code: 'render-not-ready', kind: 'blocking-error', message: 'Canonical Preview 尚未 Render Ready。' })
+      addFinding({ code: 'render-not-ready', kind: 'blocking-error', message: '正在准备预览，请稍候。' })
     }
     if (request.resourceFingerprint === undefined) {
-      addFinding({ code: 'resources-not-ready', kind: 'blocking-error', message: 'Referenced Render Sources 尚未完成解析。' })
+      addFinding({ code: 'resources-not-ready', kind: 'blocking-error', message: '正在加载字体和图片，请稍候。' })
     }
 
     const pages: ExportPagePlan[] = []
     const pageMeasurements = request.pageMeasurements ?? []
     pageMeasurements.forEach((measurement, index) => {
       try {
-        pages.push(createPagePlan(measurement, index, outputScale))
+        pages.push(createPagePlan(measurement, index, outputScale, exportSlices))
       } catch (error) {
         addFinding({
           code: 'invalid-page-measurement',
@@ -440,20 +446,20 @@ export function createExportEngine({
         })
       }
     })
-    if (pages.length === 0) {
-      addFinding({ code: 'page-measurement-unavailable', kind: 'blocking-error', message: '没有可供导出的 Page 几何信息。' })
+    if (pageMeasurements.length === 0) {
+      addFinding({ code: 'page-measurement-unavailable', kind: 'blocking-error', message: '正在计算图片尺寸，请稍候。' })
     }
 
     if (snapshot.localCapability === 'unsupported') {
-      addFinding({ code: 'unsupported-local-presentation', kind: 'blocking-error', message: '当前呈现没有已验证的导出适配器。' })
+      addFinding({ code: 'unsupported-local-presentation', kind: 'blocking-error', message: '当前页面格式暂不支持导出，请改为连续长图。' })
     } else if (snapshot.localCapability === 'high-fidelity-required') {
-      addFinding({ code: 'local-capability', kind: 'quality-warning', message: '当前呈现需要 High-Fidelity Export 或兼容的本地呈现。' })
+      addFinding({ code: 'local-capability', kind: 'quality-warning', message: '当前页面格式暂不支持导出，请改为连续长图。' })
     }
     if (snapshot.sensitive && snapshot.localCapability !== 'certified') {
       addFinding({
         code: 'sensitive-local-only',
         kind: 'blocking-error',
-        message: 'Sensitive Document 只能通过已认证的本地呈现导出。',
+        message: '此文档仅允许本地导出，请改为连续长图。',
       })
     }
 
@@ -471,6 +477,7 @@ export function createExportEngine({
       encoderRevision,
       outputFormat,
       outputScale,
+      exportSlices,
       pages,
       resourceFingerprint,
       fontFallbackIds,
@@ -488,6 +495,7 @@ export function createExportEngine({
       id: `export-plan:${snapshot.snapshotId}:${++nextPlanId}`,
       outputFormat,
       outputScale,
+      exportSlices,
       pages,
       fontFallbackIds,
       resourceFingerprint,
@@ -510,6 +518,7 @@ export function createExportEngine({
         encoderRevision,
         plannedPlan.outputFormat,
         plannedPlan.outputScale,
+        plannedPlan.exportSlices,
         plannedPlan.pages,
         plannedPlan.resourceFingerprint,
         plannedPlan.fontFallbackIds,
@@ -618,6 +627,7 @@ export function createExportEngine({
           encoderRevision,
           exportPlan.outputFormat,
           exportPlan.outputScale,
+          exportPlan.exportSlices,
           exportPlan.pages,
           resources.fingerprint,
           resolvedFontFallbackIds,
@@ -644,6 +654,7 @@ export function createExportEngine({
           updateState({ stage: 'rendering' })
           await localAdapter.validatePlan({
             outputScale: exportPlan.outputScale,
+            exportSlices: exportPlan.exportSlices,
             pagePlan,
             resources,
             signal: controller.signal,
@@ -669,6 +680,7 @@ export function createExportEngine({
             })
           },
           outputScale: exportPlan.outputScale,
+          exportSlices: exportPlan.exportSlices,
           pagePlan,
           resources,
           signal: controller.signal,

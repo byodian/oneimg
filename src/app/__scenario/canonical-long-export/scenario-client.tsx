@@ -52,6 +52,7 @@ export function CanonicalLongExportScenario() {
 
   return (
     <CanonicalLocalExportHarness
+      exportSlices
       beforeExportStage={beforeExportStage}
       cancelAfterPackagingChunk={cancelAfterPackagingChunk}
       resourceDefinitions={longCanonicalFixtureResources}
@@ -66,6 +67,7 @@ export function CanonicalLongExportEngineScenario() {
     && new URLSearchParams(window.location.search).get('cancelAfterPackagingChunk') === '1'
   return (
     <CanonicalLocalExportHarness
+      exportSlices
       cancelAfterPackagingChunk={cancelAfterPackagingChunk}
       resourceDefinitions={longCanonicalFixtureResources}
       runThroughExportEngine

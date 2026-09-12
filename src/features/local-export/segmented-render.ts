@@ -10,6 +10,8 @@ export type {
   SemanticSliceBoundaryReason,
 } from '@/features/canonical-renderer/semantic-boundaries'
 
+export type RasterOutputScale = 1 | 2 | 3
+
 export interface SegmentedRenderLimits {
   readonly maxSegments: number
   readonly maxSegmentPixels: number
@@ -54,6 +56,50 @@ export const DEFAULT_SEGMENTED_RENDER_LIMITS: SegmentedRenderLimits = {
   maxSinglePageHeight: 4_096,
   maxSinglePagePixels: 4 * 1_024 * 1_024,
   segmentBleed: 80,
+}
+
+// Keep whole-image exports bounded independently of the smaller slice budget.
+export const SINGLE_IMAGE_RENDER_LIMITS = {
+  maxDimension: 16_384,
+  maxPixels: 16 * 1_024 * 1_024,
+} as const
+
+export function createExportRenderPlan(
+  width: number,
+  height: number,
+  outputScale: RasterOutputScale,
+  exportSlices = false,
+  semanticBoundaries: readonly SemanticSliceBoundary[] = [],
+) {
+  if (outputScale !== 1 && outputScale !== 2 && outputScale !== 3) {
+    throw new Error('请选择 1×、2× 或 3× 导出倍率。')
+  }
+  assertDimension(width, 'width')
+  assertDimension(height, 'height')
+  const outputWidth = Math.ceil(width * outputScale)
+  const outputHeight = Math.ceil(height * outputScale)
+  if (!exportSlices && (
+    outputWidth > SINGLE_IMAGE_RENDER_LIMITS.maxDimension
+    || outputHeight > SINGLE_IMAGE_RENDER_LIMITS.maxDimension
+    || outputWidth * outputHeight > SINGLE_IMAGE_RENDER_LIMITS.maxPixels
+  )) {
+    throw new Error('整图尺寸过大，请降低倍率或开启分片导出。')
+  }
+  try {
+    return createScaledSegmentedRenderPlan(
+      width,
+      height,
+      outputScale,
+      exportSlices ? DEFAULT_SEGMENTED_RENDER_LIMITS : {
+        ...DEFAULT_SEGMENTED_RENDER_LIMITS,
+        maxSinglePageHeight: SINGLE_IMAGE_RENDER_LIMITS.maxDimension,
+        maxSinglePagePixels: SINGLE_IMAGE_RENDER_LIMITS.maxPixels,
+      },
+      semanticBoundaries,
+    )
+  } catch {
+    throw new Error('内容超出分片导出的尺寸限制，请降低倍率或减少内容。')
+  }
 }
 
 function assertDimension(value: number, name: string) {
@@ -307,7 +353,7 @@ export function createSegmentedRenderPlan(
 export function createScaledSegmentedRenderPlan(
   width: number,
   height: number,
-  outputScale: 1 | 2,
+  outputScale: RasterOutputScale,
   limits: SegmentedRenderLimits = DEFAULT_SEGMENTED_RENDER_LIMITS,
   semanticBoundaries: readonly SemanticSliceBoundary[] = [],
 ) {

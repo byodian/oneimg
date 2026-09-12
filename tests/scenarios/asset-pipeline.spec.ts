@@ -127,7 +127,7 @@ test.describe('Asset Pipeline and MediaGroup contract', () => {
 
     await page.getByRole('button', { name: '调整图片 1' }).click()
     await page.getByLabel('焦点横向').fill('0.8')
-    await page.getByLabel('缩放意图').fill('1.4')
+    await page.getByLabel('图片缩放').fill('1.4')
     await page.getByRole('button', { name: '完成调整' }).click()
     await expect.poll(() => readResult(page)).toMatchObject({ transactionCount: 2 })
     await expect(page.getByTestId('media-item-1').locator('img')).toHaveAttribute('data-focal-point', '0.8,0.5')

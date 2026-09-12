@@ -14,10 +14,10 @@ import {
 } from './local-rasterizer'
 import { type RasterWorkerClient, createRasterWorkerClient } from './raster-worker'
 import {
-  DEFAULT_SEGMENTED_RENDER_LIMITS,
+  type RasterOutputScale,
   type RenderSegment,
   type SegmentedRenderPlan,
-  createScaledSegmentedRenderPlan,
+  createExportRenderPlan,
 } from './segmented-render'
 import { CanonicalRenderSurface, getCanonicalOwnedCss } from '@/features/canonical-renderer/canonical-renderer'
 import type { CanonicalResourceId } from '@/features/canonical-renderer/model'
@@ -34,7 +34,7 @@ import {
   throwIfRenderAborted,
 } from '@/features/rendering/cancellation'
 
-const ADAPTER_ID = 'local-svg-foreign-object@1'
+const ADAPTER_ID = 'local-svg-foreign-object@3'
 const MAX_SVG_DATA_URL_BYTES = 512 * 1024
 
 type PerformanceWithMemory = Performance & {
@@ -108,6 +108,7 @@ async function serializeToSvg(
   height: number,
   fullHeight: number,
   offsetY: number,
+  outputScale: RasterOutputScale,
   signal?: AbortSignal,
 ) {
   throwIfRenderAborted(signal)
@@ -123,12 +124,15 @@ async function serializeToSvg(
     }
     return resource
   })
-  const estimatedImageDataBytes = imageResources.reduce(
+  const fontResources = resources.resources.filter(resource => (
+    resource.kind === 'font' && cssText.includes(resource.objectUrl)
+  ))
+  const estimatedResourceDataBytes = [...imageResources, ...fontResources].reduce(
     (total, resource) => total + Math.ceil(resource.byteLength / 3) * 4,
     0,
   )
-  if (estimatedImageDataBytes > MAX_SVG_DATA_URL_BYTES) {
-    throw new Error(`Local image payload exceeds the bounded ${MAX_SVG_DATA_URL_BYTES}-byte SVG transport limit`)
+  if (estimatedResourceDataBytes > MAX_SVG_DATA_URL_BYTES) {
+    throw new Error(`Local resource payload exceeds the bounded ${MAX_SVG_DATA_URL_BYTES}-byte SVG transport limit`)
   }
 
   await Promise.all(images.map(async (image, index) => {
@@ -140,11 +144,19 @@ async function serializeToSvg(
     image.src = await blobToDataUrl(resource.blob, signal)
   }))
 
+  // SVG image documents cannot load the preview session's external Blob URLs.
+  // Embed only the faces in the resolved CSS, preserving its fallback decisions.
+  for (const resource of fontResources) {
+    cssText = cssText.replaceAll(resource.objectUrl, await blobToDataUrl(resource.blob, signal))
+  }
+
   throwIfRenderAborted(signal)
   const canonicalMarkup = new XMLSerializer().serializeToString(canonicalRoot)
+  // Keep CSS geometry fixed, but decode at the final pixel density so neither
+  // the worker nor the main-thread encoder enlarges a low-resolution bitmap.
   return {
     embeddedImageCount: images.length,
-    svgText: `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><foreignObject x="0" y="0" width="${width}" height="${height}"><div xmlns="http://www.w3.org/1999/xhtml" style="height:${height}px;width:${width}px;overflow:hidden;position:relative"><style type="text/css">${wrapCssAsCdata(cssText)}</style><div style="height:${fullHeight}px;position:relative;width:${width}px">${canonicalMarkup}</div></div></foreignObject></svg>`,
+    svgText: `<svg xmlns="http://www.w3.org/2000/svg" width="${width * outputScale}" height="${height * outputScale}" viewBox="0 0 ${width} ${height}"><foreignObject x="0" y="0" width="${width}" height="${height}"><div xmlns="http://www.w3.org/1999/xhtml" style="height:${height}px;width:${width}px;overflow:hidden;position:relative"><style type="text/css">${wrapCssAsCdata(cssText)}</style><div style="height:${fullHeight}px;position:relative;width:${width}px">${canonicalMarkup}</div></div></foreignObject></svg>`,
   }
 }
 
@@ -285,7 +297,6 @@ async function rasterizeSegment(
   image: HTMLImageElement,
   segment: RenderSegment,
   width: number,
-  outputScale: 1 | 2,
   worker: RasterWorkerClient,
   signal: AbortSignal | undefined,
   onBitmapCreated: () => void,
@@ -301,7 +312,7 @@ async function rasterizeSegment(
     onBitmapCreated()
     let transferred = false
     try {
-      const encoded = worker.encode(bitmap, segment, width, outputScale, signal)
+      const encoded = worker.encode(bitmap, segment, width, signal)
       transferred = true
       const blob = await encoded
       throwIfRenderAborted(signal)
@@ -314,9 +325,9 @@ async function rasterizeSegment(
       onWorkerFallback()
       return rasterizeOnMain(
         image,
-        width / outputScale,
-        segment.height / outputScale,
-        segment.trimTop / outputScale,
+        width,
+        segment.height,
+        segment.trimTop,
         width,
         segment.height,
         signal,
@@ -334,9 +345,9 @@ async function rasterizeSegment(
   onWorkerFallback()
   return rasterizeOnMain(
     image,
-    width / outputScale,
-    segment.height / outputScale,
-    segment.trimTop / outputScale,
+    width,
+    segment.height,
+    segment.trimTop,
     width,
     segment.height,
     signal,
@@ -521,27 +532,27 @@ function createInertRenderHost(snapshot: LocalExportRequest['snapshot']) {
   return host
 }
 
-function measureCanonicalExportPlan(canonicalRoot: HTMLElement, outputScale: 1 | 2) {
+function measureCanonicalExportPlan(canonicalRoot: HTMLElement, outputScale: RasterOutputScale, exportSlices: boolean) {
   const bounds = canonicalRoot.getBoundingClientRect()
   const semanticBoundaries = getCanonicalSemanticSliceBoundaries(canonicalRoot)
   return {
     layoutFingerprint: getCanonicalLayoutFingerprint(canonicalRoot),
-    plan: createScaledSegmentedRenderPlan(
+    plan: createExportRenderPlan(
       bounds.width,
       bounds.height,
       outputScale,
-      DEFAULT_SEGMENTED_RENDER_LIMITS,
+      exportSlices,
       semanticBoundaries,
     ),
   }
 }
 
-async function validatePlan({ outputScale: requestedOutputScale, pagePlan, signal, snapshot, resources }: LocalExportRequest) {
+async function validatePlan({ outputScale: requestedOutputScale, exportSlices = false, pagePlan, signal, snapshot, resources }: LocalExportRequest) {
   if (pagePlan === undefined) {
     return
   }
   const outputScale = requestedOutputScale ?? 1
-  if (outputScale !== 1 && outputScale !== 2) {
+  if (outputScale !== 1 && outputScale !== 2 && outputScale !== 3) {
     throw new Error(`Unsupported local output scale: ${outputScale}`)
   }
   throwIfRenderAborted(signal)
@@ -561,7 +572,7 @@ async function validatePlan({ outputScale: requestedOutputScale, pagePlan, signa
       isCurrent: () => !signal?.aborted,
       signal,
     })
-    const measured = measureCanonicalExportPlan(canonicalRoot, outputScale)
+    const measured = measureCanonicalExportPlan(canonicalRoot, outputScale, exportSlices)
     resolvePlannedRenderPlan(measured.plan, pagePlan, measured.layoutFingerprint, resources.fingerprint)
   } finally {
     reactRoot.unmount()
@@ -569,9 +580,9 @@ async function validatePlan({ outputScale: requestedOutputScale, pagePlan, signa
   }
 }
 
-async function exportPng({ beforeStage, onProgress, outputScale: requestedOutputScale, pagePlan, signal, snapshot, resources }: LocalExportRequest): Promise<LocalPngArtifact> {
+async function exportPng({ beforeStage, onProgress, outputScale: requestedOutputScale, exportSlices = false, pagePlan, signal, snapshot, resources }: LocalExportRequest): Promise<LocalPngArtifact> {
   const outputScale = requestedOutputScale ?? 1
-  if (outputScale !== 1 && outputScale !== 2) {
+  if (outputScale !== 1 && outputScale !== 2 && outputScale !== 3) {
     throw new Error(`Unsupported local output scale: ${outputScale}`)
   }
   const startedAt = performance.now()
@@ -677,7 +688,7 @@ async function exportPng({ beforeStage, onProgress, outputScale: requestedOutput
     })
     sampleMemory()
     const renderReadyAt = performance.now()
-    const measured = measureCanonicalExportPlan(canonicalRoot, outputScale)
+    const measured = measureCanonicalExportPlan(canonicalRoot, outputScale, exportSlices)
     const measuredPlan = measured.plan
     const plan = resolvePlannedRenderPlan(
       measuredPlan,
@@ -709,6 +720,7 @@ async function exportPng({ beforeStage, onProgress, outputScale: requestedOutput
         segment.captureHeight / outputScale,
         plan.height / outputScale,
         segment.captureY / outputScale,
+        outputScale,
         signal,
       )
       embeddedImageCount = serialized.embeddedImageCount
@@ -729,7 +741,6 @@ async function exportPng({ beforeStage, onProgress, outputScale: requestedOutput
           decodedSvg.image,
           segment,
           plan.width,
-          outputScale,
           worker,
           signal,
           () => {

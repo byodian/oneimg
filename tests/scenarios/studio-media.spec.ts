@@ -72,8 +72,8 @@ test.describe('Studio media import', () => {
     await expect(root.locator('[data-media-item-id="media-item-1"]')).toBeVisible()
     await expect(root).not.toContainText('studio-photo.png')
 
-    await page.getByLabel('Caption 1').fill('一张蓝红相间的图片')
-    await page.getByLabel('Alternative Text 1').fill('蓝红色块测试图')
+    await page.getByLabel('图片说明 1').fill('一张蓝红相间的图片')
+    await page.getByLabel('替代文字 1').fill('蓝红色块测试图')
     await page.getByRole('button', { name: '保存图片文本' }).click()
     await expect.poll(() => readStudioState(page)).toMatchObject({ revision: 3 })
     await expect(root.locator('figcaption')).toHaveText('一张蓝红相间的图片')
@@ -92,7 +92,7 @@ test.describe('Studio media import', () => {
 
     await page.getByRole('button', { name: '导出本地文件' }).click()
     const exportPanel = page.getByTestId('studio-export-panel')
-    await expect(exportPanel.getByTestId('studio-export-plan-status')).toHaveText('可以显式运行')
+    await expect(exportPanel.getByRole('button', { name: '导出 PNG' })).toBeEnabled()
     const downloadPromise = page.waitForEvent('download')
     await exportPanel.getByRole('button', { name: '导出 PNG' }).click()
     const download = await downloadPromise
@@ -101,7 +101,6 @@ test.describe('Studio media import', () => {
       throw new Error('Playwright did not expose the Studio PNG path')
     }
     expect(readPngDimensions(await readFile(downloadPath))).toMatchObject({ width: 640 })
-    await exportPanel.getByRole('button', { name: '关闭导出面板' }).click()
 
     await importGeneratedImage(page, { corrupt: true, fileName: 'studio-broken.jpg', mimeType: 'image/jpeg' })
     await expect.poll(() => readStudioState(page)).toMatchObject({ revision: 5 })
@@ -119,6 +118,7 @@ test.describe('Studio media import', () => {
     await expect(root.locator('[data-media-item-id="media-item-1"]')).toHaveAttribute('data-media-status', 'ready')
     await expect(root.locator('[data-media-item-id="media-item-2"]')).toHaveAttribute('data-media-status', 'ready')
 
+    await page.getByRole('tab', { name: '便携副本' }).click()
     const packageDownloadPromise = page.waitForEvent('download')
     await page.getByRole('button', { name: '保存 .oneimg 副本' }).click()
     const packageDownload = await packageDownloadPromise

@@ -117,6 +117,7 @@ test.describe('OneIMG Package Studio flow', () => {
   test('upgrades a legacy database before loading package and asset records', async ({ page }) => {
     await createLegacyStudioDatabase(page)
     await page.goto('/studio')
+    await page.getByRole('tab', { name: '便携副本' }).click()
 
     await expect(page.getByTestId('studio-editor')).toBeVisible()
     await expect(page.getByTestId('studio-error')).toHaveCount(0)
@@ -124,6 +125,7 @@ test.describe('OneIMG Package Studio flow', () => {
 
   test('saves a committed Draft and imports it as an independent copy', async ({ page }) => {
     await page.goto('/studio')
+    await page.getByRole('tab', { name: '便携副本' }).click()
 
     const root = page.getByTestId('studio-editor').locator('[data-oneimg-render-root]')
     const editor = root.locator('[contenteditable="true"]')
@@ -158,12 +160,12 @@ test.describe('OneIMG Package Studio flow', () => {
     ])
 
     await page.getByTestId('studio-package-input').setInputFiles(packagePath)
-    await expect(page.getByTestId('studio-import-report')).toContainText('已创建 Imported Draft')
+    await expect(page.getByTestId('studio-import-report')).toContainText('已导入为新草稿')
     await expect.poll(() => readStudioState(page)).toMatchObject({ meaningful: true, status: '已保存' })
     const importedState = await readStudioState(page)
     expect(importedState.documentId).not.toBe(originalState.documentId)
     await expect(root.getByText('Package 导入不能覆盖当前 Draft。')).toBeVisible()
-    await expect(page.getByTestId('studio-import-report')).toContainText('不会覆盖当前 Draft')
+    await expect(page.getByTestId('studio-import-report')).toContainText('已导入为新草稿')
 
     const reexportDownloadPromise = page.waitForEvent('download')
     await page.getByRole('button', { name: '保存 .oneimg 副本' }).click()
@@ -187,14 +189,14 @@ test.describe('OneIMG Package Studio flow', () => {
       mimeType: 'application/zip',
       name: 'newer-format.oneimg',
     })
-    await expect(page.getByTestId('studio-import-report')).toContainText('需要 Recovery Draft')
+    await expect(page.getByTestId('studio-import-report')).toContainText('使用了较新的格式')
     await expect.poll(() => readStudioState(page)).toMatchObject({
       documentId: beforeRecoveryImport.documentId,
       revision: beforeRecoveryImport.revision,
     })
 
     await page.getByTestId('studio-package-input').setInputFiles(packagePath)
-    await expect(page.getByTestId('studio-import-report')).toContainText('检测到相同来源的 Package')
+    await expect(page.getByTestId('studio-import-report')).toContainText('这份文件已经导入过')
     await page.getByRole('button', { name: '导入新的副本' }).click()
     await expect(page.getByTestId('studio-import-report')).toContainText('这是你选择的新副本')
     await expect.poll(() => readStudioState(page)).toMatchObject({ meaningful: true, status: '已保存' })
@@ -204,6 +206,7 @@ test.describe('OneIMG Package Studio flow', () => {
 
   test('packages referenced media with its Document and leaves the active Draft unchanged for invalid input', async ({ page }) => {
     await page.goto('/studio')
+    await page.getByRole('tab', { name: '便携副本' }).click()
     await expect(page.getByTestId('studio-asset-input')).toBeAttached()
     await importGeneratedImage(page)
     await expect.poll(() => readStudioState(page)).toMatchObject({ meaningful: true, revision: 2, status: '已保存' })
@@ -267,7 +270,7 @@ test.describe('OneIMG Package Studio flow', () => {
     await expect(root.locator('[data-media-item-id="media-item-1"]')).toBeVisible()
 
     await page.getByTestId('studio-package-input').setInputFiles(packagePath)
-    await expect(page.getByTestId('studio-import-report')).toContainText('已创建 Imported Draft')
+    await expect(page.getByTestId('studio-import-report')).toContainText('已导入为新草稿')
     await expect(root.locator('[data-media-item-id="media-item-1"]')).toHaveAttribute('data-media-status', 'ready')
     const importedState = await readStudioState(page)
     await corruptPersistedRenderSource(page)
@@ -276,13 +279,14 @@ test.describe('OneIMG Package Studio flow', () => {
       documentId: importedState.documentId,
       meaningful: true,
     })
-    await expect(page.getByTestId('studio-import-report')).toContainText('已创建 Imported Draft')
+    await expect(page.getByTestId('studio-import-report')).toContainText('已导入为新草稿')
     await expect(page.getByTestId('studio-editor').locator('[data-oneimg-render-root] [data-media-item-id="media-item-1"]'))
       .toHaveAttribute('data-media-status', 'ready')
   })
 
   test('preserves an unresolved media reference without writing an invalid Original', async ({ page }) => {
     await page.goto('/studio')
+    await page.getByRole('tab', { name: '便携副本' }).click()
     await expect(page.getByTestId('studio-asset-input')).toBeAttached()
     await importGeneratedImage(page, true)
     await expect.poll(() => readStudioState(page)).toMatchObject({ meaningful: true, revision: 2, status: '已保存' })
@@ -312,7 +316,7 @@ test.describe('OneIMG Package Studio flow', () => {
     ])
 
     await page.getByTestId('studio-package-input').setInputFiles(packagePath)
-    await expect(page.getByTestId('studio-import-report')).toContainText('已创建 Imported Draft')
+    await expect(page.getByTestId('studio-import-report')).toContainText('已导入为新草稿')
     await expect(root.locator('[data-media-item-id="media-item-1"]')).toHaveAttribute('data-media-status', 'unresolved')
 
     const importedState = await readStudioState(page)
@@ -321,7 +325,7 @@ test.describe('OneIMG Package Studio flow', () => {
       documentId: importedState.documentId,
       meaningful: true,
     })
-    await expect(page.getByTestId('studio-import-report')).toContainText('已创建 Imported Draft')
+    await expect(page.getByTestId('studio-import-report')).toContainText('已导入为新草稿')
     await expect(page.getByTestId('studio-editor').locator('[data-oneimg-render-root] [data-media-item-id="media-item-1"]'))
       .toHaveAttribute('data-media-status', 'unresolved')
   })

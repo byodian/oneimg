@@ -1,6 +1,24 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
+import {
+  ArrowDownToLine,
+  Check,
+  FileDown,
+  Image as ImageIcon,
+  Maximize2,
+  Minus,
+  PackageOpen,
+  PanelLeft,
+  Plus,
+  Redo2,
+  RotateCcw,
+  Save,
+  SlidersHorizontal,
+  Upload,
+  X,
+} from 'lucide-react'
 import { CanonicalRenderSurface } from '@/features/canonical-renderer/canonical-renderer'
 import { type CanonicalRenderSnapshot, collectSnapshotResourceIds } from '@/features/canonical-renderer/model'
 import {
@@ -16,6 +34,7 @@ import {
   waitForCanonicalRenderReady,
 } from '@/features/canonical-renderer/render-ready'
 import {
+  type Block,
   type DocumentCommitResult,
   type DocumentHistoryResult,
   type DocumentRevision,
@@ -90,8 +109,13 @@ import {
 
 const ACTIVE_DOCUMENT_HINT_KEY = 'oneimg:studio:active-document'
 const STUDIO_DATABASE_NAME = 'OneImgStudio'
+const MIN_PREVIEW_SCALE = 0.5
+const MAX_PREVIEW_SCALE = 2
+const PREVIEW_SCALE_STEP = 0.1
 
 type StudioPhase = 'conflict' | 'editing' | 'error' | 'exporting' | 'ready' | 'restored' | 'saved' | 'saving' | 'unsaved'
+type StudioOutputTab = 'image' | 'portable'
+type StudioMobilePanel = 'config' | 'preview' | 'output'
 
 interface StudioDocumentState {
   readonly conflictDraftCount: number
@@ -106,6 +130,7 @@ interface StudioDocumentState {
 
 export interface StudioClientProps {
   readonly createRepository?: () => LocalRepository
+  readonly diagnostics?: boolean
 }
 
 type PendingStudioCommit = {
@@ -223,15 +248,29 @@ function readStudioPageMeasurement(snapshot: CanonicalRenderSnapshot) {
   if (root === null) {
     return undefined
   }
-  const bounds = root.getBoundingClientRect()
-  return [{
-    height: bounds.height,
-    id: 'page-1',
-    kind: snapshot.presentation.pageFormat.kind,
-    layoutFingerprint: getCanonicalLayoutFingerprint(root),
-    semanticBoundaries: getCanonicalSemanticSliceBoundaries(root),
-    width: bounds.width,
-  }] as const
+  const editor = root.closest<HTMLElement>('[data-testid="studio-editor"]')
+  const scale = Number(editor?.dataset.previewScale ?? '1')
+  const previousTransform = editor?.style.transform
+
+  if (editor !== null && scale !== 1) {
+    editor.style.transform = 'none'
+  }
+
+  try {
+    const bounds = root.getBoundingClientRect()
+    return [{
+      height: bounds.height,
+      id: 'page-1',
+      kind: snapshot.presentation.pageFormat.kind,
+      layoutFingerprint: getCanonicalLayoutFingerprint(root),
+      semanticBoundaries: getCanonicalSemanticSliceBoundaries(root),
+      width: bounds.width,
+    }] as const
+  } finally {
+    if (editor !== null && previousTransform !== undefined) {
+      editor.style.transform = previousTransform
+    }
+  }
 }
 
 function exportPlansMatch(left: ExportPlan | undefined, right: ExportPlan | undefined) {
@@ -247,34 +286,16 @@ function exportPlansMatch(left: ExportPlan | undefined, right: ExportPlan | unde
     && left.canRun === right.canRun
     && left.outputFormat === right.outputFormat
     && left.outputScale === right.outputScale
+    && left.exportSlices === right.exportSlices
     && left.route === right.route
     && left.routeReason === right.routeReason
     && stableStringify(left.findings) === stableStringify(right.findings)
 }
 
-function sliceBoundaryLabel(kind: string) {
-  switch (kind) {
-    case 'block':
-      return 'Block'
-    case 'heading':
-      return '标题'
-    case 'keep-together':
-      return 'Keep Together'
-    case 'section':
-      return 'Section'
-    case 'document-end':
-      return '文档末尾'
-    case 'visual-fallback':
-      return '视觉回退'
-    default:
-      return kind
-  }
-}
-
 function StudioSliceBoundaryOverlay({ plan }: { readonly plan: ExportPlan }) {
   const page = plan.pages[0]
   const slices = page?.semanticSlices ?? []
-  if (slices.length <= 1) {
+  if (!plan.exportSlices || slices.length <= 1) {
     return null
   }
 
@@ -285,7 +306,7 @@ function StudioSliceBoundaryOverlay({ plan }: { readonly plan: ExportPlan }) {
       data-testid="studio-slice-boundaries"
     >
       <div className="absolute right-3 top-3 rounded-full bg-slate-900/85 px-3 py-1 text-xs font-semibold text-white shadow-sm">
-        预计输出 {slices.length} 个 Slice
+        共 {slices.length} 张分片
       </div>
       {slices.slice(0, -1).map(slice => (
         <div
@@ -294,11 +315,295 @@ function StudioSliceBoundaryOverlay({ plan }: { readonly plan: ExportPlan }) {
           style={{ top: `${(slice.y + slice.height) / plan.outputScale}px` }}
         >
           <span className="absolute right-3 -top-6 rounded bg-indigo-600 px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm">
-            Slice {slice.index + 1} · {sliceBoundaryLabel(slice.boundary.kind)}
+            第 {slice.index + 1} 张
           </span>
         </div>
       ))}
     </div>
+  )
+}
+
+function StudioPanelHeader({
+  action,
+  badge,
+  description,
+  eyebrow,
+  icon,
+  title,
+}: {
+  readonly action?: ReactNode
+  readonly badge?: ReactNode
+  readonly description?: string
+  readonly eyebrow?: string
+  readonly icon?: ReactNode
+  readonly title: string
+}) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <div className="flex min-w-0 items-start gap-2.5">
+        {icon && (
+          <span aria-hidden="true" className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-violet-50 text-violet-700">
+            {icon}
+          </span>
+        )}
+        <div className="min-w-0">
+          {eyebrow && <p className="m-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">{eyebrow}</p>}
+          <h2 className="m-0 mt-0.5 truncate text-sm font-semibold text-slate-900">{title}</h2>
+          {description && <p className="m-0 mt-1 text-xs leading-5 text-slate-500">{description}</p>}
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        {badge}
+        {action}
+      </div>
+    </div>
+  )
+}
+
+function StudioMobileNavigation({
+  activePanel,
+  exportDisabled,
+  onChange,
+}: {
+  readonly activePanel: StudioMobilePanel
+  readonly exportDisabled: boolean
+  readonly onChange: (panel: StudioMobilePanel) => void
+}) {
+  const items: readonly { readonly icon: ReactNode; readonly label: string; readonly value: StudioMobilePanel }[] = [
+    { icon: <SlidersHorizontal className="h-4 w-4" />, label: '配置', value: 'config' },
+    { icon: <ImageIcon className="h-4 w-4" />, label: '预览', value: 'preview' },
+    { icon: <ArrowDownToLine className="h-4 w-4" />, label: '导出', value: 'output' },
+  ]
+
+  return (
+    <nav
+      aria-label="Studio 工作区"
+      className="grid grid-cols-3 border-b border-slate-200 bg-white px-3 py-2 xl:hidden"
+      data-testid="studio-mobile-navigation"
+    >
+      {items.map(item => (
+        <button
+          aria-current={activePanel === item.value ? 'page' : undefined}
+          className={`flex min-h-10 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${activePanel === item.value
+            ? 'bg-violet-50 text-violet-700'
+            : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'} ${item.value === 'output' && exportDisabled ? 'opacity-60' : ''}`}
+          key={item.value}
+          onClick={() => onChange(item.value)}
+          type="button"
+        >
+          {item.icon}
+          <span>{item.label}</span>
+        </button>
+      ))}
+    </nav>
+  )
+}
+
+function StudioPreviewControls({
+  onCleanPreview,
+  onFit,
+  onZoomChange,
+  scale,
+}: {
+  readonly onCleanPreview?: () => void
+  readonly onFit: () => void
+  readonly onZoomChange: (scale: number) => void
+  readonly scale: number
+}) {
+  const percentage = Math.round(scale * 100)
+
+  return (
+    <div
+      className="pointer-events-none absolute inset-x-0 bottom-3 z-20 flex justify-end px-3 sm:bottom-4 sm:px-4"
+      data-testid="studio-preview-controls"
+    >
+      <div
+        aria-label="预览缩放"
+        className="pointer-events-auto flex max-w-[calc(100%-1.5rem)] items-center gap-1.5 rounded-xl border border-slate-200/90 bg-white/95 px-2 py-1.5 text-slate-600 shadow-[0_10px_30px_rgba(24,32,57,0.16)] backdrop-blur"
+        role="group"
+      >
+        <button
+          aria-label="缩小预览"
+          className="flex h-7 w-7 items-center justify-center rounded-lg transition hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
+          disabled={scale <= MIN_PREVIEW_SCALE}
+          onClick={() => onZoomChange(scale - PREVIEW_SCALE_STEP)}
+          title="缩小"
+          type="button"
+        >
+          <Minus className="h-3.5 w-3.5" />
+        </button>
+        <input
+          aria-label="预览缩放"
+          className="h-1.5 w-24 cursor-pointer accent-violet-600 sm:w-32"
+          data-testid="studio-preview-zoom"
+          max={MAX_PREVIEW_SCALE * 100}
+          min={MIN_PREVIEW_SCALE * 100}
+          onChange={event => onZoomChange(Number(event.currentTarget.value) / 100)}
+          step={PREVIEW_SCALE_STEP * 100}
+          type="range"
+          value={percentage}
+        />
+        <output
+          aria-live="polite"
+          className="min-w-[3.25rem] text-center text-xs font-semibold tabular-nums text-slate-700"
+        >
+          {percentage}%
+        </output>
+        <button
+          aria-label="放大预览"
+          className="flex h-7 w-7 items-center justify-center rounded-lg transition hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
+          disabled={scale >= MAX_PREVIEW_SCALE}
+          onClick={() => onZoomChange(scale + PREVIEW_SCALE_STEP)}
+          title="放大"
+          type="button"
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+        <span aria-hidden="true" className="mx-0.5 h-5 w-px bg-slate-200" />
+        <button
+          aria-pressed={scale === 1}
+          className="rounded-lg px-2 py-1.5 text-xs font-semibold transition hover:bg-slate-100 hover:text-slate-900"
+          onClick={onFit}
+          title="适应预览"
+          type="button"
+        >
+          适应
+        </button>
+        {onCleanPreview && (
+          <button
+            aria-label="清爽预览"
+            className="flex h-7 w-7 items-center justify-center rounded-lg transition hover:bg-slate-100 hover:text-slate-900"
+            onClick={onCleanPreview}
+            title="清爽预览"
+            type="button"
+          >
+            <Maximize2 className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function StudioOutputShell({
+  activeTab,
+  imageContent,
+  onTabChange,
+  portableContent,
+}: {
+  readonly activeTab: StudioOutputTab
+  readonly imageContent: ReactNode
+  readonly onTabChange: (tab: StudioOutputTab) => void
+  readonly portableContent: ReactNode
+}) {
+  return (
+    <aside
+      aria-label="输出工作区"
+      className="flex min-h-0 w-full min-w-0 flex-col border-l border-slate-200 bg-white xl:w-[332px]"
+      data-testid="studio-output-sidebar"
+    >
+      <div className="shrink-0 border-b border-slate-200 px-3 py-3">
+        <StudioPanelHeader
+          icon={<ArrowDownToLine className="h-4 w-4" />}
+          title="输出"
+        />
+        <div className="mt-3 grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1" role="tablist" aria-label="输出类型">
+          <button
+            aria-selected={activeTab === 'image'}
+            className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold transition ${activeTab === 'image' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+            onClick={() => onTabChange('image')}
+            role="tab"
+            type="button"
+          >
+            <ImageIcon className="h-3.5 w-3.5" />
+            图片导出
+          </button>
+          <button
+            aria-selected={activeTab === 'portable'}
+            className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold transition ${activeTab === 'portable' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+            onClick={() => onTabChange('portable')}
+            role="tab"
+            type="button"
+          >
+            <PackageOpen className="h-3.5 w-3.5" />
+            便携副本
+          </button>
+        </div>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3" role="tabpanel">
+        {activeTab === 'image' ? imageContent : portableContent}
+      </div>
+    </aside>
+  )
+}
+
+function blockOutlineLabel(block: Block, index: number) {
+  switch (block.kind) {
+    case 'rich-text': {
+      const firstLine = richTextDocumentToEditableText(block.content)
+        .split('\n')
+        .map(line => line.trim())
+        .find(Boolean)
+      return firstLine?.slice(0, 42) || `文本内容 ${index + 1}`
+    }
+    case 'media-group':
+      return `图片组 · ${block.items.length} 张`
+    case 'data-table':
+      return `数据表 · ${block.rows.length} 行`
+    case 'checklist':
+      return `清单 · ${block.items.length} 项`
+    case 'unknown':
+      return `未识别内容 · ${block.originalKind}`
+  }
+}
+
+function StudioContentOutline({
+  activeBlockId,
+  disabled = false,
+  onSelect,
+  revision,
+}: {
+  readonly activeBlockId?: string
+  readonly disabled?: boolean
+  readonly onSelect: (blockId: string) => void
+  readonly revision: DocumentRevision
+}) {
+  const blocks = revision.pages.flatMap(page => page.blocks)
+
+  return (
+    <section aria-label="内容大纲" className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm" data-testid="studio-content-outline">
+      <StudioPanelHeader
+        badge={<span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-500">{blocks.length} 个区块</span>}
+        icon={<PanelLeft className="h-4 w-4" />}
+        title="内容大纲"
+      />
+      {blocks.length === 0 ? (
+        <div className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-xs leading-5 text-slate-500">
+          在中央预览中输入内容后，结构会显示在这里。
+        </div>
+      ) : (
+        <ol className="mt-3 space-y-1.5" data-testid="studio-outline-items">
+          {blocks.map((block, index) => (
+            <li key={block.id}>
+              <button
+                aria-current={activeBlockId === block.id ? 'true' : undefined}
+                aria-label={`定位第 ${index + 1} 个区块`}
+                className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs transition ${activeBlockId === block.id
+                  ? 'bg-violet-50 text-violet-800'
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'} disabled:cursor-not-allowed disabled:opacity-50`}
+                disabled={disabled}
+                onClick={() => onSelect(block.id)}
+                type="button"
+              >
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-slate-100 text-[10px] font-semibold text-slate-400">{String(index + 1).padStart(2, '0')}</span>
+                <span className="min-w-0 flex-1 truncate">{blockOutlineLabel(block, index)}</span>
+                {activeBlockId === block.id && <Check aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-violet-600" />}
+              </button>
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
   )
 }
 
@@ -308,7 +613,7 @@ function isCommitted(
   return result.status === 'committed'
 }
 
-export function StudioClient({ createRepository }: StudioClientProps = {}) {
+export function StudioClient({ createRepository, diagnostics = false }: StudioClientProps = {}) {
   const mounted = useRef(true)
   const durableRevisionNumber = useRef(0)
   const durableRevisionSnapshot = useRef<DocumentRevision>()
@@ -320,6 +625,7 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
   const pendingPackageImport = useRef<OneImgPackageImportResult>()
   const importedPackageIds = useRef(new Set<string>())
   const sourceDocumentIds = useRef(new Map<string, string>())
+  const previewFocusTimeout = useRef<number>()
   const readinessGeneration = useRef(0)
   // Keep the native contenteditable node stable during input while exposing the latest Studio state to events.
   const richTextBlurHandler = useRef<(blockId: string | undefined, text: string) => void>(() => undefined)
@@ -366,19 +672,35 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
     readonly status: 'failed' | 'passed' | 'pending'
   }>({ status: 'pending' })
   const [error, setError] = useState<string>()
-  const [exportPanelOpen, setExportPanelOpen] = useState(false)
   const [exportPlan, setExportPlan] = useState<ExportPlan>()
   const [exportPlanVersion, setExportPlanVersion] = useState(0)
   const [exportJob, setExportJob] = useState<ExportJob>()
   const [exportJobState, setExportJobState] = useState<ReturnType<ExportJob['getState']>>()
   const [exportOutputScale, setExportOutputScale] = useState<ExportOutputScale>(1)
+  const [exportSlices, setExportSlices] = useState(false)
   const [exportArtifact, setExportArtifact] = useState<LocalPngArtifact>()
   const [lastExport, setLastExport] = useState<StudioExportReceipt>()
+  const [outputTab, setOutputTab] = useState<StudioOutputTab>('image')
+  const [mobilePanel, setMobilePanel] = useState<StudioMobilePanel>('preview')
+  const [previewScale, setPreviewScale] = useState(1)
+  const [activeBlockId, setActiveBlockId] = useState<string>()
   const [packageWriting, setPackageWriting] = useState(false)
   const [packageImporting, setPackageImporting] = useState(false)
   const [packageProgress, setPackageProgress] = useState<PackageProgress>()
   const [packageImportStatus, setPackageImportStatus] = useState<StudioPackageImportStatus>()
   const packageImportLocked = packageImporting || packageImportStatus?.kind === 'duplicate'
+
+  useEffect(() => () => {
+    if (previewFocusTimeout.current !== undefined) {
+      window.clearTimeout(previewFocusTimeout.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (packageImportStatus?.kind !== undefined && packageImportStatus.kind !== 'cancelled') {
+      setOutputTab('portable')
+    }
+  }, [packageImportStatus?.kind])
 
   const assetMap = useMemo(() => new Map(assets.map(asset => [asset.id, asset])), [assets])
   const resourceDefinitions = useMemo(() => [
@@ -481,7 +803,7 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
     return exportEngine.plan({
       documentRevision: revision?.revision,
       meaningful,
-      output: { format: 'png', scale: exportOutputScale },
+      output: { format: 'png', scale: exportOutputScale, slices: exportSlices },
       pageMeasurements: readStudioPageMeasurement(snapshot),
       renderReady: previewReady,
       preflightFindings: preflight.findings,
@@ -489,20 +811,21 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
       resourceFingerprint: renderResources?.fingerprint,
       snapshot,
     })
-  }, [exportEngine, exportOutputScale, meaningful, preflight.findings, previewReady, renderResources?.fontFallbackIds, renderResources?.fingerprint, revision?.revision, snapshot])
+  }, [exportEngine, exportOutputScale, exportSlices, meaningful, preflight.findings, previewReady, renderResources?.fontFallbackIds, renderResources?.fingerprint, revision?.revision, snapshot])
 
   useEffect(() => {
-    if (!exportPanelOpen || snapshot === undefined) {
+    if (snapshot === undefined) {
       return
     }
     const nextPlan = buildExportPlan()
     setExportPlan((current) => {
       return exportPlansMatch(current, nextPlan) ? current : nextPlan
     })
-  }, [buildExportPlan, exportPanelOpen, exportPlanVersion, snapshot])
+  }, [buildExportPlan, exportPlanVersion, snapshot])
 
   useEffect(() => {
     setExportArtifact(current => current?.diagnostics.snapshotId === snapshot?.snapshotId ? current : undefined)
+    setExportJobState(current => current?.status === 'running' ? current : undefined)
   }, [snapshot?.snapshotId])
 
   useEffect(() => {
@@ -734,7 +1057,7 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
     const root = document.querySelector<HTMLElement>('[data-testid="studio-editor"] [data-oneimg-render-root]')
     if (!root) {
       setRendererAvailable(false)
-      setError('Studio did not mount a Canonical Render Root')
+      setError('预览加载失败，请刷新后重试。')
       setPhase('error')
       return
     }
@@ -950,7 +1273,7 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
           transaction,
         })
       if (receipt.status === 'stale') {
-        throw new Error('Imported Draft 保存到了较早版本，当前工作没有被切换。')
+        throw new Error('导入的草稿未能保存，请重新导入。')
       }
       stagedAssetIds.clear()
       if (result.packageId !== undefined) {
@@ -974,7 +1297,7 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
       setError(undefined)
       setExportArtifact(undefined)
       setExportPlan(undefined)
-      setExportPanelOpen(false)
+
       setPackageImportStatus({
         duplicate,
         kind: 'imported',
@@ -1024,7 +1347,7 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
         return
       }
       if (result.drafts.length !== 1) {
-        throw new Error('当前 Studio 只支持导入 single-Document Package；候选内容没有改变当前 Draft。')
+        throw new Error('请选择只包含一份文档的副本文件。')
       }
       const duplicate = result.packageId !== undefined && importedPackageIds.current.has(result.packageId)
       if (duplicate) {
@@ -1134,6 +1457,7 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
       setConflictDraftCount((await localRepository.listConflictDrafts()).length)
     }
     setDurableRevision(durableRevisionNumber.current)
+    setRestored(true)
     setPhase(durableRevisionNumber.current > 0 ? 'saved' : 'ready')
   }
 
@@ -1566,8 +1890,8 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
 
     if (action.resourceId !== undefined) {
       setError(action.kind === 'remove-resource'
-        ? `资源 ${action.resourceId} 仍被当前内容引用；移除资源前请先删除对应内容。`
-        : `资源 ${action.resourceId} 尚未解析；请重新链接或重新粘贴对应内容。`)
+        ? '请先删除正文中对应的图片，再移除文件。'
+        : '有图片无法加载，请重新选择文件或重新粘贴。')
       setPhase('unsaved')
     }
   }
@@ -1672,9 +1996,9 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
     let job: ExportJob
     try {
       job = exportEngine.run(currentPlan)
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason))
-      setPhase('unsaved')
+    } catch {
+      setError('暂时无法开始导出，请稍后重试。')
+      setPhase(pendingCommit.current === undefined ? 'saved' : 'unsaved')
       return
     }
 
@@ -1720,8 +2044,8 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
           setPhase(pendingCommit.current === undefined ? 'saved' : 'unsaved')
           return
         }
-        setError(reason instanceof Error ? reason.message : String(reason))
-        setPhase('unsaved')
+        // The export panel owns failures; exporting does not change save status.
+        setPhase(pendingCommit.current === undefined ? 'saved' : 'unsaved')
       })
       .finally(() => {
         if (exportJobRef.current?.id === job.id) {
@@ -1750,6 +2074,172 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
     setTimeout(() => URL.revokeObjectURL(downloadUrl), 0)
   }
 
+  function focusPreviewBlock(blockId: string) {
+    setActiveBlockId(blockId)
+    setMobilePanel('preview')
+    const target = Array.from(document.querySelectorAll<HTMLElement>('[data-testid="studio-editor"] [data-block-id]'))
+      .find(element => element.dataset.blockId === blockId)
+    if (target === undefined) {
+      return
+    }
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    target.dataset.studioPreviewFocus = 'true'
+    if (previewFocusTimeout.current !== undefined) {
+      window.clearTimeout(previewFocusTimeout.current)
+    }
+    previewFocusTimeout.current = window.setTimeout(() => {
+      delete target.dataset.studioPreviewFocus
+      previewFocusTimeout.current = undefined
+    }, 1200)
+  }
+
+  function handlePackageInputChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0]
+    event.currentTarget.value = ''
+    if (file !== undefined) {
+      Promise.resolve(importPackageFile(file)).catch(() => undefined)
+    }
+  }
+
+  function renderPackageControls() {
+    const packageDisabled = !packageSaveEligible
+      || packageWriting
+      || packageImportLocked
+      || conflictDraft !== undefined
+      || conflictPreviewRevision !== undefined
+    const inputDisabled = packageWriting
+      || packageImporting
+      || pendingPackageImport.current !== undefined
+      || pendingCommitRevision !== undefined
+      || conflictDraft !== undefined
+      || conflictPreviewRevision !== undefined
+
+    return (
+      <section
+        aria-label="便携副本"
+        className="rounded-xl border border-slate-200 bg-white p-3"
+        data-testid="studio-package-controls"
+      >
+        <StudioPanelHeader
+          description="保存可继续编辑的副本，方便备份和迁移。"
+          icon={<PackageOpen className="h-4 w-4" />}
+          title="便携副本"
+        />
+        <div className="mt-3 grid gap-2">
+          <button
+            className="flex min-h-10 items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+            disabled={packageDisabled}
+            onClick={() => savePackage().catch(() => undefined)}
+            type="button"
+          >
+            <Save className="h-3.5 w-3.5" />
+            {packageWriting ? '保存副本中…' : '保存 .oneimg 副本'}
+          </button>
+          <label className="flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-center text-xs font-semibold text-slate-700 transition hover:border-slate-500 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-40">
+            <Upload className="h-3.5 w-3.5" />
+            导入 .oneimg 副本
+            <input
+              accept=".oneimg,application/zip"
+              aria-label="导入 .oneimg 副本"
+              className="sr-only"
+              data-testid="studio-package-input"
+              disabled={inputDisabled}
+              onChange={handlePackageInputChange}
+              type="file"
+            />
+          </label>
+        </div>
+        {packageProgress && (
+          <output className="mt-3 block text-xs leading-5 text-slate-600" data-testid="studio-package-progress" aria-live="polite">
+            {packageProgress.stage === 'writing' ? '正在写入' : '正在验证'} （{packageProgress.completedEntries}/{packageProgress.totalEntries}）
+          </output>
+        )}
+        {packageImportStatus && packageImportStatus.kind !== 'cancelled' && (
+          <div className="mt-3 rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-700" data-testid="studio-import-report" role="status">
+            {packageImportStatus.kind === 'imported' && (
+              <p className="m-0">已导入为新草稿。{packageImportStatus.duplicate ? '这是你选择的新副本。' : ''}</p>
+            )}
+            {packageImportStatus.kind === 'duplicate' && (
+              <>
+                <p className="m-0">这份文件已经导入过。仍要创建新副本吗？</p>
+                <div className="mt-2 flex gap-2">
+                  <button
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-medium"
+                    disabled={packageImporting}
+                    onClick={() => confirmDuplicatePackageImport().catch(() => undefined)}
+                    type="button"
+                  >
+                    导入新的副本
+                  </button>
+                  <button
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-medium"
+                    disabled={packageImporting}
+                    onClick={cancelDuplicatePackageImport}
+                    type="button"
+                  >
+                    取消
+                  </button>
+                </div>
+              </>
+            )}
+            {packageImportStatus.kind === 'recovery' && (
+              <p className="m-0">这份文件使用了较新的格式，请更新应用后再导入。</p>
+            )}
+            {packageImportStatus.report && (
+              <output className="mt-1 block text-slate-500">
+                {`已验证 ${packageImportStatus.report.exactDocumentCount} 份文档、${packageImportStatus.report.exactAssetCount} 张图片`}
+                {packageImportStatus.report.unknownBlockCount > 0 ? `；无法识别的内容 ${packageImportStatus.report.unknownBlockCount} 个` : ''}
+                {packageImportStatus.report.unresolvedAssetCount > 0 ? `；缺失图片 ${packageImportStatus.report.unresolvedAssetCount} 个` : ''}
+              </output>
+            )}
+          </div>
+        )}
+        {revision?.presentation.sensitive && (
+          <p className="m-0 mt-3 text-xs leading-5 text-amber-800" data-testid="studio-package-sensitive-note">
+            此文档的副本不含预览图。文件未加密，请妥善保管。
+          </p>
+        )}
+      </section>
+    )
+  }
+
+  function handlePreviewZoomChange(nextScale: number) {
+    const normalizedScale = Number.isFinite(nextScale) ? nextScale : 1
+    const boundedScale = Number(Math.min(MAX_PREVIEW_SCALE, Math.max(MIN_PREVIEW_SCALE, normalizedScale)).toFixed(2))
+    setPreviewScale(boundedScale)
+    const scroller = document.querySelector<HTMLElement>('[data-testid="studio-scroll-container"]')
+    if (scroller !== null) {
+      window.requestAnimationFrame(() => {
+        scroller.scrollTo({
+          behavior: 'smooth',
+          left: boundedScale > 1 ? Math.max(0, (scroller.scrollWidth - scroller.clientWidth) / 2) : 0,
+          top: scroller.scrollTop,
+        })
+      })
+    }
+  }
+
+  function handlePreviewFit() {
+    const scroller = document.querySelector<HTMLElement>('[data-testid="studio-scroll-container"]')
+    const availableWidth = scroller === null
+      ? snapshot?.referenceViewport.width ?? 640
+      : Math.max(0, scroller.clientWidth - 32)
+    const fitScale = snapshot === undefined
+      ? 1
+      : Math.min(1, Math.max(MIN_PREVIEW_SCALE, availableWidth / snapshot.referenceViewport.width))
+    handlePreviewZoomChange(fitScale)
+  }
+
+  const editingDisabled = packageImportLocked
+    || phase === 'exporting'
+    || conflictDraft !== undefined
+    || conflictPreviewRevision !== undefined
+  const exportDisabled = packageImportLocked
+    || conflictPreviewRevision !== undefined
+    || !meaningful
+    || !preflight.canExport
+    || preflight.localRoute !== 'local-eligible'
+
   const state: StudioDocumentState = {
     conflictDraftCount,
     documentId: revision?.id ?? '',
@@ -1769,331 +2259,297 @@ export function StudioClient({ createRepository }: StudioClientProps = {}) {
         </output>
         {error && <pre data-testid="studio-error" className="mx-auto mt-4 max-w-3xl whitespace-pre-wrap text-sm text-red-700">{error}</pre>}
         <div className="mx-auto mt-4 max-w-3xl">
-          {revision !== undefined && <ExportPreflightPanel findings={preflight.findings} onAction={handlePreflightAction} />}
-          <pre className="mt-4 overflow-auto rounded-xl bg-white p-4 text-xs" data-testid="studio-render-ready-diagnostics">
-            {JSON.stringify(renderReadiness ?? null)}
-          </pre>
+          {revision !== undefined && <ExportPreflightPanel compact findings={preflight.findings} onAction={handlePreflightAction} />}
+          <p className="mt-4 text-sm text-slate-500" role="status">正在准备编辑器…</p>
         </div>
-        <output data-testid="studio-document-state" hidden>{JSON.stringify(state)}</output>
+        {diagnostics && <output data-testid="studio-document-state" hidden>{JSON.stringify(state)}</output>}
       </main>
     )
   }
 
+  const previewHeight = Math.max(320, renderReadiness?.height ?? 480)
+  const previewHeightMeasured = renderReadiness !== undefined
+  const previewSurface = (
+    <div
+      className="relative mx-auto"
+      data-testid="studio-preview-surface"
+      style={{
+        height: previewHeightMeasured ? previewHeight * previewScale : undefined,
+        minHeight: previewHeightMeasured ? undefined : previewHeight * previewScale,
+        width: snapshot.referenceViewport.width * previewScale,
+      }}
+    >
+      <div
+        aria-busy={!previewReady}
+        className={previewHeightMeasured
+          ? 'absolute left-0 top-0 overflow-visible rounded-2xl border border-slate-200 bg-white shadow-[0_24px_70px_rgba(24,32,57,0.14)]'
+          : 'relative overflow-visible rounded-2xl border border-slate-200 bg-white shadow-[0_24px_70px_rgba(24,32,57,0.14)]'}
+        data-preview-scale={previewScale}
+        data-preview-zoom={`${Math.round(previewScale * 100)}%`}
+        data-testid="studio-editor"
+        style={{
+          maxWidth: 'none',
+          transform: `scale(${previewScale})`,
+          transformOrigin: 'top left',
+          width: snapshot.referenceViewport.width,
+        }}
+      >
+        <CanonicalRenderSurface
+          mode={packageImportLocked || conflictPreviewRevision ? 'preview' : cleanPreview ? 'preview' : 'edit'}
+          onRichTextBlur={stableRichTextBlurHandler}
+          onRichTextInput={stableRichTextInputHandler}
+          onRichTextPaste={stableRichTextPasteHandler}
+          resources={renderResources}
+          snapshot={snapshot}
+        />
+        {!cleanPreview && exportPlan && <StudioSliceBoundaryOverlay plan={exportPlan} />}
+      </div>
+    </div>
+  )
+
   return (
     <main
-      className="h-screen overflow-y-auto bg-slate-100 px-6 py-8 text-slate-900 sm:px-10"
-      data-testid="studio-scroll-container"
+      className="flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-[#f6f7f9] text-slate-900"
+      data-testid="studio-root"
     >
-      <div className="mx-auto flex max-w-[760px] flex-col gap-4">
-        {cleanPreview && (
-          <div className="flex justify-end" data-testid="studio-clean-preview-chrome">
+      {cleanPreview ? (
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 py-2 sm:px-5" data-testid="studio-clean-preview-chrome">
+            <div>
+              <p className="m-0 text-sm font-semibold text-slate-900">清爽预览</p>
+            </div>
             <button
-              className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm"
+              className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm transition hover:border-slate-500"
               onClick={() => setCleanPreview(false)}
               type="button"
             >
+              <X className="h-4 w-4" />
               返回编辑
             </button>
           </div>
-        )}
-        {!cleanPreview && (
-          <header className="flex items-center justify-between gap-4" data-testid="studio-header">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">OneIMG Studio</p>
-              <h1 className="mt-1 text-xl font-semibold">{revision.documentName || '新建长图'}</h1>
+          <div className="min-h-0 flex-1 overflow-x-auto overflow-y-auto bg-[#f6f7f9] px-4 pb-20 pt-8" data-testid="studio-scroll-container">
+            <div className="mx-auto flex min-h-full w-full max-w-[760px] flex-col items-center justify-start gap-4">
+              {previewSurface}
             </div>
-            <div className="flex items-center gap-2">
+          </div>
+          <StudioPreviewControls
+            onFit={handlePreviewFit}
+            onZoomChange={handlePreviewZoomChange}
+            scale={previewScale}
+          />
+        </div>
+      ) : (
+        <>
+          <header className="flex shrink-0 items-center justify-between gap-4 border-b border-slate-200 bg-white px-4 py-2 sm:px-5" data-testid="studio-header">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-600 text-sm font-bold text-white shadow-sm">O</div>
+              <div className="min-w-0">
+                <h1 className="m-0 truncate text-sm font-semibold text-slate-900 sm:text-base">{revision.documentName || '新建长图'}</h1>
+              </div>
+              <div
+                className="ml-1 flex min-w-0 items-center gap-2 border-l border-slate-200 pl-3 text-xs text-slate-500"
+                data-testid="studio-editor-chrome"
+              >
+                <p className="m-0 flex shrink-0 items-center gap-1.5" data-testid="studio-status" aria-live="polite">
+                  <span
+                    aria-hidden="true"
+                    className={['h-2 w-2 rounded-full', phase === 'error' || phase === 'conflict'
+                      ? 'bg-red-500'
+                      : phase === 'saving' || phase === 'exporting'
+                        ? 'bg-amber-400'
+                        : 'bg-emerald-500'].join(' ')}
+                  />
+                  {phaseLabel(phase)}
+                </p>
+                {!meaningful && (
+                  <span className={restored ? 'truncate' : 'sr-only'} data-testid="studio-starter-hint">
+                    开始输入即可，无需命名。
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
               <button
                 aria-label="撤销"
-                className="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-slate-500 transition hover:border-slate-200 hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-35"
                 disabled={!session.current?.canUndo() || packageImportLocked || conflictDraft !== undefined || conflictPreviewRevision !== undefined || phase === 'exporting'}
                 onClick={() => moveHistory('undo')}
+                title="撤销"
                 type="button"
               >
-                撤销
+                <RotateCcw className="h-4 w-4" />
               </button>
               <button
                 aria-label="重做"
-                className="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-slate-500 transition hover:border-slate-200 hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-35"
                 disabled={!session.current?.canRedo() || packageImportLocked || conflictDraft !== undefined || conflictPreviewRevision !== undefined || phase === 'exporting'}
                 onClick={() => moveHistory('redo')}
+                title="重做"
                 type="button"
               >
-                重做
+                <Redo2 className="h-4 w-4" />
               </button>
               <button
-                aria-pressed={cleanPreview}
-                className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm"
-                onClick={() => setCleanPreview(true)}
-                type="button"
-              >
-                清爽预览
-              </button>
-              <button
-                className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
-                disabled={packageImportLocked || conflictPreviewRevision !== undefined || !meaningful || !preflight.canExport || preflight.localRoute !== 'local-eligible'}
+                aria-label="导出本地文件"
+                className="flex h-9 items-center gap-2 rounded-lg bg-violet-600 px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-40 sm:px-4"
+                disabled={exportDisabled}
                 onClick={() => {
+                  setOutputTab('image')
+                  setMobilePanel('output')
                   setExportPlan(buildExportPlan())
-                  setExportPanelOpen(open => !open)
+
                   setExportPlanVersion(version => version + 1)
                 }}
+                title="打开图片导出"
                 type="button"
               >
-                {exportPanelOpen ? '关闭导出面板' : phase === 'exporting' ? '导出中…' : '导出本地文件'}
+                <FileDown className="h-4 w-4" />
+                <span className="hidden sm:inline">{phase === 'exporting' ? '导出中…' : '导出'}</span>
               </button>
             </div>
           </header>
-        )}
 
-        <div className={`${cleanPreview ? 'hidden' : 'flex'} items-center justify-between text-sm text-slate-500`} data-testid="studio-editor-chrome">
-          <p className="m-0" data-testid="studio-status" aria-live="polite">{phaseLabel(phase)}</p>
-          {!meaningful && <p className="m-0" data-testid="studio-starter-hint">无需命名或创建项目，直接开始输入。</p>}
-        </div>
+          <StudioMobileNavigation activePanel={mobilePanel} exportDisabled={exportDisabled} onChange={setMobilePanel} />
 
-        {!cleanPreview && (
-          <section
-            aria-label="OneIMG Package"
-            className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm"
-            data-testid="studio-package-controls"
-          >
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="m-0 text-sm font-semibold text-slate-900">便携副本</p>
-                <p className="m-0 mt-1 text-xs text-slate-500">保存当前已提交 Draft 的 OneIMG Package；它是独立快照，不会成为实时文件绑定。</p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
-                  disabled={!packageSaveEligible || packageWriting || packageImportLocked || conflictDraft !== undefined || conflictPreviewRevision !== undefined}
-                  onClick={() => savePackage().catch(() => undefined)}
-                  type="button"
-                >
-                  {packageWriting ? '保存 Package 中…' : '保存 .oneimg 副本'}
-                </button>
-                <label className="cursor-pointer rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 shadow-sm has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-40">
-                  导入 .oneimg Package
-                  <input
-                    accept=".oneimg,application/zip"
-                    aria-label="导入 .oneimg Package"
-                    className="sr-only"
-                    data-testid="studio-package-input"
-                    disabled={packageWriting || packageImporting || pendingPackageImport.current !== undefined || pendingCommitRevision !== undefined || conflictDraft !== undefined || conflictPreviewRevision !== undefined}
-                    onChange={(event) => {
-                      const file = event.currentTarget.files?.[0]
-                      event.currentTarget.value = ''
-                      if (file !== undefined) {
-                        Promise.resolve(importPackageFile(file)).catch(() => undefined)
-                      }
-                    }}
-                    type="file"
-                  />
-                </label>
-              </div>
+          {(error || (pendingCommitRevision !== undefined && phase === 'unsaved') || conflictDraft || conflictPreviewRevision) && (
+            <div className="shrink-0 space-y-2 border-b border-slate-200 bg-white px-4 py-2 sm:px-5">
+              {error && <p data-testid="studio-error" className="m-0 rounded-xl bg-red-50 px-4 py-3 text-sm leading-6 text-red-700">{error}</p>}
+              {pendingCommitRevision !== undefined && phase === 'unsaved' && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-950" data-testid="studio-save-recovery">
+                  <p className="m-0">最新修改尚未保存到本地。</p>
+                  <div className="flex shrink-0 gap-2">
+                    <button className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 font-medium" onClick={retryPendingCommit} type="button">重试保存</button>
+                    <button className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 font-medium" onClick={restoreDurableRevision} type="button">恢复已保存内容</button>
+                  </div>
+                </div>
+              )}
+              {conflictDraft && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-violet-50 px-4 py-3 text-sm text-violet-950" data-testid="studio-conflict-notice">
+                  <p className="m-0">另一窗口修改了此文档，已将你的编辑保留为“{conflictDraft.documentName}”。</p>
+                  <div className="flex shrink-0 gap-2">
+                    <button className="rounded-lg border border-violet-300 bg-white px-3 py-1.5 font-medium" onClick={() => openConflictDraft().catch(() => undefined)} type="button">查看冲突草稿</button>
+                    <button className="rounded-lg border border-violet-300 bg-white px-3 py-1.5 font-medium" onClick={() => restoreDurableRevision().catch(() => undefined)} type="button">恢复已保存内容</button>
+                  </div>
+                </div>
+              )}
+              {conflictPreviewRevision && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-violet-100 px-4 py-3 text-sm text-violet-950" data-testid="studio-conflict-preview">
+                  <p className="m-0">正在查看冲突草稿；这是独立的只读预览。</p>
+                  <button className="rounded-lg border border-violet-300 bg-white px-3 py-1.5 font-medium" onClick={() => setConflictPreviewRevision(undefined)} type="button">返回编辑</button>
+                </div>
+              )}
             </div>
-            {packageProgress && (
-              <output className="mt-3 block text-xs text-slate-600" data-testid="studio-package-progress" aria-live="polite">
-                {packageProgress.stage === 'writing' ? '正在写入' : '正在验证'} {packageProgress.entryPath}（{packageProgress.completedEntries}/{packageProgress.totalEntries}）
-              </output>
-            )}
-            {packageImportStatus && packageImportStatus.kind !== 'cancelled' && (
-              <div className="mt-3 rounded-xl bg-slate-50 p-3 text-xs text-slate-700" data-testid="studio-import-report" role="status">
-                {packageImportStatus.kind === 'imported' && (
-                  <p className="m-0">
-                    已创建 Imported Draft；不会覆盖当前 Draft。{packageImportStatus.duplicate ? '这是你选择的新副本。' : ''}
-                  </p>
-                )}
-                {packageImportStatus.kind === 'duplicate' && (
-                  <>
-                    <p className="m-0">检测到相同来源的 Package；当前 Draft 尚未改变。可以导入一份新的副本，不会合并、同步或覆盖当前工作。</p>
-                    <div className="mt-2 flex gap-2">
-                      <button
-                        className="rounded-full border border-slate-300 bg-white px-3 py-1.5 font-medium"
-                        disabled={packageImporting}
-                        onClick={() => confirmDuplicatePackageImport().catch(() => undefined)}
-                        type="button"
-                      >
-                        导入新的副本
-                      </button>
-                      <button
-                        className="rounded-full border border-slate-300 bg-white px-3 py-1.5 font-medium"
-                        disabled={packageImporting}
-                        onClick={cancelDuplicatePackageImport}
-                        type="button"
-                      >
-                        取消
-                      </button>
-                    </div>
-                  </>
-                )}
-                {packageImportStatus.kind === 'recovery' && (
-                  <p className="m-0">这个 Package 需要 Recovery Draft；当前工作没有改变，也没有把较新内容当作可编辑内容导入。</p>
-                )}
-                {packageImportStatus.report && (
-                  <output className="mt-1 block text-slate-500">
-                    {`已验证 ${packageImportStatus.report.exactDocumentCount} 个 Document、${packageImportStatus.report.exactAssetCount} 个 Asset`}
-                    {packageImportStatus.report.unknownBlockCount > 0 ? `；Unknown Block ${packageImportStatus.report.unknownBlockCount} 个` : ''}
-                    {packageImportStatus.report.unresolvedAssetCount > 0 ? `；Unresolved Asset ${packageImportStatus.report.unresolvedAssetCount} 个` : ''}
-                  </output>
-                )}
-              </div>
-            )}
-            {revision?.presentation.sensitive && (
-              <p className="m-0 mt-3 text-xs text-amber-800" data-testid="studio-package-sensitive-note">
-                Sensitive Document 默认省略 Package Preview；普通未加密 OneIMG Package 不等于 encrypted-at-rest。
-              </p>
-            )}
-          </section>
-        )}
+          )}
 
-        {error && <p data-testid="studio-error" className="m-0 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
-        {!cleanPreview && (
-          <MediaGroupEditor
-            arrangement={mediaGroup?.arrangement ?? 'auto'}
-            disabled={assetImporting || packageImportLocked || phase === 'exporting' || conflictDraft !== undefined || conflictPreviewRevision !== undefined}
-            items={mediaGroup?.items ?? []}
-            onImportFiles={importFiles}
-            onMoveItem={moveMediaItem}
-            onRemoveItem={removeMediaItem}
-            onRelinkItem={relinkFile}
-            onSetFeaturedItem={setFeaturedMediaItem}
-            onUpdateArrangement={(arrangement: MediaArrangement) => commitMediaGroupChanges({ arrangement })}
-            onUpdateItem={commitMediaItem}
-            unresolvedItemIds={mediaGroup?.items
-              .filter(item => assetMap.get(item.assetId)?.status !== 'ready')
-              .map(item => item.id)}
-          />
-        )}
-        {pendingCommitRevision !== undefined && phase === 'unsaved' && (
-          <div className="flex items-center justify-between gap-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-950" data-testid="studio-save-recovery">
-            <p className="m-0">第 {pendingCommitRevision} 个版本还没有保存到本地。</p>
-            <div className="flex shrink-0 gap-2">
-              <button
-                className="rounded-full border border-amber-300 bg-white px-3 py-1.5 font-medium"
-                onClick={retryPendingCommit}
-                type="button"
-              >
-                重试保存
-              </button>
-              <button
-                className="rounded-full border border-amber-300 px-3 py-1.5 font-medium"
-                onClick={restoreDurableRevision}
-                type="button"
-              >
-                恢复已提交版本
-              </button>
-            </div>
-          </div>
-        )}
-        {conflictDraft && (
-          <div className="flex items-center justify-between gap-4 rounded-xl bg-violet-50 px-4 py-3 text-sm text-violet-950" data-testid="studio-conflict-notice">
-            <p className="m-0">检测到另一个写入分支，已保留“{conflictDraft.documentName}”。当前已提交内容没有被覆盖。</p>
-            <div className="flex shrink-0 gap-2">
-              <button
-                className="rounded-full border border-violet-300 bg-white px-3 py-1.5 font-medium"
-                onClick={() => openConflictDraft().catch(() => undefined)}
-                type="button"
-              >
-                查看冲突草稿
-              </button>
-              <button
-                className="rounded-full border border-violet-300 bg-white px-3 py-1.5 font-medium"
-                onClick={() => restoreDurableRevision().catch(() => undefined)}
-                type="button"
-              >
-                恢复已提交版本
-              </button>
-            </div>
-          </div>
-        )}
-        {conflictPreviewRevision && (
-          <div className="flex items-center justify-between gap-4 rounded-xl bg-violet-100 px-4 py-3 text-sm text-violet-950" data-testid="studio-conflict-preview">
-            <p className="m-0">正在查看冲突草稿；这是独立的只读预览。</p>
-            <button
-              className="shrink-0 rounded-full border border-violet-300 bg-white px-3 py-1.5 font-medium"
-              onClick={() => setConflictPreviewRevision(undefined)}
-              type="button"
+          <div className="min-h-0 flex-1 lg:grid lg:grid-cols-[280px_minmax(0,1fr)] xl:grid-cols-[304px_minmax(0,1fr)_332px]">
+            <aside
+              aria-label="方案配置"
+              className={`${mobilePanel === 'config' ? 'flex' : 'hidden'} min-h-0 w-full flex-col border-r border-slate-200 bg-white lg:flex xl:w-[304px]`}
+              data-testid="studio-config-sidebar"
             >
-              返回当前 Draft
-            </button>
-          </div>
-        )}
-        {!cleanPreview && <ExportPreflightPanel findings={preflight.findings} onAction={handlePreflightAction} />}
-        {!cleanPreview && exportPanelOpen && (
-          <ExportPanel
-            availableSliceIndexes={currentExportArtifact?.segments?.map(segment => segment.index) ?? []}
-            jobState={exportJobState}
-            onCancel={cancelExport}
-            onClose={() => setExportPanelOpen(false)}
-            onDownloadSlice={downloadSlice}
-            onOutputScaleChange={(scale) => {
-              setExportOutputScale(scale)
-              setExportArtifact(undefined)
-              setExportPlanVersion(version => version + 1)
-            }}
-            onRun={runExport}
-            outputScale={exportOutputScale}
-            plan={exportPlan}
-          />
-        )}
-        {!cleanPreview && lastExport && (
-          <div className="flex items-center justify-between gap-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-950" data-testid="studio-export-receipt">
-            <div>
-              <p className="m-0 font-medium">
-                导出已完成：{lastExport.snapshotId === snapshot.snapshotId ? '当前版本' : `基于较早版本 r${lastExport.documentRevision ?? '?'}`}
-              </p>
-              <output className="mt-1 block text-xs" data-testid="studio-export-result">
-                {JSON.stringify({
-                  documentRevision: lastExport.documentRevision,
-                  format: lastExport.format,
-                  fromCache: lastExport.fromCache,
-                  snapshotId: lastExport.snapshotId,
-                })}
-              </output>
+              <div className="shrink-0 border-b border-slate-200 px-3 py-3">
+                <StudioPanelHeader
+                  icon={<SlidersHorizontal className="h-4 w-4" />}
+                  title="配置"
+                />
+                <p className="m-0 mt-1 text-[11px] text-slate-500" data-testid="studio-presentation-summary">
+                  {revision.presentation.pageFormat.preset === 'long-image' ? '连续长图' : '固定画幅'} · {snapshot.referenceViewport.width}px
+                </p>
+              </div>
+              <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto p-2.5">
+                <GeneralLongImagePresentationPanel
+                  compact
+                  disabled={editingDisabled}
+                  onChange={commitPresentation}
+                  resources={renderResources}
+                  snapshot={snapshot}
+                />
+                <StudioContentOutline
+                  activeBlockId={activeBlockId}
+                  disabled={editingDisabled}
+                  onSelect={focusPreviewBlock}
+                  revision={revision}
+                />
+                <MediaGroupEditor
+                  arrangement={mediaGroup?.arrangement ?? 'auto'}
+                  disabled={assetImporting || editingDisabled}
+                  items={mediaGroup?.items ?? []}
+                  onImportFiles={importFiles}
+                  onMoveItem={moveMediaItem}
+                  onRemoveItem={removeMediaItem}
+                  onRelinkItem={relinkFile}
+                  onSetFeaturedItem={setFeaturedMediaItem}
+                  onUpdateArrangement={(arrangement: MediaArrangement) => commitMediaGroupChanges({ arrangement })}
+                  onUpdateItem={commitMediaItem}
+                  unresolvedItemIds={mediaGroup?.items
+                    .filter(item => assetMap.get(item.assetId)?.status !== 'ready')
+                    .map(item => item.id)}
+                />
+              </div>
+            </aside>
+
+            {/* Keep the canonical layout measurable while mobile controls are open. */}
+            <section
+              aria-label="中央预览"
+              className={`flex min-h-0 min-w-0 flex-col bg-[#f6f7f9] ${mobilePanel === 'preview' ? 'relative' : 'invisible fixed -left-[10000px] bottom-0 top-0 w-[640px] lg:visible lg:relative lg:inset-auto lg:w-auto'}`}
+            >
+              <div className="min-h-0 flex-1 overflow-x-auto overflow-y-auto px-4 pb-20 pt-4 sm:px-5 sm:pt-5" data-testid="studio-scroll-container">
+                <div className="mx-auto flex min-h-full w-full max-w-[760px] flex-col items-center justify-start gap-3">
+                  {previewSurface}
+                </div>
+              </div>
+              <StudioPreviewControls
+                onCleanPreview={() => setCleanPreview(true)}
+                onFit={handlePreviewFit}
+                onZoomChange={handlePreviewZoomChange}
+                scale={previewScale}
+              />
+            </section>
+
+            <div
+              className={`${mobilePanel === 'output' ? 'flex' : 'hidden'} min-h-0 w-full bg-white lg:max-xl:fixed lg:max-xl:top-[110px] lg:max-xl:bottom-0 lg:max-xl:right-0 lg:max-xl:z-30 lg:max-xl:w-[360px] lg:max-xl:shadow-2xl xl:static xl:flex xl:w-[332px]`}
+              data-testid="studio-output-column"
+            >
+              <StudioOutputShell
+                activeTab={outputTab}
+                imageContent={(
+                  <div className="space-y-3">
+                    {preflight.findings.length > 0 && <ExportPreflightPanel compact findings={preflight.findings} onAction={handlePreflightAction} />}
+                    <ExportPanel
+                      availableSliceIndexes={currentExportArtifact?.segments?.map(segment => segment.index) ?? []}
+                      diagnostics={diagnostics}
+                      exportSlices={exportSlices}
+                      jobState={exportJobState}
+                      onCancel={cancelExport}
+                      onDownloadSlice={downloadSlice}
+                      onOutputScaleChange={(scale) => {
+                        setExportOutputScale(scale)
+                        setExportArtifact(undefined)
+                        setExportJobState(undefined)
+                        setExportPlanVersion(version => version + 1)
+                      }}
+                      onExportSlicesChange={(enabled) => {
+                        setExportSlices(enabled)
+                        setExportArtifact(undefined)
+                        setExportJobState(undefined)
+                        setExportPlanVersion(version => version + 1)
+                      }}
+                      onRun={runExport}
+                      outputScale={exportOutputScale}
+                      plan={exportPlan}
+                    />
+                    {diagnostics && lastExport && <output hidden data-testid="studio-export-result">{JSON.stringify(lastExport)}</output>}
+                  </div>
+                )}
+                onTabChange={setOutputTab}
+                portableContent={renderPackageControls()}
+              />
             </div>
-            {lastExport.snapshotId !== snapshot.snapshotId && (
-              <button
-                className="shrink-0 rounded-full border border-emerald-300 bg-white px-3 py-1.5 font-medium"
-                onClick={() => {
-                  setExportPanelOpen(true)
-                  setExportPlanVersion(version => version + 1)
-                }}
-                type="button"
-              >
-                重新导出当前版本
-              </button>
-            )}
           </div>
-        )}
-        {!cleanPreview && (
-          <GeneralLongImagePresentationPanel
-            disabled={packageImportLocked || phase === 'exporting' || conflictDraft !== undefined || conflictPreviewRevision !== undefined}
-            onChange={commitPresentation}
-            resources={renderResources}
-            snapshot={snapshot}
-          />
-        )}
-        <div
-          aria-busy={!previewReady}
-          className="relative mx-auto w-full overflow-x-auto rounded-2xl shadow-[0_20px_60px_rgba(24,32,57,0.14)]"
-          data-testid="studio-editor"
-          style={{ maxWidth: snapshot.referenceViewport.width }}
-        >
-          <CanonicalRenderSurface
-            mode={packageImportLocked || conflictPreviewRevision ? 'preview' : cleanPreview ? 'preview' : 'edit'}
-            onRichTextBlur={stableRichTextBlurHandler}
-            onRichTextInput={stableRichTextInputHandler}
-            onRichTextPaste={stableRichTextPasteHandler}
-            resources={renderResources}
-            snapshot={snapshot}
-          />
-          {!cleanPreview && exportPanelOpen && exportPlan && <StudioSliceBoundaryOverlay plan={exportPlan} />}
-        </div>
-        <pre className="overflow-auto rounded-xl bg-white p-4 text-xs" data-testid="studio-render-ready-diagnostics">
-          {JSON.stringify(renderReadiness ?? null)}
-        </pre>
-        {!cleanPreview && <p className="m-0 text-center text-xs text-slate-500">内容默认保存在此设备。编辑会在离开正文后自动保存。</p>}
-        <output data-testid="studio-document-state" hidden>{JSON.stringify(state)}</output>
-      </div>
+
+        </>
+      )}
+      {diagnostics && <output data-testid="studio-document-state" hidden>{JSON.stringify(state)}</output>}
     </main>
   )
 }

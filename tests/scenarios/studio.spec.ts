@@ -15,7 +15,8 @@ interface StudioExportPlan {
   readonly cacheReuse: 'hit' | 'miss' | 'unknown'
   readonly canRun: boolean
   readonly outputFormat: 'png'
-  readonly outputScale: 1 | 2
+  readonly outputScale: 1 | 2 | 3
+  readonly exportSlices: boolean
   readonly route: string
 }
 
@@ -269,7 +270,7 @@ test.describe('General Long Image Studio slice', () => {
     })
     await page.goto('/studio')
 
-    await expect(page.getByTestId('preflight-panel')).toContainText('本地 SVG foreignObject 探测超时', { timeout: 10_000 })
+    await expect(page.getByTestId('preflight-panel')).toContainText('当前浏览器暂不支持图片导出', { timeout: 10_000 })
     await expect(page.getByRole('button', { name: '导出本地文件' })).toBeDisabled()
     await expect(page.getByTestId('preflight-panel')).not.toContainText('应用兼容呈现')
   })
@@ -332,8 +333,9 @@ test.describe('General Long Image Studio slice', () => {
     await expect(root).toHaveAttribute('data-render-ready', 'true')
 
     await page.getByRole('button', { name: '导出本地文件' }).click()
+    await page.getByRole('switch', { name: '分片导出' }).check()
     await expect(page.getByTestId('studio-slice-boundaries')).toBeVisible()
-    await expect(page.getByTestId('studio-slice-boundaries')).toContainText('预计输出')
+    await expect(page.getByTestId('studio-slice-boundaries')).toContainText('张分片')
     const plan = JSON.parse(await page.getByTestId('studio-export-plan').textContent() ?? '{}') as {
       pages: Array<{
         semanticSlices: Array<{
@@ -353,13 +355,13 @@ test.describe('General Long Image Studio slice', () => {
     }
 
     const bundleDownloadPromise = page.waitForEvent('download')
-    await page.getByRole('button', { name: '导出 PNG' }).click()
+    await page.getByRole('button', { name: '导出分片 ZIP' }).click()
     const bundleDownload = await bundleDownloadPromise
     expect(bundleDownload.suggestedFilename()).toMatch(/\.zip$/)
     await expect(page.getByTestId('studio-export-slices')).toBeVisible()
 
     const sliceDownloadPromise = page.waitForEvent('download')
-    await page.getByRole('button', { name: '下载 Slice 1' }).click()
+    await page.getByRole('button', { name: '下载第 1 张' }).click()
     const sliceDownload = await sliceDownloadPromise
     expect(sliceDownload.suggestedFilename()).toBe('oneimg-slice-001.png')
     const slicePath = await sliceDownload.path()
@@ -389,6 +391,7 @@ test.describe('General Long Image Studio slice', () => {
     await expect(root).toHaveAttribute('data-render-ready', 'true')
 
     await page.getByRole('button', { name: '导出本地文件' }).click()
+    await page.getByRole('switch', { name: '分片导出' }).check()
     const panel = page.getByTestId('studio-export-panel')
     await expect(panel).toBeVisible()
     await panel.getByLabel('输出倍率').selectOption('2')
@@ -403,10 +406,10 @@ test.describe('General Long Image Studio slice', () => {
     expect(plan.pages[0]?.semanticSlices.length).toBeGreaterThan(1)
 
     const downloadPromise = page.waitForEvent('download')
-    await panel.getByRole('button', { name: '导出 PNG' }).click()
+    await panel.getByRole('button', { name: '导出分片 ZIP' }).click()
     const download = await downloadPromise
     expect(download.suggestedFilename()).toMatch(/\.zip$/)
-    await expect(page.getByTestId('studio-export-job-status')).toHaveText('已完成')
+    await expect(page.getByTestId('studio-export-job-status')).toHaveText('已下载')
     await expect(page.getByTestId('studio-export-job-error')).toHaveCount(0)
     await expect.poll(async () => JSON.parse(await page.getByTestId('studio-export-result').textContent() ?? '{}') as StudioExportResult).toMatchObject({
       fromCache: false,
@@ -421,10 +424,10 @@ test.describe('General Long Image Studio slice', () => {
     expect(consoleMessages.filter(message => message.includes('Maximum update depth exceeded'))).toHaveLength(0)
 
     const repeatedDownloadPromise = page.waitForEvent('download')
-    await panel.getByRole('button', { name: '导出 PNG' }).click()
+    await panel.getByRole('button', { name: '导出分片 ZIP' }).click()
     const repeatedDownload = await repeatedDownloadPromise
     expect(repeatedDownload.suggestedFilename()).toMatch(/\.zip$/)
-    await expect(page.getByTestId('studio-export-job-status')).toHaveText('已完成')
+    await expect(page.getByTestId('studio-export-job-status')).toHaveText('已下载')
     await expect(page.getByTestId('studio-export-job-error')).toHaveCount(0)
     await expect.poll(async () => JSON.parse(await page.getByTestId('studio-export-result').textContent() ?? '{}') as StudioExportResult).toMatchObject({
       fromCache: true,
@@ -432,7 +435,7 @@ test.describe('General Long Image Studio slice', () => {
     })
   })
 
-  test('marks an artifact from an older revision and offers a current re-export', async ({ page }) => {
+  test('clears the completed status after editing and exports the latest content', async ({ page }) => {
     await page.goto('/studio')
 
     const root = page.getByTestId('studio-editor').locator('[data-oneimg-render-root]')
@@ -448,8 +451,11 @@ test.describe('General Long Image Studio slice', () => {
     await editor.fill('第二版内容不应改变已经完成的导出。')
     await editor.press('Escape')
     await expect.poll(() => readStudioState(page)).toMatchObject({ revision: 3, status: '已保存' })
-    await expect(page.getByTestId('studio-export-receipt')).toContainText('基于较早版本')
-    await expect(page.getByRole('button', { name: '重新导出当前版本' })).toBeVisible()
+    await expect(page.getByTestId('studio-export-receipt')).toHaveCount(0)
+    await expect(page.getByTestId('studio-export-job-status')).toBeEmpty()
+    const updatedDownloadPromise = page.waitForEvent('download')
+    await page.getByRole('button', { name: '导出 PNG' }).click()
+    expect((await updatedDownloadPromise).suggestedFilename()).toBe('oneimg-general-long-image-r3.png')
   })
 
   test('captures the latest draft when explicit run starts after a plan was shown', async ({ page }) => {
@@ -555,7 +561,7 @@ test.describe('General Long Image Studio slice', () => {
     })
 
     const recommendations = page.getByTestId('studio-template-recommendations')
-    await expect(recommendations.locator('[data-template-preview]')).toHaveCount(3)
+    await expect(recommendations.locator('[data-template-preview]')).toHaveCount(4)
     await expect(recommendations.locator('[data-template-preview]').first().locator('[data-oneimg-render-root]')).toContainText('用于验证模板选择的真实内容。')
 
     const blockIdsBefore = await root.locator('[data-block-id]').evaluateAll(elements => (
@@ -567,10 +573,7 @@ test.describe('General Long Image Studio slice', () => {
       getComputedStyle(element.querySelector<HTMLElement>('.oneimg-rich-text-section')!).marginLeft
     ))).toBe('24px')
 
-    const catalog = page.getByTestId('studio-presentation-catalog')
-    await catalog.locator('summary').click()
     await expect(page.getByRole('button', { name: '摘要简报' })).toBeVisible()
-    await expect(catalog.locator('fieldset').nth(3).getByRole('button')).toHaveCount(7)
     await page.getByRole('button', { name: '潮汐' }).click()
     await expect(root).toHaveAttribute('data-theme-id', 'tide')
     const tideBackgroundColor = await root.evaluate(element => getComputedStyle(element).backgroundColor)
@@ -581,8 +584,8 @@ test.describe('General Long Image Studio slice', () => {
       getComputedStyle(element.querySelector<HTMLElement>('.oneimg-rich-text-section')!).paddingTop
     ))
     expect(compactPaddingTop).not.toBe(defaultMetrics.sectionPaddingTop)
-    await expect(catalog.getByRole('button', { name: '方形 1:1' })).toBeDisabled()
-    await expect(catalog.getByText('需后续分页适配')).toHaveCount(6)
+    await expect(page.getByRole('button', { name: '方形 1:1' })).toHaveCount(0)
+    await expect(page.getByText('需后续分页适配')).toHaveCount(0)
     await expect(root).toHaveAttribute('data-page-format', 'long-image')
     await expect(root).toHaveAttribute('data-page-format-kind', 'continuous')
 
@@ -615,8 +618,6 @@ test.describe('General Long Image Studio slice', () => {
     await page.goto('/studio')
 
     const root = page.getByTestId('studio-editor').locator('[data-oneimg-render-root]')
-    const catalog = page.getByTestId('studio-presentation-catalog')
-    await catalog.locator('summary').click()
     for (const themeLabel of ['清晰纸张', '潮汐', '柚金', '松影', '石墨', '夜航']) {
       await page.getByRole('button', { name: themeLabel }).click()
       await expect(root).toHaveAttribute('data-local-capability', 'certified')
@@ -893,9 +894,9 @@ const pasted = true
     await expect(competingPage.getByTestId('studio-conflict-preview')).toBeVisible()
     await expect(competingPage.getByTestId('studio-editor').getByText('竞争分支的内容。')).toBeVisible()
     await expect(competingPage.getByTestId('studio-editor').locator('[contenteditable="true"]')).toHaveCount(0)
-    await competingPage.getByRole('button', { name: '返回当前 Draft' }).click()
+    await competingPage.getByRole('button', { name: '返回编辑' }).click()
 
-    await competingPage.getByRole('button', { name: '恢复已提交版本' }).click()
+    await competingPage.getByRole('button', { name: '恢复已保存内容' }).click()
     await expect(competingPage.getByTestId('studio-editor').getByText('主分支的第二版内容。')).toBeVisible()
     await competingPage.close()
   })

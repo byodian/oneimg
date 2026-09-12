@@ -105,14 +105,14 @@ export function evaluateExportPreflight(input: ExportPreflightInput): ExportPref
     : undefined
   const highFidelityAction = sensitive || !input.highFidelityAvailable
     ? undefined
-    : action('authorize-high-fidelity', '授权 High-Fidelity Export')
+    : action('authorize-high-fidelity', '授权云端导出')
 
   if (input.contentError !== undefined || snapshot === undefined) {
     pushFinding(findings, {
       action: action('focus-content', '打开恢复内容'),
       code: 'corrupt-content',
       kind: 'blocking-error',
-      message: '当前内容无法安全读取，不能创建 Export Snapshot；请恢复或重新载入文档。',
+      message: '无法读取当前内容，请恢复或重新载入文档。',
     })
   }
 
@@ -121,7 +121,7 @@ export function evaluateExportPreflight(input: ExportPreflightInput): ExportPref
       ...(compatiblePresentationAction === undefined ? {} : { action: compatiblePresentationAction }),
       code: 'renderer-unavailable',
       kind: 'blocking-error',
-      message: '当前 Canonical Renderer 不可用，不能生成可信的导出结果。',
+      message: '预览暂时不可用，请重新载入后再试。',
     })
   }
 
@@ -130,7 +130,7 @@ export function evaluateExportPreflight(input: ExportPreflightInput): ExportPref
       action: action('focus-content', '开始输入或粘贴内容'),
       code: 'empty-document',
       kind: 'blocking-error',
-      message: 'Document 为空；开始输入或粘贴内容后才能导出。',
+      message: '添加文字或图片后即可导出。',
     })
   }
 
@@ -146,7 +146,7 @@ export function evaluateExportPreflight(input: ExportPreflightInput): ExportPref
         alternatives: [action('remove-resource', '移除该资源', { resourceId, targetId })],
         code: 'unresolved-asset',
         kind: 'blocking-error',
-        message: `资源 ${resourceId} 尚未解析；导出不会省略它。`,
+        message: '有图片无法加载，请重新选择图片文件。',
         resourceId,
         targetId,
       })
@@ -163,7 +163,7 @@ export function evaluateExportPreflight(input: ExportPreflightInput): ExportPref
         alternatives: [action('remove-resource', '移除该资源', { resourceId, targetId })],
         code: 'unresolved-asset',
         kind: 'blocking-error',
-        message: `资源 ${resourceId} 尚未解析；导出不会省略它。`,
+        message: '有图片无法加载，请重新选择图片文件。',
         resourceId,
         targetId,
       })
@@ -175,7 +175,7 @@ export function evaluateExportPreflight(input: ExportPreflightInput): ExportPref
       action: action('retry-render-ready', '等待预览稳定'),
       code: 'render-not-ready',
       kind: 'blocking-error',
-      message: 'Canonical Preview 尚未 Render Ready；字体、资源、分页或布局仍在稳定。',
+      message: '正在加载字体和图片，请稍候。',
     })
   }
 
@@ -186,7 +186,7 @@ export function evaluateExportPreflight(input: ExportPreflightInput): ExportPref
         alternatives: [action('remove-resource', '移除该图片', { resourceId: image.resourceId })],
         code: 'unresolved-asset',
         kind: 'blocking-error',
-        message: `图片 ${image.resourceId} 尚未完成解码；导出不会使用占位图。`,
+        message: '有图片尚未加载完成，请稍候或重新选择文件。',
         resourceId: image.resourceId,
         targetId: image.blockId,
       })
@@ -197,7 +197,7 @@ export function evaluateExportPreflight(input: ExportPreflightInput): ExportPref
         action: action('focus-content', '定位低分辨率图片', { resourceId: image.resourceId, targetId: image.blockId }),
         code: 'low-resolution-media',
         kind: 'quality-warning',
-        message: `图片 ${image.resourceId} 的原始尺寸小于当前呈现尺寸，放大后可能影响清晰度。`,
+        message: '有图片分辨率较低，放大后可能模糊，建议使用原图。',
         resourceId: image.resourceId,
         targetId: image.blockId,
       })
@@ -210,10 +210,10 @@ export function evaluateExportPreflight(input: ExportPreflightInput): ExportPref
   ]))
   for (const resourceId of fontFallbackIds) {
     pushFinding(findings, {
-      action: action('focus-content', '查看字体回退', { resourceId }),
+      action: action('focus-content', '查看文字', { resourceId }),
       code: 'font-fallback',
       kind: 'quality-warning',
-      message: `字体资源 ${resourceId} 未完成加载；预览和导出会使用同一个声明的回退字体。`,
+      message: '部分字体无法加载，预览和导出将使用相同的替代字体。',
       resourceId,
     })
   }
@@ -226,16 +226,16 @@ export function evaluateExportPreflight(input: ExportPreflightInput): ExportPref
       ...(compatiblePresentationAction === undefined ? {} : { action: compatiblePresentationAction }),
       code: 'overflow-risk',
       kind: 'blocking-error',
-      message: '当前内容超出已声明的页面边界；导出前必须分页或应用兼容的连续长图呈现。',
+      message: '内容超出页面边界，请改为连续长图。',
     })
   }
 
   if (probe.status === 'pending') {
     pushFinding(findings, {
-      action: action('retry-render-ready', '等待本地能力验证'),
+      action: action('retry-render-ready', '重新检查'),
       code: 'local-capability-probe-pending',
       kind: 'blocking-error',
-      message: '正在验证当前浏览器的本地导出能力；验证完成前不会生成未经验证的成品。',
+      message: '正在检查浏览器的导出支持，请稍候。',
     })
   }
   if (probe.status === 'failed') {
@@ -243,9 +243,7 @@ export function evaluateExportPreflight(input: ExportPreflightInput): ExportPref
       ...(highFidelityAction === undefined ? {} : { action: highFidelityAction }),
       code: 'local-capability-probe-failed',
       kind: 'blocking-error',
-      message: probe.reason === undefined
-        ? '当前设备未通过本地导出能力验证。'
-        : `当前设备未通过本地导出能力验证：${probe.reason}`,
+      message: '当前浏览器暂不支持图片导出，请尝试更新浏览器。',
     })
   }
 
@@ -255,7 +253,7 @@ export function evaluateExportPreflight(input: ExportPreflightInput): ExportPref
       ...(highFidelityAction === undefined ? {} : { alternatives: [highFidelityAction] }),
       code: 'unsupported-local-presentation',
       kind: 'blocking-error',
-      message: '当前呈现没有已验证的本地导出路径。',
+      message: '当前页面格式暂不支持导出，请改为连续长图。',
     })
   } else if (snapshot?.localCapability === 'high-fidelity-required') {
     pushFinding(findings, {
@@ -264,8 +262,8 @@ export function evaluateExportPreflight(input: ExportPreflightInput): ExportPref
       code: 'presentation-risk',
       kind: sensitive ? 'blocking-error' : 'quality-warning',
       message: sensitive
-        ? '当前呈现需要 High-Fidelity Export，但 Sensitive Document 只能留在本地；请应用兼容呈现。'
-        : '当前呈现尚未通过本地保真认证；可应用兼容呈现或选择 High-Fidelity Export。',
+        ? '此文档仅允许本地导出，请改为连续长图。'
+        : '当前页面格式暂不支持本地导出，请改为连续长图。',
     })
   }
 
@@ -277,7 +275,7 @@ export function evaluateExportPreflight(input: ExportPreflightInput): ExportPref
       action: action('focus-content', `补充${slot.label}`, { targetId: slot.targetId }),
       code: 'missing-scene-slot',
       kind: 'content-suggestion',
-      message: `场景建议补充“${slot.label}”，但这不会阻止当前可渲染内容导出。`,
+      message: `建议补充“${slot.label}”。`,
       targetId: slot.targetId,
     })
   }

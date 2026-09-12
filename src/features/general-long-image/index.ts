@@ -243,7 +243,7 @@ export const GENERAL_LONG_IMAGE_PAGE_FORMATS = [
 export type GeneralLongImagePageFormatId = typeof GENERAL_LONG_IMAGE_PAGE_FORMATS[number]['id']
 
 export const GENERAL_LONG_IMAGE_LOCAL_CERTIFICATION_PROFILE = {
-  adapterId: 'local-svg-foreign-object@1',
+  adapterId: 'local-svg-foreign-object@3',
   conformanceFixtureIds: ['canonical-wysiwyg-fixture-v1', 'canonical-long-resource-fixture-v1'],
   densityValues: ['comfortable', 'standard', 'compact'],
   pageFormatIds: ['long-image'],
@@ -251,7 +251,7 @@ export const GENERAL_LONG_IMAGE_LOCAL_CERTIFICATION_PROFILE = {
   stylePackId: GENERAL_LONG_IMAGE_STYLE_PACK_ID,
   templateIds: ['clear-reading', 'section-cards', 'visual-editorial', 'summary-brief'],
   themeIds: ['clear-paper', 'tide', 'pomelo-gold', 'pine-shade', 'graphite', 'night-voyage'],
-  version: 'general-long-image-local-profile@1',
+  version: 'general-long-image-local-profile@3',
 } as const
 
 export const GENERAL_LONG_IMAGE_THEME = GENERAL_LONG_IMAGE_THEMES[0].theme

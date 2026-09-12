@@ -118,15 +118,14 @@ export function MediaGroupEditor({
   return (
     <section
       aria-label="图片导入与编辑"
-      className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm"
+      className="min-w-0 rounded-xl border border-slate-200 bg-white p-3"
       data-testid="studio-media-inspector"
     >
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex items-center justify-between gap-2">
         <div>
           <p className="m-0 text-sm font-semibold text-slate-900">图片</p>
-          <p className="m-0 mt-1 text-xs text-slate-500">导入后预览和导出共用规范化图片源，不会把文件名写进正文。</p>
         </div>
-        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+        <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
           {items.length}/9 张
         </span>
       </div>
@@ -141,13 +140,15 @@ export function MediaGroupEditor({
         >
           {ARRANGEMENT_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
-        <span className="mt-1 block font-normal text-slate-500">自动会结合图片数量、比例和主图意图选择安全几何；手动选择会在增删图片后保持。</span>
+        <span className="mt-1 block font-normal text-slate-500">自动布局会根据图片数量与比例调整。</span>
       </label>
-      <label className="mt-4 block rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm font-medium text-slate-800">
-        <span className="block">选择 JPEG、PNG 或 WebP</span>
+      <label className="mt-3 flex cursor-pointer flex-col items-center rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3 text-xs font-medium text-slate-700 hover:border-violet-400 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-violet-500 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50">
+        <span className="block">添加图片</span>
+        <span className="mt-1 text-[10px] font-normal text-slate-400">JPEG、PNG、WebP · 最多 9 张</span>
         <input
           accept="image/jpeg,image/png,image/webp"
-          className="mt-2 block w-full text-sm"
+          aria-label="添加图片"
+          className="sr-only"
           data-testid="studio-asset-input"
           disabled={disabled || items.length >= 9}
           multiple
@@ -159,7 +160,7 @@ export function MediaGroupEditor({
           type="file"
         />
       </label>
-      {items.length >= 9 && <p className="m-0 mt-2 text-xs text-slate-500">一个 Media Group 最多保留 9 张图片。</p>}
+      {items.length >= 9 && <p className="m-0 mt-2 text-xs text-slate-500">最多添加 9 张图片。</p>}
 
       {items.length > 0 && (
         <ul className="mt-4 grid gap-3" data-testid="studio-media-items">
@@ -172,13 +173,13 @@ export function MediaGroupEditor({
               <li className="rounded-xl border border-slate-200 p-3" key={item.id}>
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-sm font-medium">图片 {index + 1}</span>
-                  <span className="text-xs text-slate-500">{item.featured ? 'Featured' : '按导入顺序'}</span>
+                  <span className="text-xs text-slate-500">{item.featured ? '主图' : '按导入顺序'}</span>
                 </div>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <div className="mt-3 grid gap-2">
                   <label className="text-xs text-slate-600">
-                    Caption
+                    图片说明
                     <input
-                      aria-label={`Caption ${index + 1}`}
+                      aria-label={`图片说明 ${index + 1}`}
                       className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm text-slate-900"
                       disabled={disabled}
                       onChange={event => setTextDrafts(current => ({
@@ -189,9 +190,9 @@ export function MediaGroupEditor({
                     />
                   </label>
                   <label className="text-xs text-slate-600">
-                    Alternative Text
+                    替代文字
                     <input
-                      aria-label={`Alternative Text ${index + 1}`}
+                      aria-label={`替代文字 ${index + 1}`}
                       className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm text-slate-900"
                       disabled={disabled}
                       onChange={event => setTextDrafts(current => ({
@@ -290,8 +291,8 @@ export function MediaGroupEditor({
           data-testid="studio-media-adjustment"
         >
           <h2 className="text-sm font-semibold text-slate-900">调整图片</h2>
-          <p className="m-0 mt-1 text-xs text-slate-600">拖动、触摸或使用键盘调整焦点；按 Escape 取消，完成后只记录一笔编辑事务。</p>
-          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          <p className="m-0 mt-1 text-xs text-slate-600">调整焦点与缩放，按 Esc 取消。</p>
+          <div className="mt-3 grid gap-3">
             <label className="text-xs text-slate-700">
               焦点横向
               <input
@@ -321,9 +322,9 @@ export function MediaGroupEditor({
               />
             </label>
             <label className="text-xs text-slate-700">
-              缩放意图
+              图片缩放
               <input
-                aria-label="缩放意图"
+                aria-label="图片缩放"
                 className="mt-1 w-full"
                 disabled={disabled}
                 max="4"
@@ -344,8 +345,8 @@ export function MediaGroupEditor({
               onChange={event => setAdjustment(updateAdjustment(adjustment, { fit: event.target.value as MediaItem['fit'] }))}
               value={adjustment.item.fit}
             >
-              <option value="cover">Cover</option>
-              <option value="contain">Contain</option>
+              <option value="cover">填满画面</option>
+              <option value="contain">完整显示</option>
             </select>
           </label>
           <div className="mt-3 flex gap-2">

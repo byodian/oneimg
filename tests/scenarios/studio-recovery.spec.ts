@@ -26,7 +26,7 @@ test.describe('Studio durable recovery', () => {
     await editor.press('Escape')
     await expect(page.getByTestId('studio-save-recovery')).toBeVisible()
 
-    await page.getByRole('button', { name: '恢复已提交版本' }).click()
+    await page.getByRole('button', { name: '恢复已保存内容' }).click()
 
     await expect(page.getByTestId('studio-starter-hint')).toBeVisible()
     await expect(editor).toHaveText('')

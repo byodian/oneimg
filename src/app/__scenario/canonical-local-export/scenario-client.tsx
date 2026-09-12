@@ -47,7 +47,8 @@ export interface CanonicalExportScenarioProps {
   readonly runThroughExportEngine?: boolean
   readonly scenarioLabel: string
   readonly snapshot: CanonicalRenderSnapshot
-  readonly outputScale?: 1 | 2
+  readonly outputScale?: 1 | 2 | 3
+  readonly exportSlices?: boolean
 }
 
 export function CanonicalLocalExportScenario() {
@@ -61,9 +62,8 @@ export function CanonicalLocalExportScenario() {
 }
 
 export function CanonicalExportEngineScenario() {
-  const outputScale: 1 | 2 = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('scale') === '2'
-    ? 2
-    : 1
+  const requestedScale = typeof window !== 'undefined' ? Number(new URLSearchParams(window.location.search).get('scale')) : 1
+  const outputScale = requestedScale === 2 || requestedScale === 3 ? requestedScale : 1
   return (
     <CanonicalLocalExportHarness
       resourceDefinitions={controlledFixtureResources}
@@ -84,6 +84,7 @@ export function CanonicalLocalExportHarness({
   scenarioLabel,
   snapshot,
   outputScale = 1,
+  exportSlices = false,
 }: CanonicalExportScenarioProps & { readonly adapter?: LocalRasterizerAdapter }) {
   const resolvedAdapter = useMemo(
     () => adapter ?? createLocalSvgAdapter(),
@@ -212,7 +213,7 @@ export function CanonicalLocalExportHarness({
     const bounds = previewRoot.getBoundingClientRect()
     setExportPlan(exportEngine.plan({
       meaningful: true,
-      output: { format: 'png', scale: outputScale },
+      output: { format: 'png', scale: outputScale, slices: exportSlices },
       pageMeasurements: [{
         height: bounds.height,
         id: 'page-1',
@@ -226,7 +227,7 @@ export function CanonicalLocalExportHarness({
       resourceFingerprint: resources.fingerprint,
       snapshot,
     }))
-  }, [exportEngine, outputScale, previewReady, resources, snapshot])
+  }, [exportEngine, outputScale, exportSlices, previewReady, resources, snapshot])
 
   const releasePreviewResources = () => {
     if (exportController.current) {
@@ -270,7 +271,7 @@ export function CanonicalLocalExportHarness({
     const bounds = previewRoot.getBoundingClientRect()
     const plan = exportEngine.plan({
       meaningful: true,
-      output: { format: 'png', scale: outputScale },
+      output: { format: 'png', scale: outputScale, slices: exportSlices },
       pageMeasurements: [{
         height: bounds.height,
         id: 'page-1',
@@ -390,6 +391,7 @@ export function CanonicalLocalExportHarness({
           }
         },
         outputScale,
+        exportSlices,
         resources: exportResources,
         signal: controller.signal,
         snapshot,

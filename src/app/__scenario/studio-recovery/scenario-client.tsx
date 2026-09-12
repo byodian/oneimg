@@ -21,5 +21,5 @@ export function StudioRecoveryScenarioClient() {
     })
   }, [])
 
-  return <StudioClient createRepository={() => repository} />
+  return <StudioClient diagnostics createRepository={() => repository} />
 }

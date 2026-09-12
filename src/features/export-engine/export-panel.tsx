@@ -2,14 +2,17 @@
 
 import type { ChangeEvent } from 'react'
 import type { ExportJobState, ExportOutputScale, ExportPlan } from './index'
+import { Switch } from '@/components/ui/switch'
 
 export interface ExportPanelProps {
   readonly availableSliceIndexes?: readonly number[]
+  readonly diagnostics?: boolean
+  readonly exportSlices: boolean
   readonly jobState?: ExportJobState
   readonly onCancel: () => void
-  readonly onClose: () => void
   readonly onDownloadSlice: (index: number) => void
   readonly onOutputScaleChange: (scale: ExportOutputScale) => void
+  readonly onExportSlicesChange: (enabled: boolean) => void
   readonly onRun: () => void
   readonly outputScale: ExportOutputScale
   readonly plan?: ExportPlan
@@ -17,188 +20,154 @@ export interface ExportPanelProps {
 
 function jobStatusLabel(state: ExportJobState | undefined) {
   if (state === undefined) {
-    return '尚未运行'
+    return ''
   }
   if (state.status === 'ready') {
-    return '已完成'
+    return '已下载'
   }
   if (state.status === 'canceled') {
     return '已取消'
   }
   if (state.status === 'failed') {
-    return '失败'
+    return '导出失败'
   }
   switch (state.stage) {
     case 'encoding':
-      return '正在编码'
+      return '正在生成图片…'
     case 'packaging':
-      return '正在打包'
+      return '正在打包分片…'
     case 'preparing':
-      return '正在准备'
+      return '正在准备…'
     case 'rendering':
-      return '正在渲染'
+      return '正在绘制…'
     case 'canceled':
       return '已取消'
     case 'failed':
-      return '失败'
+      return '导出失败'
     case 'ready':
-      return '已完成'
-  }
-}
-
-function planSummary(plan: ExportPlan | undefined) {
-  if (plan === undefined) {
-    return { status: 'planning' }
-  }
-  return {
-    authorization: plan.authorization,
-    cacheReuse: plan.cacheReuse,
-    canRun: plan.canRun,
-    findings: plan.findings,
-    outputFormat: plan.outputFormat,
-    outputScale: plan.outputScale,
-    pages: plan.pages.map(page => ({
-      height: page.height,
-      id: page.id,
-      segmentCount: page.segmentCount,
-      semanticSlices: page.semanticSlices,
-      segmented: page.segmented,
-      width: page.width,
-    })),
-    route: plan.route,
-    routeReason: plan.routeReason,
-    snapshotId: plan.snapshot.snapshotId,
+      return '已下载'
   }
 }
 
 export function ExportPanel({
   availableSliceIndexes = [],
+  diagnostics = false,
+  exportSlices,
   jobState,
   onCancel,
-  onClose,
   onDownloadSlice,
   onOutputScaleChange,
+  onExportSlicesChange,
   onRun,
   outputScale,
   plan,
 }: ExportPanelProps) {
   const isRunning = jobState?.status === 'running'
+  const page = plan?.pages[0]
+  const sliceCount = plan?.pages.reduce((total, entry) => total + entry.semanticSlices.length, 0) ?? 0
+  const isZip = (page?.segmented ?? false) && exportSlices
   const handleScaleChange = (event: ChangeEvent<HTMLSelectElement>) => {
     const nextScale = Number(event.currentTarget.value)
-    if (nextScale === 1 || nextScale === 2) {
+    if (nextScale === 1 || nextScale === 2 || nextScale === 3) {
       onOutputScaleChange(nextScale)
     }
   }
+  // Content/resource findings already have actionable controls in the preflight panel.
+  const outputFindings = plan?.findings.filter(finding => finding.code === 'invalid-page-measurement') ?? []
 
   return (
     <section
       aria-label="导出面板"
-      className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+      className="min-w-0 rounded-xl border border-slate-200 bg-white p-3"
       data-testid="studio-export-panel"
     >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="m-0 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Export Plan</p>
-          <h2 className="mt-1 text-lg font-semibold text-slate-900">导出当前 Canonical Preview</h2>
-        </div>
-        <button
-          aria-label="关闭导出面板"
-          className="rounded-full border border-slate-300 px-3 py-1.5 text-sm text-slate-700"
-          onClick={onClose}
-          type="button"
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="m-0 text-sm font-semibold text-slate-900">图片设置</h2>
+        <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">PNG</span>
+      </div>
+
+      <label className="mt-4 flex items-center justify-between gap-3 text-xs font-medium text-slate-700">
+        输出倍率
+        <select
+          aria-label="输出倍率"
+          className="min-h-11 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-violet-500 disabled:opacity-50 sm:min-h-9"
+          disabled={isRunning}
+          onChange={handleScaleChange}
+          value={outputScale}
         >
-          关闭
-        </button>
-      </div>
+          <option value="1">1× · 标准</option>
+          <option value="2">2× · 高清</option>
+          <option value="3">3× · 超清</option>
+        </select>
+      </label>
+      <p className="m-0 mt-2 text-right text-[11px] tabular-nums text-slate-500" data-testid="studio-export-dimensions">
+        {page ? `${page.width.toLocaleString()} × ${page.height.toLocaleString()} px` : outputFindings.length > 0 ? '超出尺寸上限' : '等待预览就绪'}
+      </p>
 
-      <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-slate-700">
-        <label className="flex items-center gap-2">
-          输出格式
-          <select aria-label="输出格式" className="rounded-lg border border-slate-300 bg-white px-2 py-1.5" disabled value="png">
-            <option value="png">PNG</option>
-          </select>
-        </label>
-        <label className="flex items-center gap-2">
-          输出倍率
-          <select
-            aria-label="输出倍率"
-            className="rounded-lg border border-slate-300 bg-white px-2 py-1.5"
-            disabled={isRunning}
-            onChange={handleScaleChange}
-            value={outputScale}
-          >
-            <option value="1">1× 标准</option>
-            <option value="2">2× 高清</option>
-          </select>
-        </label>
+      <div className="my-3 border-t border-slate-100" />
+      <div className="flex items-center justify-between gap-3">
+        <label className="flex min-h-11 flex-1 cursor-pointer items-center text-xs font-medium text-slate-700 sm:min-h-6" htmlFor="studio-export-slices-toggle">分片导出</label>
+        <Switch
+          aria-label="分片导出"
+          checked={exportSlices}
+          className="data-[state=checked]:bg-violet-600 data-[state=unchecked]:bg-slate-200"
+          disabled={isRunning}
+          id="studio-export-slices-toggle"
+          onCheckedChange={onExportSlicesChange}
+        />
       </div>
+      <p className="m-0 mt-2 text-[11px] leading-5 text-slate-500" data-testid="studio-export-slice-summary">
+        {exportSlices
+          ? isZip ? `分为 ${sliceCount} 张 PNG，打包为 ZIP 下载` : '长图按内容边界分片；短图保留为一张 PNG'
+          : '导出一张完整 PNG'}
+      </p>
 
-      <div className="mt-4 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
-        <p className="m-0" data-testid="studio-export-route">{plan?.routeReason ?? '正在生成 Export Plan…'}</p>
-        {plan && <p className="m-0 mt-1" data-testid="studio-export-plan-status">{plan.canRun ? '可以显式运行' : '当前不能运行本地导出'}</p>}
-        {plan && (
-          <p className="m-0 mt-1" data-testid="studio-export-slice-summary">
-            预计输出 {plan.pages.reduce((total, page) => total + page.semanticSlices.length, 0)} 个 Slice；边界来自当前 Canonical Preview
-          </p>
-        )}
-      </div>
-
-      {plan && plan.findings.length > 0 && (
-        <ul className="mt-3 space-y-1 text-sm text-amber-900">
-          {plan.findings.map(finding => <li key={finding.code}>{finding.message}</li>)}
-        </ul>
+      {outputFindings.length > 0 && (
+        <div className="mt-3 rounded-lg bg-amber-50 p-2.5 text-xs leading-5 text-amber-900" role="alert">
+          {outputFindings.map(finding => <p className="m-0" key={finding.code}>{finding.message}</p>)}
+        </div>
       )}
 
-      <output className="mt-3 block max-h-40 overflow-auto rounded-xl bg-slate-950 p-3 font-mono text-[11px] leading-5 text-slate-100" data-testid="studio-export-plan">
-        {JSON.stringify(planSummary(plan))}
-      </output>
-
-      <div className="mt-4 flex items-center justify-between gap-3">
-        <p aria-live="polite" className="m-0 text-sm text-slate-500" data-testid="studio-export-job-status">
-          {jobStatusLabel(jobState)}{jobState?.status === 'running' ? ` · ${jobState.completed}/${jobState.total}` : ''}
-        </p>
+      {diagnostics && <output hidden data-testid="studio-export-plan">{JSON.stringify(plan)}</output>}
+      <div className="mt-4">
         {isRunning ? (
-          <button
-            className="rounded-full border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-700"
-            onClick={onCancel}
-            type="button"
-          >
+          <button className="min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" onClick={onCancel} type="button">
             取消导出
           </button>
         ) : (
           <button
-            className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
+            className="min-h-10 w-full rounded-lg bg-violet-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-violet-700 focus-visible:outline-violet-600 disabled:cursor-not-allowed disabled:opacity-40"
             disabled={!plan?.canRun}
             onClick={onRun}
             type="button"
           >
-            导出 PNG
+            {isZip ? '导出分片 ZIP' : '导出 PNG'}
           </button>
         )}
+        <p aria-live="polite" className="m-0 mt-2 text-center text-xs text-slate-500 empty:hidden" data-testid="studio-export-job-status">
+          {jobStatusLabel(jobState)}{isRunning ? ` ${jobState.completed}/${jobState.total}` : ''}
+        </p>
       </div>
 
-      {jobState?.error && (
-        <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-950" data-testid="studio-export-job-error">
-          <p className="m-0 font-semibold">{jobState.error.message}</p>
-          <p className="m-0 mt-1">失败分类：{jobState.error.code} · 阶段：{jobState.error.stage}</p>
-          <p className="m-0 mt-1">恢复动作：{jobState.error.recoveryAction}</p>
-          <p className="m-0 mt-1">下一步：{jobState.error.nextStep}</p>
-        </div>
+      {jobState?.error && jobState.status !== 'canceled' && (
+        <p className="m-0 mt-3 rounded-lg bg-red-50 p-2.5 text-xs leading-5 text-red-800" data-testid="studio-export-job-error" role="alert">
+          {jobState.error.nextStep}
+        </p>
       )}
 
-      {availableSliceIndexes.length > 0 && (
-        <nav aria-label="Semantic Slice 下载" className="mt-4 rounded-xl border border-indigo-100 bg-indigo-50 p-3" data-testid="studio-export-slices">
-          <p className="m-0 text-sm font-semibold text-indigo-950">Semantic Slice 已生成，可单独下载</p>
-          <ul className="mt-2 flex list-none flex-wrap gap-2 p-0">
+      {exportSlices && availableSliceIndexes.length > 1 && (
+        <nav aria-label="单独下载分片" className="mt-4 border-t border-slate-100 pt-3" data-testid="studio-export-slices">
+          <p className="m-0 text-xs font-medium text-slate-700">单独下载</p>
+          <ul className="mt-2 grid max-h-40 list-none grid-cols-3 gap-1.5 overflow-y-auto p-0">
             {availableSliceIndexes.map(index => (
-              <li key={index}>
+              <li className="min-w-0" key={index}>
                 <button
-                  aria-label={`下载 Slice ${index + 1}`}
-                  className="rounded-full border border-indigo-200 bg-white px-3 py-1.5 text-sm font-medium text-indigo-900"
+                  aria-label={`下载第 ${index + 1} 张`}
+                  className="min-h-8 w-full truncate rounded-md border border-slate-200 px-1.5 text-xs tabular-nums text-slate-600 hover:border-violet-300 hover:text-violet-700"
                   onClick={() => onDownloadSlice(index)}
                   type="button"
                 >
-                  下载 Slice {index + 1}
+                  第 {index + 1} 张
                 </button>
               </li>
             ))}
