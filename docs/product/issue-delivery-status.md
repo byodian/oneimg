@@ -9,9 +9,9 @@ GitHub acceptance criteria and `Blocked by` dependencies remain authoritative. T
 | Issue | Evidence and disposition |
 | --- | --- |
 | #27–#29, #31–#39 | Closed on GitHub; implementation exists in local history and the existing scenario corpus. Do not reimplement these slices. Follow-up coverage remains tracked in #58–#67. |
-| #30 | Earliest open slice. Local Adapter foundation added with request/resource filtering, authorization boundary, idempotent local starts, cancellation, owned final bytes and cleanup retry. Real remote renderer/capability/quota/deletion evidence remains missing; keep OPEN. See [foundation and remaining evidence](./high-fidelity-adapter-slice.md). |
+| #30 | Earliest open slice. Local Adapter foundation committed as `91cbafc` with request/resource filtering, authorization boundary, idempotent local starts, cancellation, owned final bytes and cleanup retry. Real remote renderer/capability/quota/deletion evidence remains missing; keep OPEN. See [foundation and remaining evidence](./high-fidelity-adapter-slice.md). |
 | #40 | Next unimplemented local slice: Social Share Set, previewable format conversion, current-page copy/download, capability-gated system sharing and real JPEG/WebP encoded previews. Prerequisites #37 and #39 are closed. |
-| #41 | Implementation already exists in `831423f`, with database compatibility fix `d3fedb9`. Reconcile the remote OPEN state against Package/Studio scenarios rather than build it again. |
+| #41 | Implementation already exists in `831423f`, with database compatibility fix `d3fedb9`. Code and Package/Studio scenarios verified; closed remotely on 2026-09-13 with an explicit note that source is still local and #60 remains open. |
 | #42–#43 | Legacy ContentDB and longpic migration follow the Package milestone; preserve original sources and activate only after validation. |
 
 ## Subsequent slice order
@@ -35,3 +35,11 @@ Follow-up issues #58–#67 cover deferred conformance/performance/recovery matri
 ## Handoff discipline
 
 For each slice, record the exact commit, public behavioral evidence, remaining acceptance gaps and remote comment/state update. Keep local completion distinct from published source and deployed product availability. Do not close the parent spec #26 while any of its required slices or release gates remain incomplete.
+
+## Verified milestone — 91cbafc
+
+- `pnpm exec playwright test tests/scenarios/high-fidelity.spec.ts --workers=1`: 16 passed.
+- `pnpm exec playwright test --workers=1`: 89 passed (1.8 minutes), including existing Package, recovery, media and WYSIWYG scenarios.
+- `pnpm typecheck`, `pnpm lint`, `pnpm build`, and diff whitespace checks passed.
+- Independent Standards and Spec reviews found output-dimension validation, branch-coverage and provider-result ownership gaps; regression tests and fixes landed, and both follow-up reviews found no unresolved substantive issue within the documented foundation.
+- #30 progress comment posted, issue remains OPEN; #41 completion comment posted and issue CLOSED. No source push or deployment performed.
