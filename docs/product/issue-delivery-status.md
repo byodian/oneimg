@@ -10,7 +10,7 @@ GitHub acceptance criteria and `Blocked by` dependencies remain authoritative. T
 | --- | --- |
 | #27–#29, #31–#39 | Closed on GitHub; implementation exists in local history and the existing scenario corpus. Do not reimplement these slices. Follow-up coverage remains tracked in #58–#67. |
 | #30 | Earliest open slice. Local Adapter foundation committed as `91cbafc` with request/resource filtering, authorization boundary, idempotent local starts, cancellation, owned final bytes and cleanup retry. Real remote renderer/capability/quota/deletion evidence remains missing; keep OPEN. See [foundation and remaining evidence](./high-fidelity-adapter-slice.md). |
-| #40 | Local Social Share Set implementation verified: previewable format copies, current-page copy/download/share, real JPEG/WebP proof bytes, ordered ZIP, metadata removal, automatic pagination and cross-page transactions. See [slice contract and evidence](./social-share-slice.md); final remote disposition is recorded on the issue after committing. Prerequisites #37 and #39 are closed. |
+| #40 | Implemented in 3e72e52; closed remotely on 2026-09-14. Verified: previewable format copies, current-page copy/download/share, real JPEG/WebP proof bytes, ordered ZIP, metadata removal, automatic pagination and cross-page transactions. See [slice contract and evidence](./social-share-slice.md); [remote completion evidence](https://github.com/byodian/oneimg/issues/40#issuecomment-5657330219) records local-only delivery. Prerequisites #37 and #39 are closed. |
 | #41 | Implementation already exists in `831423f`, with database compatibility fix `d3fedb9`. Code and Package/Studio scenarios verified; closed remotely on 2026-09-13 with an explicit note that source is still local and #60 remains open. |
 | #42–#43 | Next eligible local work: #42 Legacy ContentDB migration, then #43 longpic import. #41 is closed. Preserve original sources, use idempotent checkpoints and activate only after complete destination validation. |
 
@@ -45,7 +45,7 @@ For each slice, record the exact commit, public behavioral evidence, remaining a
 - #30 progress comment posted, issue remains OPEN; #41 completion comment posted and issue CLOSED. No source push or deployment performed.
 
 
-## Verified milestone — Social Share Set (#40)
+## Verified milestone — 3e72e52, Social Share Set (#40)
 
 Review baseline: 4769626; verified 2026-09-14.
 
@@ -55,4 +55,4 @@ Review baseline: 4769626; verified 2026-09-14.
 - Spec review initially found current-Page propagation, initial-format consistency, empty-Page classification, filename policy and first-image page-break gaps. All five were fixed and the follow-up review passed.
 - The output matrix verifies exact 1:1, 4:5 and 9:16 dimensions; preview/PNG visual agreement; actual JPEG/WebP byte reuse; ordered Bundle entries; source orientation and metadata normalization; current-Page sharing and download fallback; cancellation; and durable cross-page edits.
 - Browser API doubles verify the Clipboard/Web Share boundary without changing the host clipboard or opening its share sheet. Representative device/browser and stress matrices remain in #59/#63/#64/#66/#67; this slice does not close them.
-- Source is local on main. No push or deployment was performed. Remote issue disposition is updated after the implementation commit is created.
+- Source is local on main. No push or deployment was performed. Issue #40 acceptance items were checked and its state verified CLOSED on 2026-09-14; the [completion comment](https://github.com/byodian/oneimg/issues/40#issuecomment-5657330219) includes the commit and local-only publication status.
