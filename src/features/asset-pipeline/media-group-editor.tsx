@@ -1,9 +1,18 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { MediaArrangement, MediaItem } from '@/features/document-core'
 
 export interface MediaGroupEditorProps {
+  readonly pageNavigation?: {
+    readonly currentPageId: string
+    readonly canSplitFirst: boolean
+    readonly feedback?: { readonly focusItemId: string, readonly pendingFocus: boolean, readonly message: string }
+    readonly onFocusHandled: () => void
+    readonly pages: readonly { readonly id: string, readonly label: string, readonly full: boolean }[]
+    readonly onMove: (itemId: string, pageId: string) => boolean
+    readonly onSplit: (itemId: string) => boolean
+  }
   readonly arrangement: MediaArrangement
   readonly disabled?: boolean
   readonly items: readonly MediaItem[]
@@ -61,6 +70,7 @@ export function MediaGroupEditor({
   items,
   onImportFiles,
   onMoveItem,
+  pageNavigation,
   onRemoveItem,
   onRelinkItem,
   onSetFeaturedItem,
@@ -68,6 +78,7 @@ export function MediaGroupEditor({
   onUpdateItem,
   unresolvedItemIds = [],
 }: MediaGroupEditorProps) {
+  const host = useRef<HTMLElement>(null)
   const [adjustment, setAdjustment] = useState<AdjustmentDraft>()
   const [textDrafts, setTextDrafts] = useState<Record<string, { alternativeText: string; caption: string }>>(() => createTextDrafts(items))
 
@@ -90,6 +101,19 @@ export function MediaGroupEditor({
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [adjustment])
+
+  useEffect(() => {
+    const feedback = pageNavigation?.feedback
+    if (!pageNavigation || !feedback?.pendingFocus || disabled) {
+      return
+    }
+    const row = Array.from(host.current?.querySelectorAll<HTMLElement>('[data-inspector-item]') ?? []).find(element => element.dataset.inspectorItem === feedback.focusItemId)
+    const target = row?.querySelector<HTMLElement>('input:not(:disabled)') ?? host.current?.querySelector<HTMLElement>('input:not(:disabled)')
+    if (target) {
+      target.focus()
+      pageNavigation.onFocusHandled()
+    }
+  }, [disabled, items, pageNavigation])
 
   function saveText(item: MediaItem) {
     const draft = textDrafts[item.id] ?? {
@@ -120,6 +144,7 @@ export function MediaGroupEditor({
       aria-label="图片导入与编辑"
       className="min-w-0 rounded-xl border border-slate-200 bg-white p-3"
       data-testid="studio-media-inspector"
+      ref={host}
     >
       <div className="flex items-center justify-between gap-2">
         <div>
@@ -144,13 +169,13 @@ export function MediaGroupEditor({
       </label>
       <label className="mt-3 flex cursor-pointer flex-col items-center rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3 text-xs font-medium text-slate-700 hover:border-violet-400 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-violet-500 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50">
         <span className="block">添加图片</span>
-        <span className="mt-1 text-[10px] font-normal text-slate-400">JPEG、PNG、WebP · 最多 9 张</span>
+        <span className="mt-1 text-[10px] font-normal text-slate-400">JPEG、PNG、WebP · {pageNavigation ? '每页最多 9 张，超出自动分页' : '最多 9 张'}</span>
         <input
           accept="image/jpeg,image/png,image/webp"
           aria-label="添加图片"
           className="sr-only"
           data-testid="studio-asset-input"
-          disabled={disabled || items.length >= 9}
+          disabled={disabled || (!pageNavigation && items.length >= 9)}
           multiple
           onChange={(event) => {
             const files = Array.from(event.currentTarget.files ?? [])
@@ -160,7 +185,7 @@ export function MediaGroupEditor({
           type="file"
         />
       </label>
-      {items.length >= 9 && <p className="m-0 mt-2 text-xs text-slate-500">最多添加 9 张图片。</p>}
+      {!pageNavigation && items.length >= 9 && <p className="m-0 mt-2 text-xs text-slate-500">最多添加 9 张图片。</p>}
 
       {items.length > 0 && (
         <ul className="mt-4 grid gap-3" data-testid="studio-media-items">
@@ -170,7 +195,7 @@ export function MediaGroupEditor({
               caption: item.caption ?? '',
             }
             return (
-              <li className="rounded-xl border border-slate-200 p-3" key={item.id}>
+              <li className="rounded-xl border border-slate-200 p-3" data-inspector-item={item.id} key={item.id}>
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-sm font-medium">图片 {index + 1}</span>
                   <span className="text-xs text-slate-500">{item.featured ? '主图' : '按导入顺序'}</span>
@@ -203,6 +228,17 @@ export function MediaGroupEditor({
                     />
                   </label>
                 </div>
+                {pageNavigation && <div className="mt-2 flex flex-wrap gap-2">
+                  <select aria-label={`移动图片 ${index + 1} 到另一页`} className="min-h-10 rounded-lg border border-slate-300 bg-white px-2 text-xs" disabled={disabled} value="" onChange={event => pageNavigation.onMove(item.id, event.target.value)}>
+                    <option value="" disabled>移动到第 N 页</option>
+                    {pageNavigation.pages.filter(page => page.id !== pageNavigation.currentPageId).map(page => <option disabled={page.full} value={page.id} key={page.id}>{page.label}{page.full ? '（已满）' : ''}</option>)}
+                  </select>
+                  {([-1, 1] as const).map((direction) => {
+                    const target = pageNavigation.pages[pageNavigation.pages.findIndex(page => page.id === pageNavigation.currentPageId) + direction]
+                    return <button className="min-h-10 rounded-lg border border-slate-300 px-2 text-xs disabled:opacity-40" disabled={disabled || !target || target.full} key={direction} onClick={() => target && pageNavigation.onMove(item.id, target.id)} type="button">{direction < 0 ? '移到上一页' : '移到下一页'}</button>
+                  })}
+                  <button aria-label={`从图片 ${index + 1} 开始分页`} className="min-h-10 rounded-lg border border-slate-300 px-2 text-xs disabled:opacity-40" disabled={disabled || (index === 0 && !pageNavigation.canSplitFirst)} onClick={() => pageNavigation.onSplit(item.id)} type="button">从这里分页</button>
+                </div>}
                 <div className="mt-2 flex flex-wrap gap-2">
                   <button
                     aria-label={`设为主图 ${index + 1}`}

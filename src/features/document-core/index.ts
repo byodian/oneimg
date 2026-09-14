@@ -158,7 +158,29 @@ export interface MoveMediaItemIntent extends IntentBase {
   readonly type: 'move-media-item'
 }
 
+export interface AppendMediaItemsIntent extends IntentBase {
+  readonly type: 'append-media-items'
+  readonly pageId: string
+  readonly items: readonly MediaItem[]
+}
+
+export interface TransferMediaItemIntent extends IntentBase {
+  readonly type: 'transfer-media-item'
+  readonly blockId: string
+  readonly itemId: string
+  readonly targetPageId: string
+}
+
+export interface SplitMediaPageIntent extends IntentBase {
+  readonly type: 'split-media-page'
+  readonly blockId: string
+  readonly itemId: string
+}
+
 export type DocumentIntent =
+  | AppendMediaItemsIntent
+  | TransferMediaItemIntent
+  | SplitMediaPageIntent
   | InsertBlockIntent
   | InsertBlocksIntent
   | MoveBlockIntent
@@ -606,6 +628,12 @@ function applyIntent(current: DocumentRevision, intent: DocumentIntent): Documen
   }
   const next = cloneValue(current)
   switch (intent.type) {
+    case 'append-media-items':
+      return applyAppendMediaItems(next, intent)
+    case 'transfer-media-item':
+      return applyTransferMediaItem(next, intent)
+    case 'split-media-page':
+      return applySplitMediaPage(next, intent)
     case 'insert-block':
       return applyInsertBlocks(next, {
         blocks: [intent.block],
@@ -648,6 +676,113 @@ function applyIntent(current: DocumentRevision, intent: DocumentIntent): Documen
     default:
       return assertNever(intent)
   }
+}
+
+function mediaPageIdFactory(current: DocumentRevision) {
+  const used = new Set(current.pages.flatMap(page => [page.id, ...page.blocks.map(block => block.id)]))
+  return (hint: string) => {
+    let id = hint
+    let suffix = 1
+    while (used.has(id)) {
+      id = `${hint}:${suffix++}`
+    }
+    used.add(id)
+    return id
+  }
+}
+
+function applyAppendMediaItems(current: DocumentRevision, intent: AppendMediaItemsIntent): DocumentRevision {
+  const pageIndex = current.pages.findIndex(page => page.id === intent.pageId)
+  if (pageIndex < 0) {
+    throw new DocumentCoreError('not-found', 'Media Page was not found')
+  }
+  if (!Array.isArray(intent.items) || intent.items.length === 0) {
+    throw new DocumentCoreError('invalid-intention', 'Add at least one Media Item')
+  }
+  intent.items.forEach(validateMediaItem)
+  const page = current.pages[pageIndex]!
+  const group = page.blocks.find((block): block is MediaGroupBlock => block.kind === 'media-group')
+  const pageCount = page.blocks.reduce((count, block) => count + (block.kind === 'media-group' ? block.items.length : 0), 0)
+  const remaining = [...cloneValue(intent.items)]
+  const take = remaining.splice(0, Math.max(0, 9 - pageCount))
+  const allocate = mediaPageIdFactory(current)
+  let updatedPage = page
+  if (take.length) {
+    const block = group ? { ...group, items: [...group.items, ...take] } : createMediaGroupBlock({ id: allocate(`${page.id}:media`), items: take })
+    updatedPage = { ...page, blocks: group ? page.blocks.map(candidate => candidate.id === group.id ? block : candidate) : [...page.blocks, block] }
+  }
+  const extra: Page[] = []
+  while (remaining.length) {
+    const id = allocate(`${page.id}:next`)
+    extra.push({ id, format: cloneValue(page.format), blocks: [createMediaGroupBlock({ id: allocate(`${id}:media`), arrangement: group?.arrangement ?? 'auto', items: remaining.splice(0, 9) })] })
+  }
+  return { ...current, pages: [...current.pages.slice(0, pageIndex), updatedPage, ...extra, ...current.pages.slice(pageIndex + 1)] }
+}
+
+function locateMediaItem(current: DocumentRevision, blockId: string, itemId: string) {
+  const pageIndex = current.pages.findIndex(page => page.blocks.some(block => block.id === blockId))
+  const page = current.pages[pageIndex]
+  const blockIndex = page?.blocks.findIndex(block => block.id === blockId) ?? -1
+  const group = page?.blocks[blockIndex]
+  if (!page || group?.kind !== 'media-group') {
+    throw new DocumentCoreError('not-found', 'Media Group was not found')
+  }
+  const itemIndex = group.items.findIndex(item => item.id === itemId)
+  const item = group.items[itemIndex]
+  if (!item) {
+    throw new DocumentCoreError('not-found', 'Media Item was not found')
+  }
+  return { pageIndex, page, blockIndex, group, itemIndex, item }
+}
+
+function applyTransferMediaItem(current: DocumentRevision, intent: TransferMediaItemIntent): DocumentRevision {
+  const source = locateMediaItem(current, intent.blockId, intent.itemId)
+  const target = current.pages.find(page => page.id === intent.targetPageId)
+  if (!target) {
+    throw new DocumentCoreError('not-found', 'Destination Page was not found')
+  }
+  if (target.id === source.page.id) {
+    throw new DocumentCoreError('invalid-intention', 'Choose a different Page')
+  }
+  if (stableStringify(target.format) !== stableStringify(source.page.format)) {
+    throw new DocumentCoreError('invalid-intention', 'Destination Page must use the same format')
+  }
+  const targetCount = target.blocks.reduce((count, block) => count + (block.kind === 'media-group' ? block.items.length : 0), 0)
+  if (targetCount >= 9) {
+    throw new DocumentCoreError('invalid-intention', 'Destination Page already contains nine images')
+  }
+  const targetGroup = target.blocks.find((block): block is MediaGroupBlock => block.kind === 'media-group')
+  const allocate = mediaPageIdFactory(current)
+  // The destination keeps its existing Featured assignment when groups merge.
+  const moved = targetGroup?.items.some(item => item.featured) ? { ...source.item, featured: false } : source.item
+  const block = targetGroup ? { ...targetGroup, items: [...targetGroup.items, moved] } : createMediaGroupBlock({ id: allocate(`${target.id}:media`), arrangement: source.group.arrangement, items: [moved] })
+  const pages = current.pages.map((page) => {
+    if (page.id === target.id) {
+      return { ...page, blocks: targetGroup ? page.blocks.map(candidate => candidate.id === targetGroup.id ? block : candidate) : [...page.blocks, block] }
+    }
+    if (page.id !== source.page.id) {
+      return page
+    }
+    const items = source.group.items.filter(item => item.id !== source.item.id)
+    const replacement: Block[] = items.length ? [{ ...source.group, items }] : source.group.caption ? [createRichTextBlock(source.group.id, { type: 'doc', children: [{ type: 'paragraph', text: source.group.caption }] })] : []
+    return { ...page, blocks: page.blocks.flatMap(candidate => candidate.id === source.group.id ? replacement : [candidate]) }
+  }).filter(page => page.blocks.length > 0 || page.id !== source.page.id)
+  return { ...current, pages }
+}
+
+function applySplitMediaPage(current: DocumentRevision, intent: SplitMediaPageIntent): DocumentRevision {
+  const source = locateMediaItem(current, intent.blockId, intent.itemId)
+  if (source.itemIndex === 0 && source.blockIndex === 0) {
+    throw new DocumentCoreError('invalid-intention', 'This image already starts its group')
+  }
+  const allocate = mediaPageIdFactory(current)
+  const group = { ...source.group }
+  if (source.itemIndex > 0) {
+    delete group.caption
+  }
+  const before = { ...source.page, blocks: [...source.page.blocks.slice(0, source.blockIndex), ...(source.itemIndex === 0 ? [] : [{ ...source.group, items: source.group.items.slice(0, source.itemIndex) }])] }
+  const after = { ...source.page, id: allocate(`${source.page.id}:split`), blocks: [{ ...group, id: allocate(`${source.group.id}:split`), items: source.group.items.slice(source.itemIndex) }, ...source.page.blocks.slice(source.blockIndex + 1)] }
+  return { ...current, pages: [...current.pages.slice(0, source.pageIndex), before, after, ...current.pages.slice(source.pageIndex + 1)] }
 }
 
 function applyInsertBlocks(

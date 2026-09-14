@@ -3,7 +3,7 @@ import { memo, useLayoutEffect, useRef } from 'react'
 import type { CanonicalMediaItem, CanonicalRenderSnapshot, CanonicalSection } from './model'
 import type { ResolvedResourceSet } from './resource-resolver'
 import { publishCanonicalPaginationDiagnostics } from './render-ready'
-import { canonicalStylePack } from './style-pack'
+import { canonicalStylePack, getCanonicalStylePack } from './style-pack'
 import type { RichTextNode } from '@/features/document-core'
 import { resolveSmartCollageLayout } from '@/features/smart-collage'
 
@@ -202,9 +202,38 @@ function mediaItemStyle(item: CanonicalMediaItem): CSSProperties {
   }
 }
 
+function renderMediaItemImage(item: CanonicalMediaItem, resources: ResolvedResourceSet) {
+  return (item.status === 'ready' && item.resourceId !== undefined ? (
+              // Canonical export serializes this native image and the same normalized Render Source.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                alt={item.alternativeText ?? ''}
+                className="oneimg-media-item-image"
+                data-focal-point={`${item.focalPoint.x},${item.focalPoint.y}`}
+                data-resource-id={item.resourceId}
+                height={240}
+                src={resources.get(item.resourceId).objectUrl}
+                style={mediaItemStyle(item)}
+                width={320}
+              />
+  ) : (
+              <div
+                aria-label={`资源 ${item.assetId} 尚未解析`}
+                className="oneimg-unresolved-media"
+                data-unresolved-asset="true"
+                role="img"
+              >
+                <span>图片待恢复</span>
+                <small>{item.assetId}</small>
+              </div>
+  )
+  )
+}
+
 function renderMediaGroupSection(
   section: Extract<CanonicalSection, { kind: 'media-group' }>,
   resources: ResolvedResourceSet,
+  clipMedia = false,
 ) {
   const layout = resolveSmartCollageLayout(section.items, section.arrangement)
   const itemRoles = new Map(layout.items.map(item => [item.itemId, item.role]))
@@ -236,30 +265,7 @@ function renderMediaGroupSection(
             data-testid={item.id}
             key={item.id}
           >
-            {item.status === 'ready' && item.resourceId !== undefined ? (
-              // Canonical export serializes this native image and the same normalized Render Source.
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                alt={item.alternativeText ?? ''}
-                className="oneimg-media-item-image"
-                data-focal-point={`${item.focalPoint.x},${item.focalPoint.y}`}
-                data-resource-id={item.resourceId}
-                height={240}
-                src={resources.get(item.resourceId).objectUrl}
-                style={mediaItemStyle(item)}
-                width={320}
-              />
-            ) : (
-              <div
-                aria-label={`资源 ${item.assetId} 尚未解析`}
-                className="oneimg-unresolved-media"
-                data-unresolved-asset="true"
-                role="img"
-              >
-                <span>图片待恢复</span>
-                <small>{item.assetId}</small>
-              </div>
-            )}
+            {clipMedia ? <div className="oneimg-media-frame">{renderMediaItemImage(item, resources)}</div> : renderMediaItemImage(item, resources)}
             {item.caption && <figcaption data-media-caption="true">{item.caption}</figcaption>}
           </figure>
         ))}
@@ -287,6 +293,7 @@ function renderSection(
   resources: ResolvedResourceSet,
   mode: CanonicalRendererProps['mode'],
   handlers: RichTextEditingHandlers,
+  clipMedia = false,
 ) {
   switch (section.kind) {
     case 'hero':
@@ -344,7 +351,7 @@ function renderSection(
     case 'data-table':
       return renderDataTableSection(section)
     case 'media-group':
-      return renderMediaGroupSection(section, resources)
+      return renderMediaGroupSection(section, resources, clipMedia)
     case 'summary':
       return (
         <section className="oneimg-section oneimg-summary" data-block-id={section.id} data-slice-boundary="section" key={section.id}>
@@ -369,8 +376,8 @@ function renderSection(
   }
 }
 
-export function getCanonicalOwnedCss(resources: ResolvedResourceSet) {
-  return `${resources.fontFaceCss}\n${canonicalStylePack.cssText}`
+export function getCanonicalOwnedCss(resources: ResolvedResourceSet, stylePackId: string = canonicalStylePack.id) {
+  return `${resources.fontFaceCss}\n${getCanonicalStylePack(stylePackId).cssText}`
 }
 
 const CanonicalRendererImpl = ({
@@ -402,9 +409,7 @@ const CanonicalRendererImpl = ({
     return () => resizeObserver.disconnect()
   }, [mode, resources.fingerprint, snapshot])
 
-  if (snapshot.stylePackId !== canonicalStylePack.id) {
-    throw new Error(`Unsupported Style Pack: ${snapshot.stylePackId}`)
-  }
+  getCanonicalStylePack(snapshot.stylePackId)
 
   const style: CanonicalCssProperties = {
     '--oneimg-accent': snapshot.theme.accent,
@@ -449,6 +454,7 @@ const CanonicalRendererImpl = ({
         resources,
         mode,
         { onRichTextBlur, onRichTextInput, onRichTextPaste },
+        snapshot.presentation.templateId === 'social-collage',
       ))}
       {snapshot.document.sections.length === 0 && renderEmptyEditor(mode, { onRichTextBlur, onRichTextInput, onRichTextPaste })}
     </article>
@@ -461,7 +467,7 @@ export const CanonicalRenderer = memo(CanonicalRendererImpl)
 export function CanonicalRenderSurface(props: CanonicalRendererProps) {
   return (
     <>
-      <style data-oneimg-owned-style={props.snapshot.stylePackId}>{getCanonicalOwnedCss(props.resources)}</style>
+      <style data-oneimg-owned-style={props.snapshot.stylePackId}>{getCanonicalOwnedCss(props.resources, props.snapshot.stylePackId)}</style>
       <CanonicalRenderer {...props} />
     </>
   )

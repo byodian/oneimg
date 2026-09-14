@@ -19,6 +19,8 @@ import {
   Upload,
   X,
 } from 'lucide-react'
+import { SocialShareDialog } from '@/features/social-share/share-dialog'
+import { SOCIAL_SHARE_STYLE_PACK_ID, createSocialShareSnapshot } from '@/features/social-share'
 import { CanonicalRenderSurface } from '@/features/canonical-renderer/canonical-renderer'
 import { type CanonicalRenderSnapshot, collectSnapshotResourceIds } from '@/features/canonical-renderer/model'
 import {
@@ -43,6 +45,7 @@ import {
   type MediaGroupChanges,
   type MediaItem,
   createDocumentSession,
+  createImportedDocumentTransaction,
   createMediaGroupBlock,
   createMediaItem,
   createRichTextBlock,
@@ -234,8 +237,9 @@ function findBlock(revision: DocumentRevision, blockId: string | undefined) {
   return revision.pages.flatMap(page => page.blocks).find(block => block.id === blockId)
 }
 
-function findMediaGroup(revision: DocumentRevision) {
-  const block = revision.pages.flatMap(page => page.blocks).find(candidate => candidate.kind === 'media-group')
+function findMediaGroup(revision: DocumentRevision, pageId?: string) {
+  const pages = pageId ? revision.pages.filter(page => page.id === pageId) : revision.pages
+  const block = pages.flatMap(page => page.blocks).find(candidate => candidate.kind === 'media-group')
   return block?.kind === 'media-group' ? block : undefined
 }
 
@@ -647,6 +651,10 @@ export function StudioClient({ createRepository, diagnostics = false }: StudioCl
   )
   const assetPipeline = useMemo(() => createBrowserAssetPipeline(), [])
   const [revision, setRevision] = useState<DocumentRevision>()
+  const [activePageId, setActivePageId] = useState<string>()
+  const [shareOpen, setShareOpen] = useState(false)
+  const [mediaPageFeedback, setMediaPageFeedback] = useState<{ focusItemId: string, pendingFocus: boolean, message: string }>()
+  const currentPage = revision?.pages.find(page => page.id === activePageId) ?? revision?.pages[0]
   const [assets, setAssets] = useState<readonly AssetRecord[]>([])
   const [assetImporting, setAssetImporting] = useState(false)
   const [durableRevision, setDurableRevision] = useState(0)
@@ -737,12 +745,15 @@ export function StudioClient({ createRepository, diagnostics = false }: StudioCl
         return undefined
       }
       try {
+        if (displayedRevision.presentation.sceneId === 'social-smart-collage') {
+          return createSocialShareSnapshot(displayedRevision, displayedRevision.pages.find(page => page.id === activePageId)?.id ?? displayedRevision.pages[0]!.id, { assets: assetMap })
+        }
         return createGeneralLongImageSnapshot(displayedRevision, { assets: assetMap })
       } catch {
         return undefined
       }
     },
-    [assetMap, displayedRevision],
+    [activePageId, assetMap, displayedRevision],
   )
   const contentError = displayedRevision !== undefined && snapshot === undefined ? 'invalid-document' : undefined
   const resourceSnapshot = useRef(snapshot)
@@ -766,7 +777,7 @@ export function StudioClient({ createRepository, diagnostics = false }: StudioCl
       return false
     }
   }, [revision])
-  const mediaGroup = revision === undefined ? undefined : findMediaGroup(revision)
+  const mediaGroup = revision === undefined ? undefined : findMediaGroup(revision, currentPage?.id)
 
   const preflight = useMemo(() => evaluateExportPreflight({
     contentError,
@@ -777,7 +788,7 @@ export function StudioClient({ createRepository, diagnostics = false }: StudioCl
     meaningful,
     readiness: renderReadiness,
     renderReady: previewReady,
-    rendererAvailable: rendererAvailable && snapshot?.stylePackId === canonicalStylePack.id,
+    rendererAvailable: rendererAvailable && (snapshot?.stylePackId === canonicalStylePack.id || snapshot?.stylePackId === SOCIAL_SHARE_STYLE_PACK_ID),
     resourceResolutionPending: snapshot !== undefined && renderResources === undefined && resourceErrorIds.length === 0,
     resolvedResourceIds: renderResources?.resources.map(resource => resource.id),
     snapshot,
@@ -1485,11 +1496,11 @@ export function StudioClient({ createRepository, diagnostics = false }: StudioCl
         type: 'replace-block',
       }, { expectedRevision: currentRevision.revision })
     } else if (hasText && blockId === undefined) {
-      const nextBlockId = `${currentRevision.id}:block-1`
+      const nextBlockId = `${currentPage?.id ?? currentRevision.id}:block-${crypto.randomUUID()}`
       result = currentSession.commit({
         block: createRichTextBlock(nextBlockId, nextDocument),
         index: 0,
-        pageId: currentRevision.pages[0]!.id,
+        pageId: currentPage?.id ?? currentRevision.pages[0]!.id,
         type: 'insert-block',
       }, { expectedRevision: currentRevision.revision })
     } else {
@@ -1521,9 +1532,9 @@ export function StudioClient({ createRepository, diagnostics = false }: StudioCl
       return
     }
 
-    const currentGroup = findMediaGroup(currentRevision)
+    const currentGroup = findMediaGroup(currentRevision, currentPage?.id)
     const currentItems = currentGroup?.items ?? []
-    if (files.length > 9 - currentItems.length) {
+    if (currentRevision.presentation.sceneId !== 'social-smart-collage' && files.length > 9 - currentItems.length) {
       setError('一个 Media Group 最多保留 9 张图片；本次导入没有提交。')
       return
     }
@@ -1533,12 +1544,12 @@ export function StudioClient({ createRepository, diagnostics = false }: StudioCl
     try {
       const imported = await assetPipeline.ingestMany(files)
       const nextRevision = currentSession.getRevision()
-      const nextGroup = findMediaGroup(nextRevision)
+      const nextGroup = findMediaGroup(nextRevision, currentPage?.id)
       const nextItems = nextGroup?.items ?? []
-      if (imported.entries.length > 9 - nextItems.length) {
+      if (nextRevision.presentation.sceneId !== 'social-smart-collage' && imported.entries.length > 9 - nextItems.length) {
         throw new Error('一个 Media Group 最多保留 9 张图片；本次导入没有提交。')
       }
-      const existingItemIds = new Set(nextItems.map(item => item.id))
+      const existingItemIds = new Set(nextRevision.pages.flatMap(page => page.blocks.flatMap(block => block.kind === 'media-group' ? block.items.map(item => item.id) : [])))
       let nextItemNumber = nextItems.length + 1
       const importedItems = imported.entries.map((entry, index) => {
         let id = `media-item-${nextItemNumber}`
@@ -1554,6 +1565,17 @@ export function StudioClient({ createRepository, diagnostics = false }: StudioCl
           id,
         })
       })
+      if (nextRevision.presentation.sceneId === 'social-smart-collage') {
+        const result = currentSession.commit({ type: 'append-media-items', pageId: currentPage?.id ?? nextRevision.pages[0]!.id, items: importedItems }, { expectedRevision: nextRevision.revision })
+        if (!isCommitted(result)) {
+          throw new Error(result.message)
+        }
+        setAssets(assetPipeline.list())
+        setRevision(result.revision)
+        setPhase('saving')
+        persistCommit(result.revision, result.transaction)
+        return
+      }
       const block = createMediaGroupBlock({
         ...(nextGroup === undefined ? {} : { arrangement: nextGroup.arrangement }),
         id: nextGroup?.id ?? 'block:asset-media-group',
@@ -1562,8 +1584,8 @@ export function StudioClient({ createRepository, diagnostics = false }: StudioCl
       const result = nextGroup === undefined
         ? currentSession.commit({
           block,
-          index: nextRevision.pages[0]!.blocks.length,
-          pageId: nextRevision.pages[0]!.id,
+          index: currentPage?.blocks.length ?? nextRevision.pages[0]!.blocks.length,
+          pageId: currentPage?.id ?? nextRevision.pages[0]!.id,
           type: 'insert-block',
         }, { expectedRevision: nextRevision.revision })
         : currentSession.commit({ block, blockId: nextGroup.id, type: 'replace-block' }, {
@@ -1587,7 +1609,7 @@ export function StudioClient({ createRepository, diagnostics = false }: StudioCl
   async function relinkFile(itemId: string, file: File) {
     const currentSession = session.current
     const currentRevision = currentSession?.getRevision()
-    const currentGroup = currentRevision === undefined ? undefined : findMediaGroup(currentRevision)
+    const currentGroup = currentRevision === undefined ? undefined : findMediaGroup(currentRevision, currentPage?.id)
     if (
       currentSession === undefined
       || currentRevision === undefined
@@ -1604,7 +1626,7 @@ export function StudioClient({ createRepository, diagnostics = false }: StudioCl
     setError(undefined)
     try {
       const imported = await assetPipeline.ingest(file)
-      const nextGroup = findMediaGroup(currentSession.getRevision())
+      const nextGroup = findMediaGroup(currentSession.getRevision(), currentPage?.id)
       const item = nextGroup?.items.find(candidate => candidate.id === itemId)
       if (item === undefined) {
         throw new Error(`Media Item ${itemId} was not found`)
@@ -1624,7 +1646,7 @@ export function StudioClient({ createRepository, diagnostics = false }: StudioCl
   function commitMediaItem(item: MediaItem) {
     const currentSession = session.current
     const currentRevision = currentSession?.getRevision()
-    const currentGroup = currentRevision === undefined ? undefined : findMediaGroup(currentRevision)
+    const currentGroup = currentRevision === undefined ? undefined : findMediaGroup(currentRevision, currentPage?.id)
     if (
       currentSession === undefined
       || currentRevision === undefined
@@ -1667,7 +1689,7 @@ export function StudioClient({ createRepository, diagnostics = false }: StudioCl
   function commitMediaGroupChanges(changes: MediaGroupChanges) {
     const currentSession = session.current
     const currentRevision = currentSession?.getRevision()
-    const currentGroup = currentRevision === undefined ? undefined : findMediaGroup(currentRevision)
+    const currentGroup = currentRevision === undefined ? undefined : findMediaGroup(currentRevision, currentPage?.id)
     if (
       currentSession === undefined
       || currentRevision === undefined
@@ -1699,7 +1721,7 @@ export function StudioClient({ createRepository, diagnostics = false }: StudioCl
   function setFeaturedMediaItem(itemId: string) {
     const currentSession = session.current
     const currentRevision = currentSession?.getRevision()
-    const currentGroup = currentRevision === undefined ? undefined : findMediaGroup(currentRevision)
+    const currentGroup = currentRevision === undefined ? undefined : findMediaGroup(currentRevision, currentPage?.id)
     if (
       currentSession === undefined
       || currentRevision === undefined
@@ -1731,7 +1753,7 @@ export function StudioClient({ createRepository, diagnostics = false }: StudioCl
   function removeMediaItem(itemId: string) {
     const currentSession = session.current
     const currentRevision = currentSession?.getRevision()
-    const currentGroup = currentRevision === undefined ? undefined : findMediaGroup(currentRevision)
+    const currentGroup = currentRevision === undefined ? undefined : findMediaGroup(currentRevision, currentPage?.id)
     if (
       currentSession === undefined
       || currentRevision === undefined
@@ -1763,7 +1785,7 @@ export function StudioClient({ createRepository, diagnostics = false }: StudioCl
   function moveMediaItem(itemId: string, index: number) {
     const currentSession = session.current
     const currentRevision = currentSession?.getRevision()
-    const currentGroup = currentRevision === undefined ? undefined : findMediaGroup(currentRevision)
+    const currentGroup = currentRevision === undefined ? undefined : findMediaGroup(currentRevision, currentPage?.id)
     if (
       currentSession === undefined
       || currentRevision === undefined
@@ -1786,6 +1808,33 @@ export function StudioClient({ createRepository, diagnostics = false }: StudioCl
       setPhase('unsaved')
       return false
     }
+    setError(undefined)
+    setRevision(result.revision)
+    setPhase('saving')
+    persistCommit(result.revision, result.transaction)
+    return true
+  }
+
+  function organizeMediaPage(itemId: string, targetPageId?: string) {
+    const currentSession = session.current
+    const currentRevision = currentSession?.getRevision()
+    const group = currentRevision && findMediaGroup(currentRevision, currentPage?.id)
+    if (!currentSession || !currentRevision || !group || conflictDraft !== undefined || conflictPreviewRevision !== undefined || assetImporting) {
+      return false
+    }
+    const result = currentSession.commit(targetPageId ? {
+      type: 'transfer-media-item', blockId: group.id, itemId, targetPageId,
+    } : { type: 'split-media-page', blockId: group.id, itemId }, { expectedRevision: currentRevision.revision })
+    if (!isCommitted(result)) {
+      setError(result.message); return false
+    }
+    const itemIndex = group.items.findIndex(item => item.id === itemId)
+    const destinationIndex = result.revision.pages.findIndex(page => page.id === targetPageId)
+    setMediaPageFeedback({
+      focusItemId: group.items[Math.max(0, itemIndex - 1)]?.id ?? '',
+      pendingFocus: true,
+      message: targetPageId ? `图片 ${itemIndex + 1} 已移到第 ${destinationIndex + 1} 页。` : `已从图片 ${itemIndex + 1} 开始分页。`,
+    })
     setError(undefined)
     setRevision(result.revision)
     setPhase('saving')
@@ -2101,6 +2150,34 @@ export function StudioClient({ createRepository, diagnostics = false }: StudioCl
     }
   }
 
+  async function saveShareConversion(conversion: DocumentRevision, source: DocumentRevision) {
+    const localRepository = repository.current
+    const current = session.current?.getRevision()
+    if (!localRepository || current?.id !== source.id || current.revision !== source.revision || conflictDraft || conflictPreviewRevision) {
+      throw new Error('原稿已变化，请关闭分享面板后重新创建副本。')
+    }
+    await saveTail.current
+    if (pendingCommit.current) {
+      throw new Error('原稿尚未保存，请先重试保存。')
+    }
+    const receipt = await localRepository.persistCommit({
+      assets: persistedAssetRecords(assetPipeline),
+      revision: conversion,
+      transaction: createImportedDocumentTransaction(conversion.id),
+    })
+    if (receipt.status === 'stale') {
+      throw new Error('分享副本未保存，请重试。')
+    }
+    session.current = createDocumentSession(conversion)
+    durableRevisionSnapshot.current = conversion
+    durableRevisionNumber.current = conversion.revision
+    setRevision(conversion)
+    setDurableRevision(conversion.revision)
+    setActivePageId(conversion.pages[0]!.id)
+    setRecentCount((await localRepository.listRecents()).length)
+    setPhase('saved')
+  }
+
   function renderPackageControls() {
     const packageDisabled = !packageSaveEligible
       || packageWriting
@@ -2254,6 +2331,7 @@ export function StudioClient({ createRepository, diagnostics = false }: StudioCl
   if (revision === undefined || snapshot === undefined || renderResources === undefined) {
     return (
       <main className="min-h-screen bg-slate-100 px-6 py-12 text-slate-900">
+        <p aria-live="polite" className="sr-only" data-testid="media-page-announcement" key="media-page-announcement">{mediaPageFeedback?.message}</p>
         <output aria-live="polite" data-testid="studio-status" className="mx-auto block max-w-3xl text-sm text-slate-600">
           {phaseLabel(phase)}
         </output>
@@ -2262,7 +2340,8 @@ export function StudioClient({ createRepository, diagnostics = false }: StudioCl
           {revision !== undefined && <ExportPreflightPanel compact findings={preflight.findings} onAction={handlePreflightAction} />}
           <p className="mt-4 text-sm text-slate-500" role="status">正在准备编辑器…</p>
         </div>
-        {diagnostics && <output data-testid="studio-document-state" hidden>{JSON.stringify(state)}</output>}
+        {shareOpen && revision && <SocialShareDialog currentPageId={currentPage?.id} localCapabilityProbe={localCapabilityProbe} assets={assetMap} definitions={resourceDefinitions} onClose={() => setShareOpen(false)} onSave={saveShareConversion} source={revision} />}
+      {diagnostics && <output data-testid="studio-document-state" hidden>{JSON.stringify(state)}</output>}
       </main>
     )
   }
@@ -2312,6 +2391,7 @@ export function StudioClient({ createRepository, diagnostics = false }: StudioCl
       className="flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-[#f6f7f9] text-slate-900"
       data-testid="studio-root"
     >
+      <p aria-live="polite" className="sr-only" data-testid="media-page-announcement" key="media-page-announcement">{mediaPageFeedback?.message}</p>
       {cleanPreview ? (
         <div className="relative flex min-h-0 flex-1 flex-col">
           <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 py-2 sm:px-5" data-testid="studio-clean-preview-chrome">
@@ -2409,6 +2489,11 @@ export function StudioClient({ createRepository, diagnostics = false }: StudioCl
             </div>
           </header>
 
+          {revision.presentation.sceneId === 'social-smart-collage' && <nav aria-label="当前文档页" className="flex shrink-0 gap-2 overflow-x-auto border-b border-slate-200 bg-white px-4 py-2">
+            {revision.pages.map((page, index) => <button aria-current={currentPage?.id === page.id ? 'page' : undefined} className="shrink-0 rounded-lg border border-slate-200 px-3 py-2 text-sm aria-[current=page]:bg-violet-100" disabled={phase === 'exporting' || assetImporting} key={page.id} onClick={() => {
+              setActivePageId(page.id); setActiveBlockId(undefined)
+            }} type="button">第 {index + 1} 页</button>)}
+          </nav>}
           <StudioMobileNavigation activePanel={mobilePanel} exportDisabled={exportDisabled} onChange={setMobilePanel} />
 
           {(error || (pendingCommitRevision !== undefined && phase === 'unsaved') || conflictDraft || conflictPreviewRevision) && (
@@ -2457,18 +2542,19 @@ export function StudioClient({ createRepository, diagnostics = false }: StudioCl
                 </p>
               </div>
               <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto p-2.5">
-                <GeneralLongImagePresentationPanel
+                {revision.presentation.sceneId !== 'social-smart-collage' && <GeneralLongImagePresentationPanel
                   compact
                   disabled={editingDisabled}
                   onChange={commitPresentation}
                   resources={renderResources}
                   snapshot={snapshot}
-                />
+                />}
+                {revision.presentation.sceneId === 'social-smart-collage' && <button className="w-full rounded-lg border border-violet-300 bg-violet-50 p-3 text-sm text-violet-800" onClick={() => setShareOpen(true)} type="button">调整分享版式和输出</button>}
                 <StudioContentOutline
                   activeBlockId={activeBlockId}
                   disabled={editingDisabled}
                   onSelect={focusPreviewBlock}
-                  revision={revision}
+                  revision={revision.presentation.sceneId === 'social-smart-collage' && currentPage ? { ...revision, pages: [currentPage] } : revision}
                 />
                 <MediaGroupEditor
                   arrangement={mediaGroup?.arrangement ?? 'auto'}
@@ -2476,6 +2562,15 @@ export function StudioClient({ createRepository, diagnostics = false }: StudioCl
                   items={mediaGroup?.items ?? []}
                   onImportFiles={importFiles}
                   onMoveItem={moveMediaItem}
+                  pageNavigation={revision.presentation.sceneId === 'social-smart-collage' ? {
+                    currentPageId: currentPage!.id,
+                    canSplitFirst: currentPage!.blocks[0]?.id !== mediaGroup?.id,
+                    feedback: mediaPageFeedback,
+                    onFocusHandled: () => setMediaPageFeedback(current => current && ({ ...current, pendingFocus: false })),
+                    pages: revision.pages.map((page, index) => ({ id: page.id, label: `第 ${index + 1} 页`, full: page.blocks.reduce((count, block) => count + (block.kind === 'media-group' ? block.items.length : 0), 0) >= 9 })),
+                    onMove: (itemId, pageId) => organizeMediaPage(itemId, pageId),
+                    onSplit: itemId => organizeMediaPage(itemId),
+                  } : undefined}
                   onRemoveItem={removeMediaItem}
                   onRelinkItem={relinkFile}
                   onSetFeaturedItem={setFeaturedMediaItem}
@@ -2514,6 +2609,7 @@ export function StudioClient({ createRepository, diagnostics = false }: StudioCl
                 activeTab={outputTab}
                 imageContent={(
                   <div className="space-y-3">
+                    <button className="w-full rounded-xl border border-violet-200 bg-violet-50 px-3 py-3 text-sm font-semibold text-violet-800 disabled:opacity-40" disabled={!revision.pages.some(page => page.blocks.some(block => block.kind === 'media-group')) || editingDisabled || pendingCommitRevision !== undefined} onClick={() => setShareOpen(true)} type="button">制作分享页</button>
                     {preflight.findings.length > 0 && <ExportPreflightPanel compact findings={preflight.findings} onAction={handlePreflightAction} />}
                     <ExportPanel
                       availableSliceIndexes={currentExportArtifact?.segments?.map(segment => segment.index) ?? []}
@@ -2549,6 +2645,7 @@ export function StudioClient({ createRepository, diagnostics = false }: StudioCl
 
         </>
       )}
+      {shareOpen && <SocialShareDialog currentPageId={currentPage?.id} localCapabilityProbe={localCapabilityProbe} assets={assetMap} definitions={resourceDefinitions} onClose={() => setShareOpen(false)} onSave={saveShareConversion} source={revision} />}
       {diagnostics && <output data-testid="studio-document-state" hidden>{JSON.stringify(state)}</output>}
     </main>
   )

@@ -715,7 +715,7 @@ async function exportPng({ beforeStage, onProgress, outputScale: requestedOutput
       const serialized = await serializeToSvg(
         canonicalRoot,
         resources,
-        getCanonicalOwnedCss(resources),
+        getCanonicalOwnedCss(resources, snapshot.stylePackId),
         plan.width / outputScale,
         segment.captureHeight / outputScale,
         plan.height / outputScale,

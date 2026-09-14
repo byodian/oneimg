@@ -1,6 +1,6 @@
 # Issue delivery status
 
-Last reconciled: 2026-09-13. Repository: https://github.com/byodian/oneimg. Review baseline for this implementation run: `84178f7`. The current branch is `main`; existing local work began 28 commits ahead of `origin/main`. Source changes have not been pushed by this run.
+Last reconciled: 2026-09-14. Repository: https://github.com/byodian/oneimg. Review baseline for this implementation run: `84178f7`. The current branch is `main`; existing local work began 28 commits ahead of `origin/main`. Source changes have not been pushed by this run.
 
 GitHub acceptance criteria and `Blocked by` dependencies remain authoritative. This file records evidence and the next delivery order; it is not a substitute for rereading issue comments before starting a slice.
 
@@ -10,9 +10,9 @@ GitHub acceptance criteria and `Blocked by` dependencies remain authoritative. T
 | --- | --- |
 | #27–#29, #31–#39 | Closed on GitHub; implementation exists in local history and the existing scenario corpus. Do not reimplement these slices. Follow-up coverage remains tracked in #58–#67. |
 | #30 | Earliest open slice. Local Adapter foundation committed as `91cbafc` with request/resource filtering, authorization boundary, idempotent local starts, cancellation, owned final bytes and cleanup retry. Real remote renderer/capability/quota/deletion evidence remains missing; keep OPEN. See [foundation and remaining evidence](./high-fidelity-adapter-slice.md). |
-| #40 | Next unimplemented local slice: Social Share Set, previewable format conversion, current-page copy/download, capability-gated system sharing and real JPEG/WebP encoded previews. Prerequisites #37 and #39 are closed. |
+| #40 | Local Social Share Set implementation verified: previewable format copies, current-page copy/download/share, real JPEG/WebP proof bytes, ordered ZIP, metadata removal, automatic pagination and cross-page transactions. See [slice contract and evidence](./social-share-slice.md); final remote disposition is recorded on the issue after committing. Prerequisites #37 and #39 are closed. |
 | #41 | Implementation already exists in `831423f`, with database compatibility fix `d3fedb9`. Code and Package/Studio scenarios verified; closed remotely on 2026-09-13 with an explicit note that source is still local and #60 remains open. |
-| #42–#43 | Legacy ContentDB and longpic migration follow the Package milestone; preserve original sources and activate only after validation. |
+| #42–#43 | Next eligible local work: #42 Legacy ContentDB migration, then #43 longpic import. #41 is closed. Preserve original sources, use idempotent checkpoints and activate only after complete destination validation. |
 
 ## Subsequent slice order
 
@@ -43,3 +43,16 @@ For each slice, record the exact commit, public behavioral evidence, remaining a
 - `pnpm typecheck`, `pnpm lint`, `pnpm build`, and diff whitespace checks passed.
 - Independent Standards and Spec reviews found output-dimension validation, branch-coverage and provider-result ownership gaps; regression tests and fixes landed, and both follow-up reviews found no unresolved substantive issue within the documented foundation.
 - #30 progress comment posted, issue remains OPEN; #41 completion comment posted and issue CLOSED. No source push or deployment performed.
+
+
+## Verified milestone — Social Share Set (#40)
+
+Review baseline: 4769626; verified 2026-09-14.
+
+- Full Playwright suite: 109 passed (2.4 minutes), including 20 Social Share scenarios and all existing renderer, export, asset, Package, persistence and Studio recovery scenarios.
+- Typecheck, lint, production build and diff whitespace checks passed.
+- Standards review initially found CSS ownership and focus/assistive announcement gaps. The root scoping and stable Studio-owned feedback/announcement lifecycle were fixed; regression coverage includes unique-resource page transitions and DOM-node continuity. Follow-up review passed.
+- Spec review initially found current-Page propagation, initial-format consistency, empty-Page classification, filename policy and first-image page-break gaps. All five were fixed and the follow-up review passed.
+- The output matrix verifies exact 1:1, 4:5 and 9:16 dimensions; preview/PNG visual agreement; actual JPEG/WebP byte reuse; ordered Bundle entries; source orientation and metadata normalization; current-Page sharing and download fallback; cancellation; and durable cross-page edits.
+- Browser API doubles verify the Clipboard/Web Share boundary without changing the host clipboard or opening its share sheet. Representative device/browser and stress matrices remain in #59/#63/#64/#66/#67; this slice does not close them.
+- Source is local on main. No push or deployment was performed. Remote issue disposition is updated after the implementation commit is created.

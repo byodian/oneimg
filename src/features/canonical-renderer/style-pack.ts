@@ -643,3 +643,81 @@ export const canonicalStylePack = {
   }
 `,
 } as const
+
+// The social adapter has its own revision; existing persisted foundation@3
+// pages keep their certified CSS byte-for-byte.
+export const socialCollageStylePack = {
+  id: 'oneimg-social-collage@1',
+  cssText: `${canonicalStylePack.cssText}
+  @layer oneimg-foundation {
+    [data-oneimg-render-root][data-template-family="social-collage"] {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      height: var(--oneimg-page-height);
+      padding: 28px;
+      overflow: visible;
+    }
+    [data-oneimg-render-root][data-template-family="social-collage"] > .oneimg-section {
+      flex: 0 0 auto;
+      padding: 0;
+      background: transparent;
+    }
+    [data-oneimg-render-root][data-template-family="social-collage"] > .oneimg-media-group-section {
+      display: flex;
+      flex: 1 1 0;
+      flex-direction: column;
+      min-height: 100px;
+    }
+    [data-oneimg-render-root][data-template-family="social-collage"] .oneimg-media-group {
+      flex: 1 1 0;
+      grid-auto-rows: minmax(0, 1fr);
+      min-height: 60px;
+      gap: 12px;
+    }
+    [data-oneimg-render-root][data-template-family="social-collage"] .oneimg-media-item {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: visible;
+      box-shadow: none;
+      border-radius: 12px;
+    }
+    [data-oneimg-render-root][data-template-family="social-collage"] .oneimg-media-group .oneimg-media-item :where(.oneimg-media-item-image, .oneimg-unresolved-media) {
+      aspect-ratio: auto;
+      flex: 1 1 0;
+      min-height: 24px;
+      height: 0;
+      border-radius: 12px;
+    }
+    [data-oneimg-render-root][data-template-family="social-collage"] .oneimg-media-frame {
+      flex: 1 1 0;
+      min-height: 24px;
+      overflow: hidden;
+      border-radius: 12px;
+    }
+    [data-oneimg-render-root][data-template-family="social-collage"] .oneimg-media-group .oneimg-media-frame :where(.oneimg-media-item-image, .oneimg-unresolved-media) {
+      height: 100%;
+      min-height: 0;
+      border-radius: 0;
+    }
+    [data-oneimg-render-root][data-template-family="social-collage"] .oneimg-media-item figcaption {
+      flex: 0 0 auto;
+      padding: 8px 10px;
+    }
+    [data-oneimg-render-root][data-template-family="social-collage"] .oneimg-media-group-header {
+      flex: 0 0 auto;
+      margin-bottom: 12px;
+    }
+  }`,
+} as const
+
+export function getCanonicalStylePack(id: string) {
+  if (id === canonicalStylePack.id) {
+    return canonicalStylePack
+  }
+  if (id === socialCollageStylePack.id) {
+    return socialCollageStylePack
+  }
+  throw new Error(`Unsupported Style Pack: ${id}`)
+}
