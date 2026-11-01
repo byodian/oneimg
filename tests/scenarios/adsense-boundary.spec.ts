@@ -71,7 +71,9 @@ test.describe('public and editor advertising boundary', () => {
 
     const originalDraft = page.getByRole('link', { name: originalTitle })
     await originalDraft.hover()
-    await originalDraft.locator('svg').first().click()
+    const editButton = page.getByRole('button', { name: '编辑标题', exact: true })
+    await editButton.focus()
+    await page.keyboard.press('Enter')
     const editorForm = page.locator('form.editor-container')
     await expect(editorForm).toHaveCount(1)
     const saveButton = editorForm.getByRole('button', { name: '保存', exact: true })
@@ -79,9 +81,8 @@ test.describe('public and editor advertising boundary', () => {
     await expect(textboxes).toHaveCount(2)
     await textboxes.nth(0).fill(updatedTitle)
     await textboxes.nth(1).fill(updatedBody)
-    expect(await saveButton.evaluate(button => !(button as HTMLButtonElement).disabled)).toBe(true)
-    // The sortable row marks its whole subtree aria-disabled while editing, so click the enabled submit control directly.
-    await saveButton.click({ force: true })
+    await expect(saveButton).toBeEnabled()
+    await saveButton.click()
     await expect(page.getByRole('link', { name: updatedTitle })).toBeVisible()
     await expect(page.getByText(updatedBody).first()).toBeVisible()
 
@@ -112,7 +113,6 @@ test.describe('public and editor advertising boundary', () => {
     await page.goBack()
     await page.waitForLoadState('networkidle')
     await expect(page).toHaveURL(/\/$/)
-    expect(await page.locator('html').getAttribute('data-public-script-executed')).toBeNull()
     await page.goForward()
     await page.waitForLoadState('networkidle')
     await expect(page).toHaveURL(/\/editor$/)

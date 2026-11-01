@@ -83,15 +83,17 @@ export function ContentItem(props: ContainerProps) {
 
           {/* 桌面端展示，只允许一级标题可点击 */}
           {!item.parentId
-            ? <a href={`/#${item.id}`} className="min-h-[61px] relative border-b border-b-border py-4 hidden sm:block">
-            <div className="mr-28">{parse(DOMPurify.sanitize(item.title))}</div>
+            ? <div className="min-h-[61px] relative border-b border-b-border py-4 hidden sm:block">
+            <a href={`/#${item.id}`} className="block">
+              <div className="mr-28">{parse(DOMPurify.sanitize(item.title))}</div>
+            </a>
             <ContentItemButtons
               item={item}
               onContentEdit={handleContentEdit}
               onDialogOpen={handleDialogOpen}
               onSubContentAdd={handleSubContentAdd}
             />
-          </a>
+          </div>
             : <div className="min-h-[61px] relative border-b border-b-border py-4" onClick={e => e.preventDefault()}>
             <div className="mr-28 select-none">{parse(DOMPurify.sanitize(item.title))}</div>
             <ContentItemButtons

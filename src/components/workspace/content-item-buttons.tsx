@@ -20,46 +20,45 @@ export function ContentItemButtons(props: ContentItemButtonsProps) {
       <div className={cn(!item.parentId ? 'group-hover:flex' : 'group-hover/child:flex', 'hidden absolute right-4 top-0 gap-4')}>
         {item.type === 'normal_content' && (
           <>
-            <div className="h-[60px] flex items-center" onClick={(event) => {
-              event.preventDefault()
-              event.stopPropagation()
-              onContentEdit(item)
-            }}>
-              <Tooltip>
-                <TooltipTrigger asChild>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button aria-label={!item.parentId ? '编辑标题' : '编辑子标题'} className="h-[60px] flex items-center" onClick={() => onContentEdit(item)} type="button">
                   <Pencil className="cursor-pointer text-black" width={18} height={18} />
-                </TooltipTrigger>
-                <TooltipContent side="top" className="text-white bg-black text-sm py-1 px-2 rounded-sm">{!item.parentId ? '编辑标题' : '编辑子标题'}</TooltipContent>
-              </Tooltip>
-            </div>
-            <div className="h-[60px] flex items-center" onClick={() => onDialogOpen(item)}>
-              <Tooltip>
-                <TooltipTrigger asChild>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-white bg-black text-sm py-1 px-2 rounded-sm">{!item.parentId ? '编辑标题' : '编辑子标题'}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button aria-label={!item.parentId ? '删除标题' : '删除子标题'} className="h-[60px] flex items-center" onClick={() => onDialogOpen(item)} type="button">
                   <Trash2 className="cursor-pointer text-black" width={18} height={18} />
-                </TooltipTrigger>
-                <TooltipContent side="top" className="text-white bg-black text-sm py-1 px-2 rounded-sm">{!item.parentId ? '删除标题' : '删除子标题'}</TooltipContent>
-              </Tooltip>
-            </div>
-            {!item.parentId && <div className="h-[60px] flex items-center" onClick={() => onSubContentAdd(item)}>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-white bg-black text-sm py-1 px-2 rounded-sm">{!item.parentId ? '删除标题' : '删除子标题'}</TooltipContent>
+            </Tooltip>
+            {!item.parentId && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Plus className="cursor-pointer text-black" width={18} height={18} />
+                  <button aria-label="添加子标题" className="h-[60px] flex items-center" onClick={() => onSubContentAdd(item)} type="button">
+                    <Plus className="cursor-pointer text-black" width={18} height={18} />
+                  </button>
                 </TooltipTrigger>
                 <TooltipContent side="top" className="text-white bg-black text-sm py-1 px-2 rounded-sm">添加子标题</TooltipContent>
               </Tooltip>
-            </div>}
+            )}
           </>
         )}
         {/* Only editing as project information is supported */}
-        {item.type === 'theme_content' && <div className="h-[60px] flex items-center" onClick={() => onContentEdit(item)}>
+        {item.type === 'theme_content' && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <Pencil className="cursor-pointer text-black" width={18} height={18} />
+              <button aria-label="编辑主题" className="h-[60px] flex items-center" onClick={() => onContentEdit(item)} type="button">
+                <Pencil className="cursor-pointer text-black" width={18} height={18} />
+              </button>
             </TooltipTrigger>
             <TooltipContent side="top" className="text-white bg-black text-sm py-1 px-2 rounded-sm">编辑主题</TooltipContent>
           </Tooltip>
-        </div>
-        }
+        )}
       </div>
     </TooltipProvider>
   )

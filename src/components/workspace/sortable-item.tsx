@@ -24,7 +24,7 @@ export function SortableItem({ item, children, disabled = false }: SortableItemP
   }
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners} className={
+    <div ref={setNodeRef} style={style} {...(disabled ? {} : attributes)} {...(disabled ? {} : listeners)} className={
       cn(
         !item.parentId ? 'text-lg text-primary group/item' : 'group/child-item text-base pl-4 text-secondary-foreground',
         item.type === 'theme_content' && 'text-2xl',
