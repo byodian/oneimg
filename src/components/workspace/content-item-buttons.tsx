@@ -20,7 +20,11 @@ export function ContentItemButtons(props: ContentItemButtonsProps) {
       <div className={cn(!item.parentId ? 'group-hover:flex' : 'group-hover/child:flex', 'hidden absolute right-4 top-0 gap-4')}>
         {item.type === 'normal_content' && (
           <>
-            <div className="h-[60px] flex items-center" onClick={() => onContentEdit(item)}>
+            <div className="h-[60px] flex items-center" onClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              onContentEdit(item)
+            }}>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Pencil className="cursor-pointer text-black" width={18} height={18} />

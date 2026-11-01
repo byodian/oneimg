@@ -132,7 +132,7 @@ export default function EditorForm(props: EditorProps) {
             setImage={editorRef.current?.setImage}
             hideEditor={hideEditor}
             onFilesChange={handleFilesChange}
-            disabled={disabled}
+            disabled={disabled && initialContent === undefined}
             uploadFiles={content.uploadFiles}
             quality={quality}
             outputFormat={outputFormat}
