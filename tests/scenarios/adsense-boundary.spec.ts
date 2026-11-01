@@ -70,9 +70,10 @@ test.describe('public and editor advertising boundary', () => {
     await expect(page.getByText('这段专用示例内容必须保留。').first()).toBeVisible()
 
     const originalDraft = page.getByRole('link', { name: originalTitle })
-    await originalDraft.hover()
     const editButton = page.getByRole('button', { name: '编辑标题', exact: true })
-    await editButton.focus()
+    await originalDraft.focus()
+    await page.keyboard.press('Tab')
+    await expect(editButton).toBeFocused()
     await page.keyboard.press('Enter')
     const editorForm = page.locator('form.editor-container')
     await expect(editorForm).toHaveCount(1)

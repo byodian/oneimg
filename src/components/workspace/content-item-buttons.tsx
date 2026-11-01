@@ -17,7 +17,12 @@ export function ContentItemButtons(props: ContentItemButtonsProps) {
 
   return (
     <TooltipProvider delayDuration={0}>
-      <div className={cn(!item.parentId ? 'group-hover:flex' : 'group-hover/child:flex', 'hidden absolute right-4 top-0 gap-4')}>
+      <div className={cn(
+        !item.parentId
+          ? 'group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto'
+          : 'group-hover/child:opacity-100 group-hover/child:pointer-events-auto group-focus-within/child:opacity-100 group-focus-within/child:pointer-events-auto',
+        'absolute right-4 top-0 flex gap-4 opacity-0 pointer-events-none',
+      )}>
         {item.type === 'normal_content' && (
           <>
             <Tooltip>
