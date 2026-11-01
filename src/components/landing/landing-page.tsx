@@ -78,9 +78,9 @@ export function LandingPage() {
           >
             <Github size={19} />
           </a>
-          <Link href="/editor" className={styles.smallCta}>
+          <a href="/editor" className={styles.smallCta}>
             开始创作 <ArrowUpRightIcon />
-          </Link>
+          </a>
         </div>
       </header>
 
@@ -113,9 +113,9 @@ export function LandingPage() {
             <br />用 Oneimg 把你的笔记、故事和想法，变成值得收藏的图文。
           </p>
           <div className={styles.heroActions}>
-            <Link href="/editor" className={styles.primaryCta}>
+            <a href="/editor" className={styles.primaryCta}>
               免费开始创作 <ArrowRight size={18} />
-            </Link>
+            </a>
             <a href="#templates" className={styles.secondaryCta}>
               看看效果 <ArrowDown size={16} />
             </a>
@@ -418,9 +418,9 @@ export function LandingPage() {
           <div className={styles.workflowHeading}>
             <span className={styles.sectionEyebrow}>从灵感到分享</span>
             <h2 id="workflow-title">好内容，三步成图。</h2>
-            <Link href="/editor">
+            <a href="/editor">
               现在就试试 <ArrowRight size={16} />
-            </Link>
+            </a>
           </div>
           <ol className={styles.steps}>
             <li>
@@ -497,9 +497,9 @@ export function LandingPage() {
             从一个想法开始。
           </h2>
           <p>打开 Oneimg，把今天的灵感变成看得见的分享。</p>
-          <Link href="/editor" className={styles.primaryCta}>
+          <a href="/editor" className={styles.primaryCta}>
             免费开始创作 <ArrowRight size={18} />
-          </Link>
+          </a>
           <span>无需下载 · 无需注册 · 打开就能用</span>
         </section>
       </main>
