@@ -310,6 +310,8 @@ export function Header(props: HeaderProps) {
                 {platform === 'mac' && <MenubarShortcut>⌘+Shift+E</MenubarShortcut>}
                 {platform === 'windows' && <MenubarShortcut>Ctrl+Shift+E</MenubarShortcut>}
               </MenubarItem>
+              <MenubarItem asChild><a href="/blog">使用教程</a></MenubarItem>
+              <MenubarItem asChild><a href="/privacy#choices">隐私设置</a></MenubarItem>
               <MenubarItem onClick={() => handleDialogOpen('user_guide')} >
                 <BookOpen className="w-4 h-4 mr-2" />
                 <span>指南</span>

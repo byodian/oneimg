@@ -1465,3 +1465,6 @@
     transform: none;
   }
 }
+
+.mobileTutorial { display:none; }
+@media(max-width:640px) { .mobileTutorial { display:inline-flex; color:#2866c4; font-size:12px; white-space:nowrap; } .headerActions { gap:14px; } }

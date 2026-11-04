@@ -20,6 +20,7 @@ import {
   Type,
 } from 'lucide-react'
 import styles from './landing-page.module.css'
+import { PublicFooter } from '@/features/public-content/public-shell'
 import { Logo } from '@/components/logo'
 
 const themes = [
@@ -67,8 +68,10 @@ export function LandingPage() {
           <a href="#features">功能亮点</a>
           <a href="#templates">模板风格</a>
           <a href="#faq">常见问题</a>
+        <a href="/blog">使用教程</a>
         </nav>
         <div className={styles.headerActions}>
+          <a href="/blog" className={styles.mobileTutorial}>使用教程</a>
           <a
             className={styles.github}
             href="https://github.com/byodian/oneimg"
@@ -504,32 +507,7 @@ export function LandingPage() {
         </section>
       </main>
 
-      <footer className={styles.footer}>
-        <div>
-          <Link href="/" aria-label="Oneimg 首页">
-            <Logo type="full" />
-          </Link>
-          <p>让每一份表达，都有好模样。</p>
-        </div>
-        <nav aria-label="页脚导航">
-          <a
-            href="https://github.com/byodian/oneimg"
-            target="_blank"
-            rel="noreferrer"
-          >
-            GitHub <ArrowUpRightIcon />
-          </a>
-          <a
-            href="https://support.qq.com/product/673291"
-            target="_blank"
-            rel="noreferrer"
-          >
-            反馈建议
-          </a>
-          <Link href="/sponsor">支持项目</Link>
-        </nav>
-        <span>用心创造，自由分享。</span>
-      </footer>
+      <PublicFooter />
     </div>
   )
 }

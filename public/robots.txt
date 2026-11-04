@@ -1,3 +1,8 @@
-# https://www.robotstxt.org/robotstxt.html
 User-agent: *
-Disallow:
+Allow: /
+Disallow: /editor
+Disallow: /studio
+Disallow: /scenario/
+Disallow: /__scenario/
+
+Sitemap: https://oneimgai.com/sitemap.xml

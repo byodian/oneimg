@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { FolderPlus, PlusIcon } from 'lucide-react'
 import { ThemeFormDialog } from '@/components/workspace/theme-form-dialog'
 import EditorForm from '@/components/editor/editor-form'
@@ -19,7 +19,10 @@ interface WorkspaceProps {
 export function Workspace(props: Readonly<WorkspaceProps>) {
   const { contents, setContents, onContentSubmit, onContentDelete, onThemeContentSubmit } = props
   const { editorType, setEditorType, setEditingContentId } = useEditorStore()
+  const [hydrated, setHydrated] = useState(false)
   const [open, setOpen] = useState(false)
+
+  useEffect(() => setHydrated(true), [])
 
   return (
     <div className={cn('w-full flex flex-col p-4 sm:p-8', contents.length === 0 && 'justify-center')}>
@@ -54,7 +57,7 @@ export function Workspace(props: Readonly<WorkspaceProps>) {
           <div className="flex flex-col gap-2 justify-center items-center w-full h-full max-w-sm mx-auto text-muted-foreground">
             <p>从新建项目开始</p>
             <p>您的所有数据都存储在浏览器本地。</p>
-            <Button className="sm:w-[256px] mt-4" variant="outline" size="sm" onClick={() => setOpen(true)}>
+            <Button className="sm:w-[256px] mt-4" variant="outline" size="sm" disabled={!hydrated} onClick={() => setOpen(true)}>
               <FolderPlus className="w-4 h-4 mr-2" />
               新建项目
             </Button>
