@@ -39,8 +39,8 @@ export const metadata: Metadata = {
   metadataBase: new URL('https://oneimgai.com'),
 }
 
-function getPlatform() {
-  const headersList = headers()
+async function getPlatform() {
+  const headersList = await headers()
   const userAgent = headersList.get('user-agent') ?? ''
 
   if (userAgent.includes('Win')) {
@@ -65,13 +65,13 @@ function getPlatform() {
   return 'unknown'
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh-CN" className="h-full break-words overflow-hidden" data-platform={getPlatform()}>
+    <html lang="zh-CN" className="h-full break-words overflow-hidden" data-platform={await getPlatform()}>
       <body className={cn('h-full antialiased', notoSansSc.variable, zCoolKuaiLe.variable)}>
         <NextAppDirEmotionCacheProvider options={{ key: 'tss' }}>
           {children}

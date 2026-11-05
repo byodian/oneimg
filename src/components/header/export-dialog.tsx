@@ -23,7 +23,7 @@ import { cn, removeHtmlTags } from '@/lib/utils'
 import { getContents } from '@/lib/indexed-db'
 
 interface ExportImageProps {
-  previewRef: React.RefObject<PreviewRef>;
+  previewRef: React.RefObject<PreviewRef | null>;
   isExportModalOpen: boolean;
   isExporting: boolean;
   scale: string;

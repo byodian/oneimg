@@ -52,7 +52,7 @@ export default function EditorForm(props: EditorProps) {
     outputFormat,
     multiple,
   } = props
-  const initialState = {
+  const initialState: Content = {
     title: '',
     content: '',
     uploadFiles: [],

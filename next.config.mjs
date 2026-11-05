@@ -1,7 +1,14 @@
-/** @type {import('next').NextConfig} */
-// added by create cloudflare to enable calling `getCloudflareContext()` in `next dev`
+import { PHASE_DEVELOPMENT_SERVER } from 'next/constants.js'
 import { initOpenNextCloudflareForDev } from '@opennextjs/cloudflare'
-const nextConfig = {}
 
-export default nextConfig
-initOpenNextCloudflareForDev()
+/**
+ * @param {string} phase
+ * @returns {Promise<import('next').NextConfig>}
+ */
+export default async function nextConfig(phase) {
+  if (phase === PHASE_DEVELOPMENT_SERVER) {
+    await initOpenNextCloudflareForDev()
+  }
+
+  return {}
+}

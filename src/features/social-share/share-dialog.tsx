@@ -164,8 +164,8 @@ export function SocialShareDialog({ source, currentPageId, assets, definitions, 
   const filenamePrefix = createSocialFilenamePrefix({ nameOverride: filenameName, date: filenameDate })
   const [busy, setBusy] = useState(false)
   const [proofKey, setProofKey] = useState('')
-  const operation = useRef<AbortController>()
-  const activeJob = useRef<string>()
+  const operation = useRef<AbortController | undefined>(undefined)
+  const activeJob = useRef<string | undefined>(undefined)
   const pngs = useRef(new Map<string, Blob>())
   const engine = useMemo(() => createStudioExportEngine(definitions), [definitions])
   const prepared = useMemo(() => {

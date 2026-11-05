@@ -16,5 +16,18 @@
     "@typescript-eslint/no-import-type-side-effects": "error",
     "no-console": "off",
     "multiline-ternary": "off"
-  }
+  },
+  "overrides": [
+    {
+      "files": [
+        "src/app/blog/**/page.tsx",
+        "src/components/header/header.tsx",
+        "src/components/landing/landing-page.tsx",
+        "src/features/public-content/**"
+      ],
+      "rules": {
+        "@next/next/no-html-link-for-pages": "off"
+      }
+    }
+  ]
 }

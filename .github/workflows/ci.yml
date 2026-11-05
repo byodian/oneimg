@@ -21,7 +21,6 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        node: [lts/*]
       fail-fast: false
 
     if: github.repository == 'byodian/oneimg'
@@ -32,10 +31,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set node ${{ matrix.node }}
+      - name: Set Node from .node-version
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node }}
+          node-version-file: .node-version
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -87,10 +86,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set node lts/*
+      - name: Set Node from .node-version
         uses: actions/setup-node@v4
         with:
-          node-version: lts/*
+          node-version-file: .node-version
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4

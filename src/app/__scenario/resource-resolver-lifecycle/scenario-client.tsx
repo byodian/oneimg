@@ -23,7 +23,7 @@ const slowResourceDefinitions = controlledFixtureResources.map(definition => def
 
 export function ResourceResolverLifecycleScenario() {
   const resolver = useMemo(() => createBrowserResourceResolver(slowResourceDefinitions), [])
-  const controllerRef = useRef<AbortController>()
+  const controllerRef = useRef<AbortController | undefined>(undefined)
   const [status, setStatus] = useState<'canceled' | 'failed' | 'resolving'>('resolving')
   const [audit, setAudit] = useState<ResourceResolverDiagnostics>(resolver.getDiagnostics())
 

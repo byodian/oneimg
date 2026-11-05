@@ -96,9 +96,9 @@ export function CanonicalLocalExportHarness({
     [resolvedAdapter, resolver],
   )
   const readinessGeneration = useRef(0)
-  const exportController = useRef<AbortController>()
-  const exportJobRef = useRef<ExportJob>()
-  const cancelRequestedAt = useRef<number>()
+  const exportController = useRef<AbortController | undefined>(undefined)
+  const exportJobRef = useRef<ExportJob | undefined>(undefined)
+  const cancelRequestedAt = useRef<number | undefined>(undefined)
   const packagingProgressCount = useRef(0)
   const packagingCancelTriggered = useRef(false)
   const progressHistory = useRef<LocalExportProgress[]>([])

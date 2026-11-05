@@ -50,7 +50,7 @@ function getMediaGroup(revision: DocumentRevision) {
 
 export function AssetPipelineScenario() {
   const pipeline = useMemo(() => createBrowserAssetPipeline(), [])
-  const session = useRef<DocumentSession>()
+  const session = useRef<DocumentSession | undefined>(undefined)
   if (session.current === undefined) {
     session.current = createDocumentSession(createUntouchedDocumentRevision({
       documentId: 'document:asset-pipeline-scenario',

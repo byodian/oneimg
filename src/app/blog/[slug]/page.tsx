@@ -6,16 +6,18 @@ import { TutorialAdvertising } from '@/features/public-content/tutorial-advertis
 import { advertisingConfig } from '@/features/public-content/advertising-config'
 import styles from '@/features/public-content/public.module.css'
 
-export function generateMetadata({ params }: { params: { slug: string } }) {
-  const article = tutorials.find(item => item.slug === params.slug)
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params
+  const article = tutorials.find(item => item.slug === slug)
   if (!article) {
     return { title: '教程不存在', robots: { index: false, follow: false } }
   }
   return publicMetadata(article.title, article.description, `/blog/${article.slug}`)
 }
 
-export default function BlogPost({ params }: { params: { slug: string } }) {
-  const article = tutorials.find(item => item.slug === params.slug)
+export default async function BlogPost({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params
+  const article = tutorials.find(item => item.slug === slug)
   if (!article) {
     notFound()
   }

@@ -62,7 +62,7 @@ import { usePlatform } from '@/hooks/use-platform'
 
 interface HeaderProps {
   contents: Content[];
-  previewRef: React.RefObject<PreviewRef>;
+  previewRef: React.RefObject<PreviewRef | null>;
   templateName: string;
   theme: string;
   size?: Size;

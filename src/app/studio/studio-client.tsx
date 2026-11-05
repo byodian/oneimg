@@ -620,16 +620,16 @@ function isCommitted(
 export function StudioClient({ createRepository, diagnostics = false }: StudioClientProps = {}) {
   const mounted = useRef(true)
   const durableRevisionNumber = useRef(0)
-  const durableRevisionSnapshot = useRef<DocumentRevision>()
-  const pendingCommit = useRef<PendingStudioCommit>()
-  const session = useRef<DocumentSession>()
-  const repository = useRef<LocalRepository>()
+  const durableRevisionSnapshot = useRef<DocumentRevision | undefined>(undefined)
+  const pendingCommit = useRef<PendingStudioCommit | undefined>(undefined)
+  const session = useRef<DocumentSession | undefined>(undefined)
+  const repository = useRef<LocalRepository | undefined>(undefined)
   const saveTail = useRef(Promise.resolve())
-  const exportJobRef = useRef<ExportJob>()
-  const pendingPackageImport = useRef<OneImgPackageImportResult>()
+  const exportJobRef = useRef<ExportJob | undefined>(undefined)
+  const pendingPackageImport = useRef<OneImgPackageImportResult | undefined>(undefined)
   const importedPackageIds = useRef(new Set<string>())
   const sourceDocumentIds = useRef(new Map<string, string>())
-  const previewFocusTimeout = useRef<number>()
+  const previewFocusTimeout = useRef<number | undefined>(undefined)
   const readinessGeneration = useRef(0)
   // Keep the native contenteditable node stable during input while exposing the latest Studio state to events.
   const richTextBlurHandler = useRef<(blockId: string | undefined, text: string) => void>(() => undefined)
@@ -758,7 +758,7 @@ export function StudioClient({ createRepository, diagnostics = false }: StudioCl
   const contentError = displayedRevision !== undefined && snapshot === undefined ? 'invalid-document' : undefined
   const resourceSnapshot = useRef(snapshot)
   resourceSnapshot.current = snapshot
-  const resourceSetRef = useRef<ResolvedResourceSet>()
+  const resourceSetRef = useRef<ResolvedResourceSet | undefined>(undefined)
   resourceSetRef.current = resources
   const resourceKey = useMemo(
     () => snapshot === undefined ? '' : collectSnapshotResourceIds(snapshot).join('|'),
